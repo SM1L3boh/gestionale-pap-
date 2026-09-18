@@ -10,9 +10,8 @@ const root=doc(db,'gestionale','dati');
 const countServices=[['guardia','GUARDIA NOTT.'],['giorno','GIORNO'],['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],['gessirep','GESSI+REP POM'],['reparto','REPARTO'],['amb','AMBULATORIO'],['esami','AMB ESAMI'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM']];
 
 function hoursFor(s,ds){
-  const dt=new Date(ds+'T12:00:00');
   if(s==='guardia')return 12;
-  if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;
+  if(['disp1','disp2'].includes(s))return 0;
   return 6;
 }
 
@@ -80,7 +79,7 @@ async function recalcCounts(annual=false){
     }
     table.innerHTML=html;
     const now=new Date().toLocaleTimeString('it-IT');
-    info.textContent=(annual?'Totale gennaio–dicembre. ':'Conteggio mensile. ')+`Ricalcolato ora alle ${now} sui dati correnti.`;
+    info.textContent=(annual?'Totale gennaio–dicembre. ':'Conteggio mensile. ')+`Ricalcolato ora alle ${now} sui dati correnti. 1ª e 2ª disponibilità sono visualizzate ma non sommate ai turni.`;
   }catch(err){
     if(info)info.textContent='Errore durante il ricalcolo: '+err.message;
   }

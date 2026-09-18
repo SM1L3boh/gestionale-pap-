@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isMainAdmin() {
+      return request.auth != null
+        && (request.auth.uid == 'EvF0UU31AwfgTPb6M0UnTX9IXbH3'
+            || request.auth.uid == 'EK0kFMLlFSPTg1aW83AllWI2DAV2');
+    }
+
+    function isRoleAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    function isAdmin() {
+      return isMainAdmin() || isRoleAdmin();
+    }
+
+    function isApproved() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+
+    match /users/{userId} {
+      allow read, create, update, delete: if isAdmin();
+
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.approved == false
+                    && request.resource.data.role == 'user';
+
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+    }
+
+    match /gestionale/{document=**} {
+      allow read, write: if isAdmin() || isApproved();
+    }
+  }
+}

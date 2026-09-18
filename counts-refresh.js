@@ -11,7 +11,7 @@ const countServices=[['guardia','GUARDIA NOTT.'],['giorno','GIORNO'],['disp1','1
 
 function hoursFor(s,ds){
   if(s==='guardia')return 12;
-  if(['disp1','disp2'].includes(s))return 0;
+  if(['disp1','disp2'].includes(s))return 6;
   return 6;
 }
 
@@ -79,7 +79,7 @@ async function recalcCounts(annual=false){
     }
     table.innerHTML=html;
     const now=new Date().toLocaleTimeString('it-IT');
-    info.textContent=(annual?'Totale gennaio–dicembre. ':'Conteggio mensile. ')+`Ricalcolato ora alle ${now} sui dati correnti. 1ª e 2ª disponibilità sono visualizzate ma non sommate ai turni.`;
+    info.textContent=(annual?'Totale gennaio–dicembre. ':'Conteggio mensile. ')+`Ricalcolato ora alle ${now} sui dati correnti. 1ª e 2ª disponibilità contano come un turno ciascuna.`;
   }catch(err){
     if(info)info.textContent='Errore durante il ricalcolo: '+err.message;
   }

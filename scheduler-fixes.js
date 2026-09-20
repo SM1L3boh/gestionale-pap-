@@ -1,0 +1,20 @@
+import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),key=(d,s,i)=>`${d}|${s}|${i}`;
+document.head.insertAdjacentHTML('beforeend',`<style>
+#doctorPicker{margin-left:auto;display:flex;align-items:center;gap:5px;flex-wrap:wrap;max-width:58%}#doctorPicker .lbl{font-size:12px;font-weight:700;color:#334155;margin-right:2px}#doctorPicker button{padding:5px 8px;font-size:11px;border-radius:6px}#doctorPicker button.on{background:#1d5b93;color:#fff;border-color:#1d5b93}.doctorPickHit{outline:3px solid #f59e0b!important;outline-offset:1px;font-weight:700!important}@media(max-width:1100px){#doctorPicker{max-width:100%;margin-left:0;width:100%}}
+</style>`);
+async function state(){let s=await getDoc(root);return s.exists()?s.data():{}}
+function target(name,m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),wd=name==='ARMATO'?[1,2,3,4,5]:name==='RIVA'?[1,2,3]:name==='FREGUIA'?[3,4,5]:null;if(!wd)return null;let n=0;for(let d=1;d<=days;d++)if(wd.includes(new Date(y,mo-1,d).getDay()))n++;return n}
+function fixTargets(){let m=$('month')?.value,t=$('countTable');if(!m||!t)return;for(const tr of t.querySelectorAll('tr')){let c=tr.querySelectorAll('td');if(c.length<2)continue;let v=target(c[0].textContent.trim(),m);if(v!==null)c[1].textContent=v}}
+$('countBtn')?.addEventListener('click',()=>setTimeout(fixTargets,50));
+let picked='';function paint(){document.querySelectorAll('#schedule select').forEach(s=>s.classList.toggle('doctorPickHit',!!picked&&s.value===picked))}
+async function picker(){let bar=document.querySelector('#turni .toolbar');if(!bar)return;document.getElementById('doctorFilter')?.remove();document.getElementById('doctorPicker')?.remove();let x=await state(),names=(x.doctors||[]).filter(d=>d.active).map(d=>d.name);let box=document.createElement('div');box.id='doctorPicker';box.innerHTML='<span class="lbl">Evidenzia medico:</span>';let add=(n,label)=>{let b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{picked=n;box.querySelectorAll('button').forEach(q=>q.classList.remove('on'));b.classList.add('on');paint()};box.appendChild(b);return b};add('','Tutti').classList.add('on');names.forEach(n=>add(n,n));bar.appendChild(box);paint()}
+setTimeout(picker,300);new MutationObserver(()=>setTimeout(paint,0)).observe($('schedule'),{subtree:true,childList:true});
+function leave(sch,ds,n){return[0,1,2,3].some(i=>sch[key(ds,'ferie',i)]===n)}
+function eq(sch,n,m){let q=0;for(const[k,v]of Object.entries(sch))if(v===n&&k.startsWith(m+'-'))q++;return q}
+function usedMorning(sch,ds,n){return Object.entries(sch).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&['gessi','reparto','amb','esami','op1','op2'].includes(k.split('|')[1]))}
+async function contractPass(){let m=$('month')?.value;if(!m)return;let x=await state(),sch={...(x.schedule||{})},gen=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]),[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),changed=false;
+for(const spec of [{n:'RIVA',days:[1,2,3],svc:['amb','gessi']},{n:'FREGUIA',days:[3,4,5],svc:['amb']}]){let goal=target(spec.n,m);for(let d=1;d<=days&&eq(sch,spec.n,m)<goal;d++){let dt=new Date(y,mo-1,d),w=dt.getDay();if(!spec.days.includes(w))continue;let ds=`${m}-${String(d).padStart(2,'0')}`;if(leave(sch,ds,spec.n)||usedMorning(sch,ds,spec.n))continue;let chosen=null;for(const s of spec.svc){let q=key(ds,s,0),old=sch[q];if(!old||old==='NESSUNO'){chosen=q;break}if(gen.has(q)&&!extra.has(q)&&old!==spec.n){chosen=q;break}}if(chosen){sch[chosen]=spec.n;gen.add(chosen);extra.delete(chosen);changed=true}}}
+if(changed)await setDoc(root,{schedule:sch,generatedKeys:[...gen],extraKeys:[...extra],updatedAt:new Date().toISOString()},{merge:true});if(changed)location.reload()}
+$('generate')?.addEventListener('click',()=>setTimeout(contractPass,1500));

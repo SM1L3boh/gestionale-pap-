@@ -20,7 +20,7 @@ function eligible(d,s,dt){let n=d.name,w=dt.getDay();if(['PINI','LONDEI','ARMATO
 function can(a,d,s,ds,m,extra=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||!eligible(d,s,dt))return false;if(!extra&&weekHours(a,n,ds)+hrs(s,dt)>(Number(d.hours)||36))return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return extra||monthEq(a,n,m)+hrs(s,dt)/6<=target(n,m)}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m){for(const k of [...g])if(k.startsWith(m+'-')){delete a[k];g.delete(k);e.delete(k)}}
-function slots(s){return['gessi','amb'].includes(s)?[0]:[0,1]}
+function slots(s){return['gessi','amb','gessirep'].includes(s)?[0]:[0,1]}
 function dispCount(a,n,m,s){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;return q}
 function dispOK(a,d,ds,s){let n=d.name;if(d.cat!=='Strutturato'||['PINI','LONDEI','ARMATO'].includes(n)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n))return false;let other=s==='disp1'?'disp2':'disp1';return a[K(ds,other,0)]!==n}
 function assignDisp(a,g,e,doctors,ds,m,s){let k=K(ds,s,0);if(a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}

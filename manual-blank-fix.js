@@ -1,3 +1,4 @@
+import './save-state.js';
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
@@ -26,17 +27,14 @@ async function makeVirgin(k){
   if(sync){sync.textContent='● Salvato online';sync.className='status online'}
 }
 
-// Intercetta anche gli eventi ferie che altri moduli fermano sul contenitore schedule.
 document.addEventListener('change',e=>{
   const s=e.target;
   if(!(s instanceof HTMLSelectElement)||!s.dataset.k)return;
   const k=s.dataset.k;
   const old=pending.get(k);if(old)clearTimeout(old);
   if(s.value!==''){pending.delete(k);return}
-  // Esegui dopo gli handler esistenti: l'ultimo stato (vuoto) è autorevole.
   const t=setTimeout(()=>{
     pending.delete(k);
-    // Se nel frattempo l'utente ha scelto altro, non cancellare nulla.
     const current=document.querySelector(`#schedule select[data-k="${CSS.escape(k)}"]`);
     if(current&&current.value==='')makeVirgin(k).catch(()=>{const sync=document.getElementById('sync');if(sync)sync.textContent='Errore salvataggio'})
   },350);

@@ -36,13 +36,11 @@ async function clearAutomaticDraft(e){
   try{
     if(sync)sync.textContent='Cancellazione…';
     await updateDoc(root,{schedule,generatedKeys:[...generated],extraKeys:[...extra],manualKeys:[...manual],updatedAt:new Date().toISOString()});
-    document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
-      const k=s.dataset.k;if(!k?.startsWith(month+'-'))return;
-      const v=schedule[k];if(v!==undefined)s.value=v;else if(k.includes('|ferie|')||k.includes('|guardia|')||k.includes('|giorno|')||(/\|(gessi|amb)\|1$/.test(k)))s.value='NESSUNO';else s.value='';s.classList.remove('extraShift');
-    });
-    applyManualDefaults();
     if(sync){sync.textContent='● Salvato online';sync.className='status online'}
     alert(`Bozza ${month} cancellata. Rimossi ${removed} turni automatici. I turni manuali e dei medici a contratto sono stati conservati.`);
+    // app.js mantiene una copia locale della turnistica: dopo la cancellazione va
+    // ricaricata dal cloud, altrimenti cambiando mese può ridisegnare la vecchia bozza.
+    location.reload();
   }catch(err){if(sync)sync.textContent='Errore cancellazione';alert('Errore durante la cancellazione: '+err.message)}
 }
 function installAuthoritativeClear(){const old=document.getElementById('clearDraft');if(!old||old.dataset.authoritativeClear)return;const b=old.cloneNode(true);b.dataset.authoritativeClear='1';b.onclick=null;old.replaceWith(b);b.addEventListener('click',clearAutomaticDraft)}

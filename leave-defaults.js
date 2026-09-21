@@ -2,9 +2,11 @@ import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/fire
 import{getFirestore,doc,getDoc,updateDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
 
-// FERIE-VARIE: tutte le caselle vuote mostrano NESSUNO di default.
-function applyLeaveDefaults(){
-  document.querySelectorAll('#schedule select[data-k*="|ferie|"]').forEach(s=>{
+// FERIE-VARIE, GUARDIA NOTTURNA e GIORNO: le caselle vuote mostrano NESSUNO di default.
+function applyManualDefaults(){
+  document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
+    const k=s.dataset.k||'';
+    if(!(k.includes('|ferie|')||k.includes('|guardia|')||k.includes('|giorno|')))return;
     if(![...s.options].some(o=>o.value==='NESSUNO')){
       const o=document.createElement('option');o.value='NESSUNO';o.textContent='NESSUNO';s.insertBefore(o,s.options[1]||null);
     }
@@ -36,13 +38,14 @@ async function clearAutomaticDraft(e){
     await updateDoc(root,{schedule,generatedKeys:[...generated],extraKeys:[...extra],manualKeys:[...manual],updatedAt:new Date().toISOString()});
     document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
       const k=s.dataset.k;if(!k?.startsWith(month+'-'))return;
-      const v=schedule[k];if(v!==undefined)s.value=v;else if(k.includes('|ferie|')||(/\|(gessi|amb)\|1$/.test(k)))s.value='NESSUNO';else s.value='';s.classList.remove('extraShift');
+      const v=schedule[k];if(v!==undefined)s.value=v;else if(k.includes('|ferie|')||k.includes('|guardia|')||k.includes('|giorno|')||(/\|(gessi|amb)\|1$/.test(k)))s.value='NESSUNO';else s.value='';s.classList.remove('extraShift');
     });
+    applyManualDefaults();
     if(sync){sync.textContent='● Salvato online';sync.className='status online'}
     alert(`Bozza ${month} cancellata. Rimossi ${removed} turni automatici. I turni manuali e dei medici a contratto sono stati conservati.`);
   }catch(err){if(sync)sync.textContent='Errore cancellazione';alert('Errore durante la cancellazione: '+err.message)}
 }
 function installAuthoritativeClear(){const old=document.getElementById('clearDraft');if(!old||old.dataset.authoritativeClear)return;const b=old.cloneNode(true);b.dataset.authoritativeClear='1';b.onclick=null;old.replaceWith(b);b.addEventListener('click',clearAutomaticDraft)}
-function startLeaveDefaults(){applyLeaveDefaults();installAuthoritativeClear();const schedule=document.getElementById('schedule');if(schedule)new MutationObserver(()=>applyLeaveDefaults()).observe(schedule,{childList:true,subtree:true});document.getElementById('month')?.addEventListener('change',()=>setTimeout(applyLeaveDefaults,100))}
+function startLeaveDefaults(){applyManualDefaults();installAuthoritativeClear();const schedule=document.getElementById('schedule');if(schedule)new MutationObserver(()=>applyManualDefaults()).observe(schedule,{childList:true,subtree:true});document.getElementById('month')?.addEventListener('change',()=>setTimeout(applyManualDefaults,100))}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startLeaveDefaults);else startLeaveDefaults();
-setTimeout(()=>{applyLeaveDefaults();installAuthoritativeClear()},400);setTimeout(()=>{applyLeaveDefaults();installAuthoritativeClear()},1200);
+setTimeout(()=>{applyManualDefaults();installAuthoritativeClear()},400);setTimeout(()=>{applyManualDefaults();installAuthoritativeClear()},1200);

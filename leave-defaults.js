@@ -14,7 +14,9 @@ function applyManualDefaults(){
   });
 }
 
-// Unico gestore di "Cancella bozza". I medici di categoria Contratto sono sempre manuali.
+// Cancella esclusivamente le chiavi marcate dal generatore.
+// Una modifica manuale (medico oppure NESSUNO) rimuove già la chiave da generatedKeys,
+// quindi resta intatta. I medici a contratto sono comunque sempre protetti.
 async function clearAutomaticDraft(e){
   e.preventDefault();e.stopImmediatePropagation();
   const month=document.getElementById('month')?.value;if(!month)return;
@@ -23,23 +25,20 @@ async function clearAutomaticDraft(e){
   const snap=await getDoc(root),x=snap.exists()?snap.data():{};
   const schedule={...(x.schedule||{})},manual=new Set(x.manualKeys||[]),generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]);
   const contractDoctors=new Set((x.doctors||[]).filter(d=>d.active&&d.cat==='Contratto').map(d=>d.name));
-  const autoSvc=new Set(['disp1','disp2','gessi','gessirep','reparto','amb','op1','op2','oppom']);
   let removed=0;
-  for(const[k,n]of Object.entries(schedule)){
-    if(!k.startsWith(month+'-')||manual.has(k)||contractDoctors.has(n))continue;
-    const[ds,s]=k.split('|'),w=new Date(ds+'T12:00:00').getDay();
-    if(w!==0&&w!==6&&autoSvc.has(s)){delete schedule[k];generated.delete(k);extra.delete(k);removed++}
+  for(const k of [...generated]){
+    if(!k.startsWith(month+'-'))continue;
+    if(manual.has(k)||contractDoctors.has(schedule[k])){generated.delete(k);extra.delete(k);continue}
+    if(Object.prototype.hasOwnProperty.call(schedule,k)){delete schedule[k];removed++}
+    generated.delete(k);extra.delete(k);
   }
-  for(const k of [...generated])if(k.startsWith(month+'-'))generated.delete(k);
-  for(const k of [...extra])if(k.startsWith(month+'-'))extra.delete(k);
+  for(const k of [...extra])if(k.startsWith(month+'-')&&!generated.has(k))extra.delete(k);
   const sync=document.getElementById('sync');
   try{
     if(sync)sync.textContent='Cancellazione…';
     await updateDoc(root,{schedule,generatedKeys:[...generated],extraKeys:[...extra],manualKeys:[...manual],updatedAt:new Date().toISOString()});
     if(sync){sync.textContent='● Salvato online';sync.className='status online'}
     alert(`Bozza ${month} cancellata. Rimossi ${removed} turni automatici. I turni manuali e dei medici a contratto sono stati conservati.`);
-    // app.js mantiene una copia locale della turnistica: dopo la cancellazione va
-    // ricaricata dal cloud, altrimenti cambiando mese può ridisegnare la vecchia bozza.
     location.reload();
   }catch(err){if(sync)sync.textContent='Errore cancellazione';alert('Errore durante la cancellazione: '+err.message)}
 }

@@ -44,7 +44,8 @@ service cloud.firestore {
     }
 
     match /gestionale/{document=**} {
-      allow read, write: if isAdmin() || isApproved();
+      allow read: if isAdmin() || isApproved();
+      allow write: if isAdmin();
     }
   }
 }

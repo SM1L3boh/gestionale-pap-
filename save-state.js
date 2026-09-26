@@ -55,9 +55,22 @@ async function exportDataBackup(){
   }
 }
 function install(){
-  ['saveStateBtn','inspectBaselineBtn','cleanNovemberBaselineBtn'].forEach(id=>document.getElementById(id)?.remove());
+  ['inspectBaselineBtn','cleanNovemberBaselineBtn'].forEach(id=>document.getElementById(id)?.remove());
   const gen=document.getElementById('generate');
   if(gen){
+    let s=document.getElementById('saveStateBtn');
+    if(!s){
+      s=document.createElement('button');
+      s.id='saveStateBtn';
+      s.type='button';
+      s.textContent='SALVA STATO';
+      s.className='adminOnly';
+      gen.insertAdjacentElement('afterend',s);
+    }
+    if(s.dataset.bound!=='1'){
+      s.dataset.bound='1';
+      s.addEventListener('click',saveVisibleState);
+    }
     let b=document.getElementById('exportDataBackupBtn');
     if(!b){
       b=document.createElement('button');
@@ -65,7 +78,7 @@ function install(){
       b.type='button';
       b.textContent='ESPORTA BACKUP DATI';
       b.className='adminOnly';
-      gen.insertAdjacentElement('afterend',b);
+      s.insertAdjacentElement('afterend',b);
     }
     if(b.dataset.bound!=='1'){
       b.dataset.bound='1';

@@ -250,6 +250,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
         for(const pk of pomKeys){
           for(const mk of matKeys){
             const [pds,ps]=pk.split('|'),[mds,ms]=mk.split('|');
+            const before=spread();
             const pval=a[pk],mval=a[mk],pg=g.has(pk),mg=g.has(mk),pe=e.has(pk),me=e.has(mk);
             delete a[pk];g.delete(pk);e.delete(pk);
             delete a[mk];g.delete(mk);e.delete(mk);

@@ -1,6 +1,6 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
+let fb=getApps()[0];if(!fb){const cfg=await(await fetch('/__/firebase/init.json')).json();fb=initializeApp(cfg)}const db=getFirestore(fb),root=doc(db,'gestionale','dati');
 const raw=`2026-10-01|disp1|0=DEI ROSSI
 2026-10-01|disp2|0=VIALE
 2026-10-01|gessi|0=DEI ROSSI

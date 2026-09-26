@@ -246,11 +246,11 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
         if(pom(high.name)-pom(low.name)<=1)continue;
         if(high.name==='CALZAVARA'&&pom(high.name)<=1)continue;
         const pomKeys=[...g].filter(k=>k.startsWith(m+'-')&&movable(k,high.name,['oppom']));
-        const matKeys=[...g].filter(k=>k.startsWith(m+'-')&&movable(k,low.name,['op1','op2']));
+        const swapKeys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===low.name&&REQ.includes(k.split('|')[1])&&k.split('|')[1]!=='oppom'&&!protectedKeys.has(k));
         for(const pk of pomKeys){
-          for(const mk of matKeys){
+          for(const mk of swapKeys){
             const [pds,ps]=pk.split('|'),[mds,ms]=mk.split('|');
-            const before=spread();
+            const before=spread(),beforeOpSpread=(()=>{const v=cohort.map(d=>orCount(a,d.name,m));return Math.max(...v)-Math.min(...v)})();
             const pval=a[pk],mval=a[mk],pg=g.has(pk),mg=g.has(mk),pe=e.has(pk),me=e.has(mk);
             delete a[pk];g.delete(pk);e.delete(pk);
             delete a[mk];g.delete(mk);e.delete(mk);
@@ -260,7 +260,8 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
             if(okLow&&okHigh){
               assign(a,g,e,pk,low.name,pe);
               assign(a,g,e,mk,high.name,me);
-              if(spread()<before && opPomCount(a,'CALZAVARA',m)>=1){
+              const opVals=cohort.map(d=>orCount(a,d.name,m)),afterOpSpread=Math.max(...opVals)-Math.min(...opVals);
+              if(spread()<before && afterOpSpread<=1 && afterOpSpread<=beforeOpSpread && opPomCount(a,'CALZAVARA',m)>=1){
                 changed=true;
                 break;
               }

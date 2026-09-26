@@ -2,7 +2,19 @@ import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/fire
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),K=(d,s,i)=>`${d}|${s}|${i}`;
 const AM=['gessi','reparto','amb','esami','op1','op2'],PM=['gessirep','oppom'],DAY=[...AM,...PM],REQ=['op1','op2','oppom','gessi','gessirep','reparto','amb'],OR=['op1','op2','oppom'],OPFIRST=['op1','op2','oppom'],REST=['gessi','gessirep','reparto','amb'];
-const manualOnly=d=>d?.cat==='Contratto'||d?.name==='ARMATO';
+const RULES={
+'PINI':{manual:true},
+'VIALE':{freePm:[3]},
+'CALZAVARA':{freePm:[2]},
+'COMELATO':{freePm:[1,4]},
+'FRANCO':{freePm:[3]},
+'CIPRIAN':{days:[1,2,3,4,5],services:['reparto']},
+'RIVA':{days:[1,2,3],services:['gessi','amb']},
+'FREGUIA':{days:[3,4,5],services:['amb']},
+'LONDEI':{manual:true},
+'ARMATO':{manual:true}
+};
+const rule=d=>RULES[d?.name]||{},manualOnly=d=>!!rule(d).manual;
 async function cloud(){let s=await getDoc(root);return s.exists()?s.data():{}}
 function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return new Date(y,mo-1,da,12)}
 function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(f.has(md))return true;let p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
@@ -28,8 +40,8 @@ function createsThreeConsecutive(a,n,s,ds){if(!REQ.includes(s))return false;let 
 function hasBand(a,n,ds,band){let set=band==='am'?AM:PM;return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&set.includes(k.split('|')[1]))}
 function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W&&DAY.includes(s)){d[x]??={am:false,pm:false};if(AM.includes(s))d[x].am=true;if(PM.includes(s))d[x].pm=true}}return Object.values(d).filter(x=>x.am&&x.pm).length}
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}
-function freePm(n,w){return(n==='VIALE'&&w===3)||(n==='CALZAVARA'&&w===2)||(n==='COMELATO'&&[1,4].includes(w))||(n==='FRANCO'&&w===3)}
-function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay();if(manualOnly(d))return false;if(n==='CIPRIAN')return w>=1&&w<=5&&s==='reparto';if(!force&&PM.includes(s)&&freePm(n,w))return false;return d.cat==='Strutturato'}
+function freePm(n,w){return(RULES[n]?.freePm||[]).includes(w)}
+function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(r.manual)return false;if(r.days&&!r.days.includes(w))return false;if(r.services&&!r.services.includes(s))return false;if(!force&&PM.includes(s)&&freePm(n,w))return false;return d.cat==='Strutturato'||['CIPRIAN','RIVA','FREGUIA'].includes(n)}
 function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||!eligible(d,s,dt,force)||(n!=='CIPRIAN'&&createsThreeConsecutive(a,n,s,ds)))return false;if(!extra&&weekHours(a,n,ds)+hrs(s,dt)>(Number(d.hours)||36))return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return extra||n==='CIPRIAN'||monthEq(a,n,m)+hrs(s,dt)/6<=target(n,m)}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}

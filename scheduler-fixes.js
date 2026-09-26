@@ -34,6 +34,12 @@ function triEqCount(a,n,m){if(!hasPrevHistory(a,m))return monthEq(a,n,m);let ms=
 function triPenalty(doctors,a,n,m,kind){if(!hasPrevHistory(a,m))return 0;let ss=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)),vals=ss.map(d=>(kind==='op'?triOpCount:triEqCount)(a,d.name,m)),v=(kind==='op'?triOpCount:triEqCount)(a,n,m)+1,others=ss.filter(d=>d.name!==n).map(d=>(kind==='op'?triOpCount:triEqCount)(a,d.name,m));let all=[...others,v],spread=Math.max(...all)-Math.min(...all);return Math.max(0,spread-4)}
 function opMatCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&['op1','op2'].includes(k.split('|')[1]))q++;return q}
 function opPomCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]==='oppom')q++;return q}
+function serviceGroup(s){return['op1','op2'].includes(s)?'opmat':s}
+function serviceMatches(s,g){return g==='opmat'?['op1','op2'].includes(s):s===g}
+function triServiceCount(a,n,m,s){let ms=triMonths(m),g=serviceGroup(s),q=0;for(const[k,v]of Object.entries(a))if(v===n&&ms.some(x=>k.startsWith(x+'-'))&&serviceMatches(k.split('|')[1],g))q++;return q}
+function triAvailableDays(a,n,m){let q=0;for(const mm of triMonths(m)){q+=workTarget(mm);let leaveDays=new Set();for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(mm+'-')&&k.split('|')[1]==='ferie')leaveDays.add(k.split('|')[0]);q-=leaveDays.size}return Math.max(1,q)}
+function triServiceRate(a,n,m,s){return triServiceCount(a,n,m,s)/triAvailableDays(a,n,m)}
+
 function shiftDay(ds,delta){let d=new Date(ds+'T12:00:00');d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function hasSameShift(a,n,s,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|'))}
 function createsThreeConsecutive(a,n,s,ds){if(!REQ.includes(s))return false;let h=o=>hasSameShift(a,n,s,shiftDay(ds,o));return(h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2))}
@@ -51,7 +57,7 @@ function dispOK(a,d,ds,s){let n=d.name;if(d.cat!=='Strutturato'||manualOnly(d)||
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}
 function calzavaraOpPenalty(){return 0}
-function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.mon-Q.mon||P.eq-Q.eq||P.wk-Q.wk})}
+function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
 function monthDays(m,days,y,mo){let out=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay();if(w===0||w===6||holiday(dt))continue;out.push({dt,ds:`${m}-${String(day).padStart(2,'0')}`})}return out}
 async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
@@ -101,7 +107,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
         const op=orCount(A,d.name,m)+1;
         const mon=monthEq(A,d.name,m)+1;
         const wkH=weekHours(A,d.name,ds)+6;
-        let z=(s==='oppom'?pom*120:op*90)+op*55+mon*12+wkH*2+triOpCount(A,d.name,m)*3+rnd()*8;
+        let z=(s==='oppom'?pom*120:op*90)+op*55+mon*12+wkH*2+triOpCount(A,d.name,m)*3+triServiceRate(A,d.name,m,s)*180+rnd()*8;
         if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
         return{d,z};
       }).sort((p,q)=>p.z-q.z);

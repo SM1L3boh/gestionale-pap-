@@ -3,6 +3,18 @@ import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
 const MN=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],DW=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
 let data={},view=new Date(),novDirty=false;
+const OCTOBER_2026_IMPORT={
+  'CATALDI':[1,2,3,4,5,6,7,8,9,10,11,12,13,14],
+  'CALZAVARA':[6,19],
+  'PINI':[7,8,9,12,13,14,15,16],
+  'FATTORETTO':[7,8,9,13],
+  'LENTINI':[8,19,20,21,22,23,27],
+  'FRANCO':[9,12],
+  'VIALE':[14,30],
+  'COMELATO':[15,16,19,21],
+  'RIVA':[20,21],
+  'DEI ROSSI':[23]
+};
 function store(){return data.absenceManagement||{}}
 function doctors(){return(data.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean)}
 function key(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
@@ -13,8 +25,26 @@ async function save(next,change){let snap=await getDoc(root),x=snap.exists()?sna
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}
 function warnCrowded(date,n){let names=absentOn(date,n);return names.length<2||confirm('ATTENZIONE: il '+date.split('-').reverse().join('/')+' risultano già assenti: '+names.join(', ')+'.\\n\\nVuoi inserire comunque questa assenza?')}
 async function toggle(td){let n=td.dataset.doctor,date=td.dataset.date,next=structuredClone(store()),set=new Set(next[n]||[]);if(set.has(date))set.delete(date);else{if(!warnCrowded(date,n))return;set.add(date)}next[n]=[...set].sort();await save(next,{n,date,on:set.has(date)})}
+async function importOctober2026FromExcel(){
+  const expected=Object.values(OCTOBER_2026_IMPORT).reduce((n,a)=>n+a.length,0);
+  if(!confirm('Importare le ferie di OTTOBRE 2026 dall\'Excel verificato?\n\nVerranno SOSTITUITE solo le assenze di ottobre 2026. Gli altri mesi resteranno invariati.\n\nTotale giornate-medico da importare: '+expected))return;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},next=structuredClone(x.absenceManagement||{});
+  const allNames=new Set([...(x.doctors||[]).map(d=>d.name).filter(Boolean),...Object.keys(next),...Object.keys(OCTOBER_2026_IMPORT)]);
+  for(const n of allNames){
+    const keep=(next[n]||[]).filter(d=>!d.startsWith('2026-10-'));
+    const add=(OCTOBER_2026_IMPORT[n]||[]).map(d=>'2026-10-'+String(d).padStart(2,'0'));
+    next[n]=[...new Set([...keep,...add])].sort();
+  }
+  await setDoc(root,{absenceManagement:next,updatedAt:new Date().toISOString()},{merge:true});
+  data.absenceManagement=next;
+  view=new Date(2026,9,1,12);
+  render();
+  const actual=Object.values(next).reduce((n,arr)=>n+(arr||[]).filter(d=>d.startsWith('2026-10-')).length,0);
+  if(actual!==expected)throw new Error('Verifica importazione fallita: attese '+expected+' giornate, trovate '+actual);
+  alert('Importazione ottobre 2026 completata.\nGiornate-medico importate: '+actual+'\n\nSono state modificate solo le assenze di ottobre.');
+}
 async function reconcileMonthLeaves(month){if(!/^\d{4}-\d{2}$/.test(month))return;let r=await getDoc(root),rootData=r.exists()?r.data():{},absence=rootData.absenceManagement||{},schedule={...(rootData.schedule||{})},prefix=month+'-';for(const k of Object.keys(schedule)){let p=k.split('|');if(k.startsWith(prefix)&&(p[1]==='ferie'||k.includes('|ferie|')))delete schedule[k]};let byDate={};for(const [n,dates] of Object.entries(absence))for(const date of dates||[])if(date.startsWith(prefix)){byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)}for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);await setDoc(root,{schedule,updatedAt:new Date().toISOString()},{mergeFields:['schedule','updatedAt']});let verify=await getDoc(root),vs=verify.exists()?(verify.data().schedule||{}):{},remaining=Object.keys(vs).filter(k=>k.startsWith(prefix)&&k.includes('|ferie|'));data.schedule=vs;if(!Object.values(absence).some(ds=>(ds||[]).some(d=>d.startsWith(prefix)))&&remaining.length)throw new Error('Verifica fallita: restano '+remaining.length+' celle ferie in '+month)}
 function move(delta){view=new Date(view.getFullYear(),view.getMonth()+delta,1,12);render()}
-function install(){let b=$('absenceManageBtn');if(!b)return;b.onclick=async()=>{let mv=$('month')?.value;if(mv){let[y,m]=mv.split('-').map(Number);view=new Date(y,m-1,1,12)}else view=new Date();$('absenceManageModal').classList.remove('hidden');try{await load()}catch(e){alert('Errore caricamento assenze: '+e.message)}};$('absenceClose').onclick=async()=>{let m=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;$('absenceManageModal').classList.add('hidden');novDirty=false;await reconcileCurrentMonth(true,m)};$('absencePrevMonth').onclick=()=>move(-1);$('absenceNextMonth').onclick=()=>move(1)}
+function install(){let b=$('absenceManageBtn');if(!b)return;b.onclick=async()=>{let mv=$('month')?.value;if(mv){let[y,m]=mv.split('-').map(Number);view=new Date(y,m-1,1,12)}else view=new Date();$('absenceManageModal').classList.remove('hidden');try{await load()}catch(e){alert('Errore caricamento assenze: '+e.message)}};$('absenceClose').onclick=async()=>{let m=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;$('absenceManageModal').classList.add('hidden');novDirty=false;await reconcileCurrentMonth(true,m)};$('absencePrevMonth').onclick=()=>move(-1);$('absenceNextMonth').onclick=()=>move(1);let x=$('importOctoberAbsencesBtn');if(!x){x=document.createElement('button');x.id='importOctoberAbsencesBtn';x.type='button';x.textContent='IMPORTA OTTOBRE 2026 DA EXCEL';x.className='adminOnly';$('absenceNextMonth')?.insertAdjacentElement('afterend',x)}if(x&&x.dataset.bound!=='1'){x.dataset.bound='1';x.onclick=()=>importOctober2026FromExcel().catch(e=>alert('Errore importazione ottobre: '+e.message))}}
 async function reconcileCurrentMonth(reload=false,monthOverride=''){let m=monthOverride||$('month')?.value;if(!m)return;try{await reconcileMonthLeaves(m);sessionStorage.setItem('leaveReconciledAt',Date.now().toString());if(reload)location.reload()}catch(e){console.error('Errore congruità ferie',e);alert('Errore sincronizzazione ferie: '+e.message)}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();

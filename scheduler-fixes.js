@@ -1,6 +1,7 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),K=(d,s,i)=>`${d}|${s}|${i}`;
+const DATA_START_MONTH='2026-09';
 const AM=['gessi','reparto','amb','esami','op1','op2'],PM=['gessirep','oppom'],DAY=[...AM,...PM],REQ=['op1','op2','oppom','gessi','gessirep','reparto','amb'],OR=['op1','op2','oppom'],OPFIRST=['oppom','op1','op2'],REST=['gessi','gessirep','reparto','amb'];
 const RULES={
 'PINI':{manual:true},
@@ -26,7 +27,7 @@ function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDa
 function weekHours(a,n,ds){let q=0,W=wk(ds);for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W)q+=hrs(s,new Date(x+'T12:00:00'))}return q}
 function monthEq(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')){let[ds,s]=k.split('|');q+=hrs(s,new Date(ds+'T12:00:00'))/6}return q}
 function orCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))q++;return q}
-function prevMonths(m){let[y,mo]=m.split('-').map(Number),out=[];for(let i=1;i<=2;i++){let d=new Date(y,mo-1-i,1,12);out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`)}return out}
+function prevMonths(m){let[y,mo]=m.split('-').map(Number),out=[];for(let i=1;i<=2;i++){let d=new Date(y,mo-1-i,1,12),mm=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;if(mm>=DATA_START_MONTH)out.push(mm)}return out}
 function hasPrevHistory(a,m){let pm=prevMonths(m);return Object.keys(a).some(k=>pm.some(x=>k.startsWith(x+'-')))}
 function triMonths(m){return[m,...prevMonths(m)]}
 function triOpCount(a,n,m){if(!hasPrevHistory(a,m))return orCount(a,n,m);let ms=triMonths(m),q=0;for(const[k,v]of Object.entries(a))if(v===n&&ms.some(x=>k.startsWith(x+'-'))&&OR.includes(k.split('|')[1]))q++;return q}

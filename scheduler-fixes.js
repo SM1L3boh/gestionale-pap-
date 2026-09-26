@@ -259,7 +259,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
             if(okLow&&okHigh){
               assign(a,g,e,pk,low.name,pe);
               assign(a,g,e,mk,high.name,me);
-              if(spread()<2 && opPomCount(a,'CALZAVARA',m)>=1){
+              if(spread()<before && opPomCount(a,'CALZAVARA',m)>=1){
                 changed=true;
                 break;
               }

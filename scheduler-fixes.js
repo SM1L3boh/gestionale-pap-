@@ -51,7 +51,7 @@ function dispOK(a,d,ds,s){let n=d.name;if(d.cat!=='Strutturato'||manualOnly(d)||
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}
 function calzavaraOpPenalty(doctors,a,n,m){if(n!=='CALZAVARA')return 0;let others=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&d.name!=='CALZAVARA'&&d.name!=='PINI');if(!others.length)return 0;let avg=others.reduce((q,d)=>q+orCount(a,d.name,m),0)/others.length,target=Math.max(0,avg-opWeeksInMonth(m));return Math.max(0,(orCount(a,n,m)+1)-target)*8}
-function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.op-Q.op||P.eq-Q.eq||P.mon-Q.mon||P.wk-Q.wk;return P.eq-Q.eq||P.mon-Q.mon||P.wk-Q.wk})}
+function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.mon-Q.mon||P.eq-Q.eq||P.wk-Q.wk})}
 function monthDays(m,days,y,mo){let out=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay();if(w===0||w===6||holiday(dt))continue;out.push({dt,ds:`${m}-${String(day).padStart(2,'0')}`})}return out}
 function assignServiceMonth(a,g,e,doctors,m,dates,s,protectedKeys){for(const{ds}of dates)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;let c=cand(doctors,a,s,ds,m,false,false);if(c[0])assign(a,g,e,k,c[0].name)}}
 function fillHoles(a,g,e,doctors,m,days,y,mo,protectedKeys){for(let pass=0;pass<6;pass++){let changed=false;for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;let c=cand(doctors,a,s,ds,m,true,false).filter(d=>d.cat==='Strutturato'&&!manualOnly(d));if(c[0]){assign(a,g,e,k,c[0].name,true);changed=true}}}if(!changed)break}}
@@ -132,12 +132,12 @@ function rebalanceStructuredTotals(a,g,e,doctors,m,protectedKeys){
     return true;
   };
   let guard=0;
-  while(spread()>2&&guard++<300){
+  while(spread()>1&&guard++<600){
     const ordered=[...cohort].sort((p,q)=>total(p.name)-total(q.name));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(total(high.name)-total(low.name)<=2)continue;
+        if(total(high.name)-total(low.name)<=1)continue;
         const keys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===high.name&&movable(k)).sort((ka,kb)=>{
           const sa=ka.split('|')[1],sb=kb.split('|')[1];
           const oa=OR.includes(sa)?1:0,ob=OR.includes(sb)?1:0;

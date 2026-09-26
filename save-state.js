@@ -22,8 +22,56 @@ async function cleanNovemberBaseline(){
   }catch(e){alert('Errore pulizia baseline: '+e.message)}
 }
 async function inspectBaseline(){const month=document.getElementById('month')?.value;if(!month)return;try{const snap=await getDoc(root),x=snap.exists()?snap.data():{},b=x.savedStates?.[month]||{},hits=Object.entries(b).filter(([k,v])=>k.startsWith(month+'-')&&['RIVA','FREGUIA'].includes(v));let msg='BASELINE '+month+'\nCelle salvate: '+Object.keys(b).filter(k=>k.startsWith(month+'-')).length+'\nRIVA: '+hits.filter(([,v])=>v==='RIVA').length+'\nFREGUIA: '+hits.filter(([,v])=>v==='FREGUIA').length;if(hits.length)msg+='\n\nOccorrenze:\n'+hits.map(([k,v])=>k+' = '+v).join('\n');else msg+='\n\nNessuna occorrenza RIVA/FREGUIA.';alert(msg)}catch(e){alert('Errore controllo baseline: '+e.message)}}
+async function exportDataBackup(){
+  const btn=document.getElementById('exportDataBackupBtn');
+  const sync=document.getElementById('sync');
+  try{
+    if(btn)btn.disabled=true;
+    if(sync)sync.textContent='Esportazione backup dati…';
+    const snap=await getDoc(root);
+    if(!snap.exists())throw new Error('Documento dati non trovato');
+    const payload={
+      format:'gestionale-pap-backup-v1',
+      exportedAt:new Date().toISOString(),
+      source:'gestionale/dati',
+      data:snap.data()
+    };
+    const ts=new Date().toISOString().replace(/[:.]/g,'-');
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='backup-gestionale-'+ts+'.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    if(sync){sync.textContent='● Backup dati esportato';sync.className='status online'}
+  }catch(e){
+    if(sync)sync.textContent='Errore esportazione backup';
+    alert('Errore esportazione backup: '+e.message);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
 function install(){
   ['saveStateBtn','inspectBaselineBtn','cleanNovemberBaselineBtn'].forEach(id=>document.getElementById(id)?.remove());
+  const gen=document.getElementById('generate');
+  if(gen){
+    let b=document.getElementById('exportDataBackupBtn');
+    if(!b){
+      b=document.createElement('button');
+      b.id='exportDataBackupBtn';
+      b.type='button';
+      b.textContent='ESPORTA BACKUP DATI';
+      b.className='adminOnly';
+      gen.insertAdjacentElement('afterend',b);
+    }
+    if(b.dataset.bound!=='1'){
+      b.dataset.bound='1';
+      b.addEventListener('click',exportDataBackup);
+    }
+  }
   paintHolidays();
 }
 document.getElementById('month')?.addEventListener('change',e=>{const m=e.target.value;if(!m)return;localStorage.setItem('turniLastMonth',m);setTimeout(()=>location.reload(),80)},true);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();setTimeout(install,500);setTimeout(install,1500);setTimeout(paintHolidays,2500);

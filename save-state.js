@@ -71,6 +71,7 @@ function install(){
       s.dataset.bound='1';
       s.addEventListener('click',saveVisibleState);
     }
+    if(gen.classList.contains('hidden'))s.classList.add('hidden');else s.classList.remove('hidden');
     let b=document.getElementById('exportDataBackupBtn');
     if(!b){
       b=document.createElement('button');
@@ -87,4 +88,4 @@ function install(){
   }
   paintHolidays();
 }
-document.getElementById('month')?.addEventListener('change',e=>{const m=e.target.value;if(!m)return;localStorage.setItem('turniLastMonth',m);setTimeout(()=>location.reload(),80)},true);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();setTimeout(install,500);setTimeout(install,1500);setTimeout(paintHolidays,2500);
+document.getElementById('month')?.addEventListener('change',e=>{const m=e.target.value;if(!m)return;localStorage.setItem('turniLastMonth',m);setTimeout(()=>location.reload(),80)},true);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();setTimeout(install,500);setTimeout(install,1500);setTimeout(install,3000);setInterval(install,5000);setTimeout(paintHolidays,2500);

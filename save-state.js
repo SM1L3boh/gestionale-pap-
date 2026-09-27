@@ -6,6 +6,26 @@ function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function isHoliday(dt){const md=`${dt.getMonth()+1}-${dt.getDate()}`;if(new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']).has(md))return true;const p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function paintHolidays(){const m=document.getElementById('month')?.value;if(!m)return;document.querySelectorAll('#schedule tbody tr').forEach(r=>{const s=r.querySelector('select[data-k]');if(!s)return;const ds=s.dataset.k.split('|')[0],dt=new Date(ds+'T12:00:00');if(isHoliday(dt))r.classList.add('weekend')})}
 async function saveVisibleState(){if(busy)return;const month=document.getElementById('month')?.value;if(!month)return;busy=true;const b=document.getElementById('saveStateBtn'),sync=document.getElementById('sync');try{if(b)b.disabled=true;if(sync)sync.textContent='Salvataggio stato manuale…';const snap=await getDoc(root),x=snap.exists()?snap.data():{},manual=new Set(x.manualKeys||[]),generated=new Set(x.generatedKeys||[]),contracts=new Set((x.doctors||[]).filter(d=>d.active&&d.cat==='Contratto').map(d=>d.name)),baseline={};document.querySelectorAll('#schedule select[data-k]').forEach(s=>{const k=s.dataset.k,v=s.value;if(!k?.startsWith(month+'-')||!v)return;const svc=k.split('|')[1],manualSvc=['guardia','giorno','esami','ferie'].includes(svc);if(manual.has(k)||manualSvc||!generated.has(k))baseline[k]=v});const savedStates={...(x.savedStates||{}),[month]:baseline},savedAbsenceStates={...(x.savedAbsenceStates||{}),[month]:structuredClone(x.absenceManagement||{})};for(const k of Object.keys(baseline)){manual.add(k);generated.delete(k)}await updateDoc(root,{savedStates,savedAbsenceStates,manualKeys:[...manual],generatedKeys:[...generated],updatedAt:new Date().toISOString()});if(sync){sync.textContent='● Stato manuale '+monthLabel(month)+' salvato';sync.className='status online'}}catch(err){if(sync)sync.textContent='Errore salvataggio stato';alert('Errore durante il salvataggio: '+err.message)}finally{busy=false;if(b)b.disabled=false}}
+function monthDefaultCells(month){
+  const out={};
+  if(month<'2026-11')return out;
+  const [y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate();
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=`${month}-${String(d).padStart(2,'0')}`;
+    const put=(svc,i)=>out[ds+'|'+svc+'|'+i]='NESSUNO';
+    // FERIE-VARIE: default NESSUNO in all four slots, later overwritten by official absences.
+    for(let i=0;i<4;i++)put('ferie',i);
+    // Weekend only exposes these services.
+    put('guardia',0); put('giorno',0);
+    if(w===0||w===6)continue;
+    put('esami',0);
+    put('gessi',1);
+    put('amb',1);
+    if(w===2){put('op2',0);put('op2',1)}
+    if(w===3){put('oppom',1)}else{put('oppom',0);put('oppom',1)}
+  }
+  return out;
+}
 async function emptyCurrentMonth(){
   if(busy)return;
   const month=document.getElementById('month')?.value;
@@ -19,6 +39,7 @@ async function emptyCurrentMonth(){
     const snap=await getDoc(root),x=snap.exists()?snap.data():{};
     const schedule={...(x.schedule||{})};
     for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];
+    Object.assign(schedule,monthDefaultCells(month));
 
     const absence=x.absenceManagement||{},byDate={};
     for(const [name,dates] of Object.entries(absence)){
@@ -57,7 +78,8 @@ async function emptyCurrentMonth(){
 
     const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{},verifySchedule=verify.schedule||{};
     const missing=Object.entries(expectedLeaves).filter(([k,v])=>verifySchedule[k]!==v);
-    const unexpected=Object.entries(verifySchedule).filter(([k])=>k.startsWith(month+'-')&&!k.includes('|ferie|'));
+    const defaults=monthDefaultCells(month);
+    const unexpected=Object.entries(verifySchedule).filter(([k,val])=>k.startsWith(month+'-')&&!k.includes('|ferie|')&&defaults[k]!==val);
     if(missing.length||unexpected.length){
       await updateDoc(root,{
         schedule:x.schedule||{},

@@ -131,6 +131,7 @@ function install(){
       eBtn.type='button';
       eBtn.textContent='SVUOTA MESE';
       eBtn.className='adminOnly';
+      eBtn.style.cssText='background:#facc15!important;border-color:#eab308!important;color:#713f12!important;font-weight:800!important;box-shadow:0 2px 5px #a1620744!important';
       const clear=document.getElementById('clearDraft');
       if(clear)clear.insertAdjacentElement('beforebegin',eBtn);else s.insertAdjacentElement('afterend',eBtn);
     }

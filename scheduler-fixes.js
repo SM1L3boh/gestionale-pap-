@@ -43,7 +43,7 @@ function triServiceRate(a,n,m,s){return triServiceCount(a,n,m,s)/triAvailableDay
 
 function shiftDay(ds,delta){let d=new Date(ds+'T12:00:00');d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function hasSameShift(a,n,s,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|'))}
-function createsThreeConsecutive(a,n,s,ds){if(!REQ.includes(s))return false;let h=o=>hasSameShift(a,n,s,shiftDay(ds,o));return(h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2))}
+function createsThreeConsecutive(a,n,s,ds){if(!REQ.includes(s)||s==='reparto')return false;let h=o=>hasSameShift(a,n,s,shiftDay(ds,o));return(h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2))}
 function hasBand(a,n,ds,band){let set=band==='am'?AM:PM;return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&set.includes(k.split('|')[1]))}
 function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W&&DAY.includes(s)){d[x]??={am:false,pm:false};if(AM.includes(s))d[x].am=true;if(PM.includes(s))d[x].pm=true}}return Object.values(d).filter(x=>x.am&&x.pm).length}
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}

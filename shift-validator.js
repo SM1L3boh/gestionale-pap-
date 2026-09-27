@@ -31,6 +31,7 @@ function isAdminUI(){
 }
 function parts(k){const p=(k||'').split('|');return{ds:p[0]||'',s:p[1]||'',i:p[2]||'0'}}
 function dayObj(ds){return new Date(ds+'T12:00:00')}
+function formatItalianDate(ds){const [y,m,d]=(ds||'').split('-');return d&&m&&y?`${d}/${m}/${y}`:ds}
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function hours(s,ds){
@@ -244,7 +245,7 @@ async function runEmptyDiagnostics(){
       ? '<b style="color:#b45309">Candidati diretti: '+direct.join(', ')+'</b>'
       : '<b style="color:#b91c1c">Nessun candidato diretto</b>';
     const reasonHtml=detail.map(z=>'<div><b>'+z.name+':</b> '+(z.reasons.length?z.reasons.join('; '):'DISPONIBILE')+'</div>').join('');
-    return '<tr><td>'+h.ds+'</td><td><b>'+(LABELS[h.s]||h.s)+'</b></td><td>'+(Number(h.i)+1)+'</td><td style="text-align:left">'+status+'<details style="margin-top:5px"><summary>Dettaglio medici</summary>'+reasonHtml+'</details></td></tr>';
+    return '<tr><td>'+formatItalianDate(h.ds)+'</td><td><b>'+(LABELS[h.s]||h.s)+'</b></td><td>'+(Number(h.i)+1)+'</td><td style="text-align:left">'+status+'<details style="margin-top:5px"><summary>Dettaglio medici</summary>'+reasonHtml+'</details></td></tr>';
   }).join('');
   $('emptyDiagnosticInfo').textContent=holes.length+' celle vuote analizzate. Se compare un candidato diretto, il generatore avrebbe teoricamente potuto coprire quella cella; altrimenti sono mostrati i vincoli che bloccano ciascun medico.';
   $('emptyDiagnosticTable').innerHTML='<tr><th>Data</th><th>Servizio</th><th>Slot</th><th>Diagnosi</th></tr>'+rows;

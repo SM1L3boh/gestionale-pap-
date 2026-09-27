@@ -28,8 +28,13 @@ async function emptyCurrentMonth(){
         if(!byDate[ds].includes(name))byDate[ds].push(name);
       }
     }
+    const expectedLeaves={};
     for(const [ds,names] of Object.entries(byDate)){
-      names.slice(0,4).forEach((name,i)=>schedule[ds+'|ferie|'+i]=name);
+      names.slice(0,4).forEach((name,i)=>{
+        const k=ds+'|ferie|'+i;
+        schedule[k]=name;
+        expectedLeaves[k]=name;
+      });
     }
 
     const stripMonth=arr=>(arr||[]).filter(k=>!String(k).startsWith(month+'-'));
@@ -38,7 +43,7 @@ async function emptyCurrentMonth(){
     const savedAbsenceStates={...(x.savedAbsenceStates||{})};
     savedAbsenceStates[month]=structuredClone(absence);
 
-    await updateDoc(root,{
+    const nextData={
       schedule,
       generatedKeys:stripMonth(x.generatedKeys),
       extraKeys:stripMonth(x.extraKeys),
@@ -47,8 +52,27 @@ async function emptyCurrentMonth(){
       savedStates,
       savedAbsenceStates,
       updatedAt:new Date().toISOString()
-    });
-    if(sync){sync.textContent='● '+monthLabel(month)+' svuotato — restano solo ferie/assenze';sync.className='status online'}
+    };
+    await updateDoc(root,nextData);
+
+    const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{},verifySchedule=verify.schedule||{};
+    const missing=Object.entries(expectedLeaves).filter(([k,v])=>verifySchedule[k]!==v);
+    const unexpected=Object.entries(verifySchedule).filter(([k])=>k.startsWith(month+'-')&&!k.includes('|ferie|'));
+    if(missing.length||unexpected.length){
+      await updateDoc(root,{
+        schedule:x.schedule||{},
+        generatedKeys:x.generatedKeys||[],
+        extraKeys:x.extraKeys||[],
+        manualKeys:x.manualKeys||[],
+        unresolvedKeys:x.unresolvedKeys||[],
+        savedStates:x.savedStates||{},
+        savedAbsenceStates:x.savedAbsenceStates||{},
+        updatedAt:new Date().toISOString()
+      });
+      throw new Error('verifica di sicurezza fallita: il mese è stato ripristinato automaticamente');
+    }
+
+    if(sync){sync.textContent='● '+monthLabel(month)+' svuotato — ferie/assenze verificate';sync.className='status online'}
     location.reload();
   }catch(e){
     if(sync)sync.textContent='Errore svuotamento mese';

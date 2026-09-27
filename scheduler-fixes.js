@@ -115,7 +115,7 @@ function applySaturdayContinuity(a,g,e,doctors,m,protectedKeys){
     const sat=dt.toISOString().slice(0,10);
     const first=a[K(sat,'disp1',0)],second=a[K(sat,'disp2',0)];
     if(first&&first!=='NESSUNO'){
-      for(const off of[-4,-3,-2,-1])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),first,protectedKeys);
+      for(const off of[-2,-1])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),first,protectedKeys);
     }
     if(second&&second!=='NESSUNO'){
       ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,2),second,protectedKeys);

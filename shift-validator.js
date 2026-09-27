@@ -160,6 +160,109 @@ function markAnomalies(items){
     el?.classList.add('auditAnomaly');
   }
 }
+
+function generatorWeekendRest(a,name,ds){
+  const w=dayObj(ds).getDay();
+  if(w===1&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp1'))return 'riposo dopo 1ª DISP del sabato';
+  if(w===2&&hasService(a,name,shiftDay(ds,-3),x=>x==='disp2'))return 'riposo dopo 2ª DISP del sabato';
+  return '';
+}
+function generatorThreeConsecutive(a,name,s,ds){
+  if(!REQUIRED.has(s)||name==='CIPRIAN')return false;
+  const has=d=>hasService(a,name,d,x=>x===s);
+  return (has(shiftDay(ds,-2))&&has(shiftDay(ds,-1)))||
+         (has(shiftDay(ds,-1))&&has(shiftDay(ds,1)))||
+         (has(shiftDay(ds,1))&&has(shiftDay(ds,2)));
+}
+function generatorBlockReasons(a,absence,doc,k){
+  const {ds,s}=parts(k),name=doc?.name,out=[];
+  if(!doc?.active)out.push('non attivo');
+  if(doc?.cat==='Contratto'||['PINI','ARMATO','LONDEI'].includes(name))out.push('escluso dal generatore');
+  if(out.length)return out;
+  if((absence?.[name]||[]).includes(ds)||hasService(a,name,ds,x=>x==='ferie'))out.push('ferie/assenza');
+  if(hasService(a,name,ds,x=>x==='guardia'))out.push('guardia nello stesso giorno');
+  if(hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))out.push('post-guardia');
+  const wr=generatorWeekendRest(a,name,ds);if(wr)out.push(wr);
+
+  const dt=dayObj(ds),w=dt.getDay(),fixed=FIXED_RULES[name]||{},custom=doc?.constraints?.freePm||[];
+  const free=[...new Set([...(fixed.freePm||[]),...custom.map(Number)])];
+  if(fixed.days&&!fixed.days.includes(w))out.push('giorno non previsto');
+  if(fixed.services&&!fixed.services.includes(s))out.push('servizio non previsto');
+  if(PM.has(s)&&free.includes(w))out.push('pomeriggio libero');
+
+  const wh=weekHours(a,name,weekKey(ds)),add=hours(s,ds);
+  if(wh+add>Math.min(Number(doc.hours)||36,36))out.push('36 h settimanali ('+wh+'+'+add+' h)');
+
+  if(AM.has(s)&&sameBandCount(a,name,ds,s)>0)out.push('mattina già occupata');
+  if(PM.has(s)&&sameBandCount(a,name,ds,s)>0)out.push('pomeriggio già occupato');
+  if(AM.has(s)&&assignments(a,name,p=>p.ds===ds&&PM.has(p.s)).length&&doubleDaysInWeek(a,name,weekKey(ds)).length>=1)out.push('già presente un doppio turno nella settimana');
+  if(PM.has(s)&&assignments(a,name,p=>p.ds===ds&&AM.has(p.s)).length&&doubleDaysInWeek(a,name,weekKey(ds)).length>=1)out.push('già presente un doppio turno nella settimana');
+  if(generatorThreeConsecutive(a,name,s,ds))out.push('3 giorni consecutivi nello stesso servizio');
+  return [...new Set(out)];
+}
+function visibleEmptyRequiredCells(month){
+  const out=[];
+  document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
+    const k=sel.dataset.k,{ds,s,i}=parts(k);
+    if(!ds.startsWith(month+'-')||!REQUIRED.has(s))return;
+    if(sel.value!=='')return;
+    out.push({k,ds,s,i});
+  });
+  return out;
+}
+function ensureDiagnosticModal(){
+  if($('emptyDiagnosticModal'))return;
+  document.body.insertAdjacentHTML('beforeend',`
+  <div id="emptyDiagnosticModal" class="modalBack hidden">
+    <div class="modal" style="width:min(1250px,97vw)">
+      <h2>Diagnostica celle vuote</h2>
+      <p id="emptyDiagnosticInfo" class="small"></p>
+      <div class="countWrap"><table id="emptyDiagnosticTable"></table></div>
+      <div class="modalActions"><button id="emptyDiagnosticClose" type="button">Chiudi</button></div>
+    </div>
+  </div>`);
+  $('emptyDiagnosticClose').onclick=()=>$('emptyDiagnosticModal').classList.add('hidden');
+}
+async function runEmptyDiagnostics(){
+  const m=$('month')?.value;if(!m)return;
+  ensureDiagnosticModal();
+  $('emptyDiagnosticModal').classList.remove('hidden');
+  $('emptyDiagnosticInfo').textContent='Analisi in corso…';
+  $('emptyDiagnosticTable').innerHTML='';
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},a=scheduleFromDom(x.schedule||{});
+  const docs=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&!['PINI','ARMATO','LONDEI'].includes(d.name));
+  const holes=visibleEmptyRequiredCells(m);
+  if(!holes.length){
+    $('emptyDiagnosticInfo').textContent='Nessuna cella vuota da riempire nel mese selezionato.';
+    $('emptyDiagnosticTable').innerHTML='<tr><td style="padding:18px"><b>✓ Tutte le celle generabili risultano coperte.</b></td></tr>';
+    return;
+  }
+  const rows=holes.map(h=>{
+    const detail=docs.map(d=>({name:d.name,reasons:generatorBlockReasons(a,x.absenceManagement||{},d,h.k)}));
+    const direct=detail.filter(z=>!z.reasons.length).map(z=>z.name);
+    const status=direct.length
+      ? '<b style="color:#b45309">Candidati diretti: '+direct.join(', ')+'</b>'
+      : '<b style="color:#b91c1c">Nessun candidato diretto</b>';
+    const reasonHtml=detail.map(z=>'<div><b>'+z.name+':</b> '+(z.reasons.length?z.reasons.join('; '):'DISPONIBILE')+'</div>').join('');
+    return '<tr><td>'+h.ds+'</td><td><b>'+(LABELS[h.s]||h.s)+'</b></td><td>'+(Number(h.i)+1)+'</td><td style="text-align:left">'+status+'<details style="margin-top:5px"><summary>Dettaglio medici</summary>'+reasonHtml+'</details></td></tr>';
+  }).join('');
+  $('emptyDiagnosticInfo').textContent=holes.length+' celle vuote analizzate. Se compare un candidato diretto, il generatore avrebbe teoricamente potuto coprire quella cella; altrimenti sono mostrati i vincoli che bloccano ciascun medico.';
+  $('emptyDiagnosticTable').innerHTML='<tr><th>Data</th><th>Servizio</th><th>Slot</th><th>Diagnosi</th></tr>'+rows;
+}
+function installDiagnosticButton(){
+  let b=$('diagnoseEmptyBtn');
+  if(!b){
+    const anchor=$('validateShiftsBtn');
+    if(!anchor)return;
+    b=document.createElement('button');
+    b.id='diagnoseEmptyBtn';b.type='button';b.className='adminOnly';b.textContent='DIAGNOSTICA VUOTI';
+    anchor.insertAdjacentElement('afterend',b);
+  }
+  if(!b.dataset.bound){
+    b.dataset.bound='1';
+    b.addEventListener('click',e=>{e.preventDefault();runEmptyDiagnostics().catch(err=>alert('Errore diagnostica vuoti: '+err.message))});
+  }
+}
 function ensureModal(){
   if($('validatorModal'))return;
   document.body.insertAdjacentHTML('beforeend',`
@@ -239,6 +342,6 @@ function installManualAlerts(){
     s.dispatchEvent(new Event('change',{bubbles:true}));
   },true);
 }
-function start(){ensureModal();installButton();installManualAlerts()}
+function start(){ensureModal();ensureDiagnosticModal();installButton();installDiagnosticButton();installManualAlerts()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
-setTimeout(installButton,700);
+setTimeout(installButton,700);setTimeout(installDiagnosticButton,700);setTimeout(installDiagnosticButton,1800);

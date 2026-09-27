@@ -201,6 +201,36 @@ function generatorBlockReasons(a,absence,doc,k){
   if(generatorThreeConsecutive(a,name,s,ds))out.push('3 giorni consecutivi nello stesso servizio');
   return [...new Set(out)];
 }
+
+function twelveHourCandidates(a,absence,docs,k){
+  const {ds,s}=parts(k);
+  if(!AM.has(s)&&!PM.has(s))return[];
+  const opposite=AM.has(s)?PM:AM;
+  return (docs||[]).filter(doc=>{
+    const name=doc?.name;
+    if(!doc?.active||doc?.cat==='Contratto'||['PINI','ARMATO','LONDEI'].includes(name))return false;
+    if(!assignments(a,name,p=>p.ds===ds&&opposite.has(p.s)).length)return false;
+
+    if((absence?.[name]||[]).includes(ds)||hasService(a,name,ds,x=>x==='ferie'))return false;
+    if(hasService(a,name,ds,x=>x==='guardia'))return false;
+    if(hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))return false;
+    if(generatorWeekendRest(a,name,ds))return false;
+
+    const dt=dayObj(ds),w=dt.getDay(),fixed=FIXED_RULES[name]||{},custom=doc?.constraints?.freePm||[];
+    const free=[...new Set([...(fixed.freePm||[]),...custom.map(Number)])];
+    if(fixed.days&&!fixed.days.includes(w))return false;
+    if(fixed.services&&!fixed.services.includes(s))return false;
+    if(PM.has(s)&&free.includes(w))return false;
+
+    if(AM.has(s)&&sameBandCount(a,name,ds,s)>0)return false;
+    if(PM.has(s)&&sameBandCount(a,name,ds,s)>0)return false;
+    if(generatorThreeConsecutive(a,name,s,ds))return false;
+
+    // Qui ignoriamo volutamente il tetto settimanale e il limite di un solo doppio turno/settimana:
+    // serve solo a mostrare chi potrebbe coprire la cella facendo 12 ore nella giornata.
+    return true;
+  }).map(d=>d.name);
+}
 function visibleEmptyRequiredCells(month){
   const out=[];
   document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
@@ -241,14 +271,16 @@ async function runEmptyDiagnostics(){
   const rows=holes.map(h=>{
     const detail=docs.map(d=>({name:d.name,reasons:generatorBlockReasons(a,x.absenceManagement||{},d,h.k)}));
     const direct=detail.filter(z=>!z.reasons.length).map(z=>z.name);
+    const twelve=twelveHourCandidates(a,x.absenceManagement||{},docs,h.k);
     const status=direct.length
       ? '<b style="color:#b45309">Candidati diretti: '+direct.join(', ')+'</b>'
       : '<b style="color:#b91c1c">Nessun candidato diretto</b>';
     const reasonHtml=detail.map(z=>'<div><b>'+z.name+':</b> '+(z.reasons.length?z.reasons.join('; '):'DISPONIBILE')+'</div>').join('');
-    return '<tr><td>'+formatItalianDate(h.ds)+'</td><td><b>'+(LABELS[h.s]||h.s)+'</b></td><td>'+(Number(h.i)+1)+'</td><td style="text-align:left">'+status+'<details style="margin-top:5px"><summary>Dettaglio medici</summary>'+reasonHtml+'</details></td></tr>';
+    const twelveHtml=twelve.length?twelve.join(', '):'—';
+    return '<tr><td>'+formatItalianDate(h.ds)+'</td><td><b>'+(LABELS[h.s]||h.s)+'</b></td><td>'+(Number(h.i)+1)+'</td><td style="text-align:left">'+status+'<details style="margin-top:5px"><summary>Dettaglio medici</summary>'+reasonHtml+'</details></td><td style="text-align:left">'+twelveHtml+'</td></tr>';
   }).join('');
-  $('emptyDiagnosticInfo').textContent=holes.length+' celle vuote analizzate. Se compare un candidato diretto, il generatore avrebbe teoricamente potuto coprire quella cella; altrimenti sono mostrati i vincoli che bloccano ciascun medico.';
-  $('emptyDiagnosticTable').innerHTML='<tr><th>Data</th><th>Servizio</th><th>Slot</th><th>Diagnosi</th></tr>'+rows;
+  $('emptyDiagnosticInfo').textContent=holes.length+' celle vuote analizzate. Se compare un candidato diretto, il generatore avrebbe teoricamente potuto coprire quella cella; altrimenti sono mostrati i vincoli che bloccano ciascun medico. *Possibili 12 ore = medico già impegnato nell’altra fascia della stessa giornata, compatibile con la cella ignorando il tetto settimanale e il limite dei doppi turni settimanali.';
+  $('emptyDiagnosticTable').innerHTML='<tr><th>Data</th><th>Servizio</th><th>Slot</th><th>Diagnosi</th><th>Possibili 12 ore*</th></tr>'+rows;
 }
 function installDiagnosticButton(){
   let b=$('diagnoseEmptyBtn');

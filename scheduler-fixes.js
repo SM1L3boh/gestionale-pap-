@@ -141,7 +141,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
     const pomMean=pomVals.reduce((x,y)=>x+y,0)/(pomVals.length||1);
     const opMean=opVals.reduce((x,y)=>x+y,0)/(opVals.length||1);
     const variance=pomVals.reduce((q,v)=>q+(v-pomMean)*(v-pomMean),0)+opVals.reduce((q,v)=>q+(v-opMean)*(v-opMean),0);
-    return missing*100000+(calPom<1?20000:0)+spread(pomVals)*5000+spread(opVals)*2500+spread(monVals)*300+variance;
+    return missing*100000+(calPom<1?20000:0)+Math.max(0,spread(pomVals)-2)*5000+Math.max(0,spread(opVals)-2)*2500+spread(monVals)*300+variance;
   };
   let best=null,bestScore=Infinity;
   const started=performance.now(),MAX_MS=1800,MAX_TRIALS=48;
@@ -382,12 +382,12 @@ function rebalanceOpTotals(a,g,e,doctors,m,protectedKeys){
   };
   const restore=(k,val,wasGen,wasExtra)=>{if(val===undefined)delete a[k];else a[k]=val;wasGen?g.add(k):g.delete(k);wasExtra?e.add(k):e.delete(k)};
   let guard=0;
-  while(opSpread()>1&&guard++<800){
+  while(opSpread()>2&&guard++<800){
     const ordered=[...cohort].sort((p,q)=>op(p.name)-op(q.name)||tot(p.name)-tot(q.name));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(op(high.name)-op(low.name)<=1)continue;
+        if(op(high.name)-op(low.name)<=2)continue;
         const opKeys=[...g].filter(k=>k.startsWith(m+'-')&&opMovable(k,high.name));
         for(const ok of opKeys){
           const [ods,os]=ok.split('|'),oval=a[ok],og=g.has(ok),oe=e.has(ok),before=opSpread();
@@ -438,12 +438,12 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
     return services.includes(k.split('|')[1]);
   };
   let guard=0;
-  while(spread()>1&&guard++<500){
+  while(spread()>2&&guard++<500){
     const ordered=[...cohort].sort((p,q)=>pom(p.name)-pom(q.name)||orCount(a,p.name,m)-orCount(a,q.name,m));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(pom(high.name)-pom(low.name)<=1)continue;
+        if(pom(high.name)-pom(low.name)<=2)continue;
         if(high.name==='CALZAVARA'&&pom(high.name)<=1)continue;
         const pomKeys=[...g].filter(k=>k.startsWith(m+'-')&&movable(k,high.name,['oppom']));
         const swapKeys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===low.name&&REQ.includes(k.split('|')[1])&&k.split('|')[1]!=='oppom'&&!protectedKeys.has(k));
@@ -461,7 +461,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
               assign(a,g,e,pk,low.name,pe);
               assign(a,g,e,mk,high.name,me);
               const opVals=cohort.map(d=>orCount(a,d.name,m)),afterOpSpread=Math.max(...opVals)-Math.min(...opVals);
-              if(spread()<before && afterOpSpread<=1 && afterOpSpread<=beforeOpSpread && opPomCount(a,'CALZAVARA',m)>=1){
+              if(spread()<before && afterOpSpread<=2 && afterOpSpread<=beforeOpSpread && opPomCount(a,'CALZAVARA',m)>=1){
                 changed=true;
                 break;
               }

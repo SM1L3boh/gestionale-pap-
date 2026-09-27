@@ -23,6 +23,7 @@ function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorn
   if(s==='op2')return dt.getDay()===2?'NESSUNO':'';
   if(s==='oppom'){
     if(dt.getDay()===3)return i===1?'NESSUNO':'';
+    if([1,2,4].includes(dt.getDay()))return'';
     return'NESSUNO';
   }
   return'';

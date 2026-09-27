@@ -189,23 +189,29 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
 }
 function assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys){
   const order=['oppom','op1','op2','reparto','gessi','gessirep','amb'];
-  let pending=[];
+  const pending=[];
   for(const {ds} of dates)for(const s of order)for(const i of slots(s)){
     const k=K(ds,s,i);
     if(!protectedKeys.has(k)&&(!a[k]||a[k]==='NESSUNO'))pending.push(k);
   }
-  // Harder cells first: fewer valid candidates, then OP POM / OP, then date.
-  while(pending.length){
-    let ranked=pending.map(k=>{
-      const [ds,s]=k.split('|');
-      const list=cand(doctors,a,s,ds,m,false,false);
-      const pri=s==='oppom'?0:(s==='op1'||s==='op2'?1:2);
-      return{k,list,count:list.length,pri};
-    }).sort((x,y)=>x.count-y.count||x.pri-y.pri||x.k.localeCompare(y.k));
-    const best=ranked[0];
-    if(!best||best.count===0)break;
-    assign(a,g,e,best.k,best.list[0].name,false);
-    pending=pending.filter(k=>k!==best.k);
+
+  // Calcola la difficoltà UNA SOLA VOLTA. Prima, per ogni assegnazione,
+  // ricalcolava tutti i candidati di tutte le celle residue: era il collo di bottiglia.
+  const ranked=pending.map(k=>{
+    const [ds,s]=k.split('|');
+    const count=doctors.reduce((q,d)=>q+(can(a,d,s,ds,m,false,false)?1:0),0);
+    const pri=s==='oppom'?0:(s==='op1'||s==='op2'?1:2);
+    return{k,count,pri};
+  }).sort((x,y)=>x.count-y.count||x.pri-y.pri||x.k.localeCompare(y.k));
+
+  // Ogni cella ricalcola i candidati soltanto quando viene effettivamente trattata.
+  // Se nel frattempo non è più assegnabile, la lasciano ai fallback finali.
+  for(const item of ranked){
+    const k=item.k;
+    if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
+    const [ds,s]=k.split('|');
+    const list=cand(doctors,a,s,ds,m,false,false);
+    if(list[0])assign(a,g,e,k,list[0].name,false);
   }
 }
 function finalHoleRepair(a,g,e,doctors,m,days,y,mo,protectedKeys){

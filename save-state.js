@@ -6,6 +6,58 @@ function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function isHoliday(dt){const md=`${dt.getMonth()+1}-${dt.getDate()}`;if(new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']).has(md))return true;const p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function paintHolidays(){const m=document.getElementById('month')?.value;if(!m)return;document.querySelectorAll('#schedule tbody tr').forEach(r=>{const s=r.querySelector('select[data-k]');if(!s)return;const ds=s.dataset.k.split('|')[0],dt=new Date(ds+'T12:00:00');if(isHoliday(dt))r.classList.add('weekend')})}
 async function saveVisibleState(){if(busy)return;const month=document.getElementById('month')?.value;if(!month)return;busy=true;const b=document.getElementById('saveStateBtn'),sync=document.getElementById('sync');try{if(b)b.disabled=true;if(sync)sync.textContent='Salvataggio stato manuale…';const snap=await getDoc(root),x=snap.exists()?snap.data():{},manual=new Set(x.manualKeys||[]),generated=new Set(x.generatedKeys||[]),contracts=new Set((x.doctors||[]).filter(d=>d.active&&d.cat==='Contratto').map(d=>d.name)),baseline={};document.querySelectorAll('#schedule select[data-k]').forEach(s=>{const k=s.dataset.k,v=s.value;if(!k?.startsWith(month+'-')||!v)return;const svc=k.split('|')[1],manualSvc=['guardia','giorno','esami','ferie'].includes(svc);if(manual.has(k)||manualSvc||!generated.has(k))baseline[k]=v});const savedStates={...(x.savedStates||{}),[month]:baseline},savedAbsenceStates={...(x.savedAbsenceStates||{}),[month]:structuredClone(x.absenceManagement||{})};for(const k of Object.keys(baseline)){manual.add(k);generated.delete(k)}await updateDoc(root,{savedStates,savedAbsenceStates,manualKeys:[...manual],generatedKeys:[...generated],updatedAt:new Date().toISOString()});if(sync){sync.textContent='● Stato manuale '+monthLabel(month)+' salvato';sync.className='status online'}}catch(err){if(sync)sync.textContent='Errore salvataggio stato';alert('Errore durante il salvataggio: '+err.message)}finally{busy=false;if(b)b.disabled=false}}
+async function emptyCurrentMonth(){
+  if(busy)return;
+  const month=document.getElementById('month')?.value;
+  if(!month)return;
+  if(!confirm('SVUOTA MESE '+monthLabel(month)+'?\n\nVerranno cancellati TUTTI i turni del mese attivo, compresi gli inserimenti manuali. Rimarranno solo ferie/assenze registrate in Gestione Assenze. Gli altri mesi non saranno modificati.'))return;
+  busy=true;
+  const btn=document.getElementById('emptyMonthBtn'),sync=document.getElementById('sync');
+  try{
+    if(btn)btn.disabled=true;
+    if(sync)sync.textContent='Svuotamento mese…';
+    const snap=await getDoc(root),x=snap.exists()?snap.data():{};
+    const schedule={...(x.schedule||{})};
+    for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];
+
+    const absence=x.absenceManagement||{},byDate={};
+    for(const [name,dates] of Object.entries(absence)){
+      for(const ds of dates||[]){
+        if(!ds.startsWith(month+'-'))continue;
+        byDate[ds]??=[];
+        if(!byDate[ds].includes(name))byDate[ds].push(name);
+      }
+    }
+    for(const [ds,names] of Object.entries(byDate)){
+      names.slice(0,4).forEach((name,i)=>schedule[ds+'|ferie|'+i]=name);
+    }
+
+    const stripMonth=arr=>(arr||[]).filter(k=>!String(k).startsWith(month+'-'));
+    const savedStates={...(x.savedStates||{})};
+    savedStates[month]={};
+    const savedAbsenceStates={...(x.savedAbsenceStates||{})};
+    savedAbsenceStates[month]=structuredClone(absence);
+
+    await updateDoc(root,{
+      schedule,
+      generatedKeys:stripMonth(x.generatedKeys),
+      extraKeys:stripMonth(x.extraKeys),
+      manualKeys:stripMonth(x.manualKeys),
+      unresolvedKeys:stripMonth(x.unresolvedKeys),
+      savedStates,
+      savedAbsenceStates,
+      updatedAt:new Date().toISOString()
+    });
+    if(sync){sync.textContent='● '+monthLabel(month)+' svuotato — restano solo ferie/assenze';sync.className='status online'}
+    location.reload();
+  }catch(e){
+    if(sync)sync.textContent='Errore svuotamento mese';
+    alert('Errore durante SVUOTA MESE: '+e.message);
+  }finally{
+    busy=false;
+    if(btn)btn.disabled=false;
+  }
+}
 async function cleanNovemberBaseline(){
   const month=document.getElementById('month')?.value;
   if(month!=='2026-11')return alert('La pulizia mirata è disponibile solo per novembre 2026.');
@@ -72,6 +124,21 @@ function install(){
       s.addEventListener('click',saveVisibleState);
     }
     if(gen.classList.contains('hidden'))s.classList.add('hidden');else s.classList.remove('hidden');
+    let eBtn=document.getElementById('emptyMonthBtn');
+    if(!eBtn){
+      eBtn=document.createElement('button');
+      eBtn.id='emptyMonthBtn';
+      eBtn.type='button';
+      eBtn.textContent='SVUOTA MESE';
+      eBtn.className='adminOnly';
+      const clear=document.getElementById('clearDraft');
+      if(clear)clear.insertAdjacentElement('beforebegin',eBtn);else s.insertAdjacentElement('afterend',eBtn);
+    }
+    if(eBtn.dataset.bound!=='1'){
+      eBtn.dataset.bound='1';
+      eBtn.addEventListener('click',emptyCurrentMonth);
+    }
+    if(gen.classList.contains('hidden'))eBtn.classList.add('hidden');else eBtn.classList.remove('hidden');
     let b=document.getElementById('exportDataBackupBtn');
     if(!b){
       b=document.createElement('button');

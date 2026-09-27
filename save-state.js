@@ -22,7 +22,7 @@ function monthDefaultCells(month){
     put('gessi',1);
     put('amb',1);
     if(w===2){put('op2',0);put('op2',1)}
-    if(w===3){put('oppom',1)}else{put('oppom',0);put('oppom',1)}
+    if(w===3){put('oppom',1)}else if(![1,2,4].includes(w)){put('oppom',0);put('oppom',1)}
   }
   return out;
 }

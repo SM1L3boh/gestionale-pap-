@@ -86,6 +86,8 @@ function consecutiveSame(a,name,s,ds){
          (has(shiftDay(ds,-1))&&has(ds)&&has(shiftDay(ds,1)))||
          (has(ds)&&has(shiftDay(ds,1))&&has(shiftDay(ds,2)));
 }
+function sundayRestIssue(a,name,ds){const w=dayObj(ds).getDay();if(w===1&&hasService(a,name,shiftDay(ds,-1),x=>x==='disp1'))return 'riposo compensativo: 1ª disponibilità della domenica → lunedì libero';if(w===2&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp2'))return 'riposo compensativo: 2ª disponibilità della domenica → martedì libero';return ''}
+function sundayAvailabilityFutureIssue(a,name,ds,s){if(dayObj(ds).getDay()!==0)return'';if(s==='disp1'){const d=shiftDay(ds,1);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '1ª disponibilità della domenica: il lunedì successivo deve essere libero'}if(s==='disp2'){const d=shiftDay(ds,2);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '2ª disponibilità della domenica: il martedì successivo deve essere libero'}return''}
 function personalRuleIssues(doc,s,ds){
   const out=[],dt=dayObj(ds),w=dt.getDay();
   const custom=doc?.constraints?.freePm||[];
@@ -101,6 +103,8 @@ function assignmentIssues(a,absence,docs,name,k){
   if(!name||name==='NESSUNO'||!ds||!s)return issues;
   if(doc?.cat==='Contratto')return issues;
   if((absence?.[name]||[]).includes(ds))issues.push('medico segnato in ferie/assenza in questa data');
+  const restIssue=sundayRestIssue(a,name,ds);if(s!=='ferie'&&restIssue)issues.push(restIssue);
+  const futureRest=sundayAvailabilityFutureIssue(a,name,ds,s);if(futureRest)issues.push(futureRest);
   if(s!=='ferie'&&hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))issues.push('servizio il giorno successivo a una guardia notturna');
   if(s==='guardia'){
     const next=shiftDay(ds,1);
@@ -131,6 +135,7 @@ function audit(a,absence,docs,month){
     const monthAsg=assignments(a,name,p=>p.ds.startsWith(month+'-')&&p.s!=='ferie');
     for(const p of monthAsg){
       if((absence?.[name]||[]).includes(p.ds))add('Ferie',name,p.ds,'turno assegnato durante ferie/assenza',[p.k]);
+      const restIssue=sundayRestIssue(a,name,p.ds);if(restIssue)add('Riposo compensativo',name,p.ds,restIssue,[p.k]);
       if(hasService(a,name,shiftDay(p.ds,-1),x=>x==='guardia'))add('Post-guardia',name,p.ds,'turno il giorno successivo alla guardia',[p.k]);
       if((p.s==='disp1'&&hasService(a,name,p.ds,x=>x==='disp2'))||(p.s==='disp2'&&hasService(a,name,p.ds,x=>x==='disp1')))
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);

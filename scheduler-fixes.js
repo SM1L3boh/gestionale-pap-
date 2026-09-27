@@ -72,6 +72,7 @@ function structuralDefault(m,ds,s,i){
   if(s==='op2')return w===2?'NESSUNO':null;
   if(s==='oppom'){
     if(w===3)return i===1?'NESSUNO':null;
+    if([1,2,4].includes(w))return null;
     return'NESSUNO';
   }
   return null;

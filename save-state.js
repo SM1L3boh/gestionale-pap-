@@ -79,8 +79,9 @@ function install(){
       b.type='button';
       b.textContent='ESPORTA BACKUP DATI';
       b.className='adminOnly';
-      s.insertAdjacentElement('afterend',b);
     }
+    const excel=document.getElementById('exportExcelBtn');
+    if(excel&&b.previousElementSibling!==excel)excel.insertAdjacentElement('afterend',b);
     if(b.dataset.bound!=='1'){
       b.dataset.bound='1';
       b.addEventListener('click',exportDataBackup);

@@ -74,10 +74,12 @@ function ensureRepartoForContinuity(a,g,e,doctors,m,ds,n,protectedKeys){
   assign(a,g,e,free,n,false);protectedKeys.add(free);return true
 }
 function applySaturdayContinuity(a,g,e,doctors,m,protectedKeys){
-  const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
-  for(let day=1;day<=days;day++){
-    const sat=`${m}-${String(day).padStart(2,'0')}`,dt=new Date(sat+'T12:00:00');
+  const [y,mo]=m.split('-').map(Number);
+  const monthStart=new Date(y,mo-1,1,12),monthEnd=new Date(y,mo,0,12);
+  const scanStart=new Date(monthStart);scanStart.setDate(scanStart.getDate()-7);
+  for(let dt=new Date(scanStart);dt<=monthEnd;dt.setDate(dt.getDate()+1)){
     if(dt.getDay()!==6)continue;
+    const sat=dt.toISOString().slice(0,10);
     const first=a[K(sat,'disp1',0)],second=a[K(sat,'disp2',0)];
     if(first&&first!=='NESSUNO'){
       for(const off of[-4,-3,-2,-1])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),first,protectedKeys);

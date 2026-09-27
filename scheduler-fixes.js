@@ -59,7 +59,7 @@ function dispOK(a,d,ds,s){let n=d.name;if(d.cat!=='Strutturato'||manualOnly(d)||
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}
 function calzavaraOpPenalty(){return 0}
-function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),over:Math.max(0,monthEq(a,d.name,m)+hrs(s,new Date(ds+'T12:00:00'))/6-target(d.name,m)),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.over-Q.over||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.over-Q.over||P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
+function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
 function structuralDefault(m,ds,s,i){
   if(m<'2026-11')return null;
   const w=new Date(ds+'T12:00:00').getDay();
@@ -186,6 +186,73 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const [k,v] of Object.entries(best.A))if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k)&&v)a[k]=v;
   for(const k of best.G)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))g.add(k);
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
+}
+function assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys){
+  const order=['oppom','op1','op2','reparto','gessi','gessirep','amb'];
+  let pending=[];
+  for(const {ds} of dates)for(const s of order)for(const i of slots(s)){
+    const k=K(ds,s,i);
+    if(!protectedKeys.has(k)&&(!a[k]||a[k]==='NESSUNO'))pending.push(k);
+  }
+  // Harder cells first: fewer valid candidates, then OP POM / OP, then date.
+  while(pending.length){
+    let ranked=pending.map(k=>{
+      const [ds,s]=k.split('|');
+      const list=cand(doctors,a,s,ds,m,false,false);
+      const pri=s==='oppom'?0:(s==='op1'||s==='op2'?1:2);
+      return{k,list,count:list.length,pri};
+    }).sort((x,y)=>x.count-y.count||x.pri-y.pri||x.k.localeCompare(y.k));
+    const best=ranked[0];
+    if(!best||best.count===0)break;
+    assign(a,g,e,best.k,best.list[0].name,false);
+    pending=pending.filter(k=>k!==best.k);
+  }
+}
+function finalHoleRepair(a,g,e,doctors,m,days,y,mo,protectedKeys){
+  const docMap=new Map(doctors.map(d=>[d.name,d])),MAX_NODES=1800,MAX_DEPTH=2;
+  const autoDoc=d=>!!d&&!manualOnly(d)&&(d.cat==='Strutturato'||d.name==='CIPRIAN');
+  const isOpen=k=>!a[k]||a[k]==='NESSUNO';
+  const restore=(k,val,wasGen,wasExtra)=>{if(val===undefined)delete a[k];else a[k]=val;wasGen?g.add(k):g.delete(k);wasExtra?e.add(k):e.delete(k)};
+  const movable=k=>{
+    if(!g.has(k)||protectedKeys.has(k)||!k.startsWith(m+'-'))return false;
+    const d=docMap.get(a[k]),s=k.split('|')[1];
+    return autoDoc(d)&&REQ.includes(s);
+  };
+  function trySlot(k,depth,ctx,stack){
+    if(!isOpen(k))return true;
+    if(protectedKeys.has(k)||ctx.nodes>=MAX_NODES)return false;
+    const [ds,s]=k.split('|');
+    const direct=doctors.filter(d=>autoDoc(d)&&canEmergencyCoverage(a,d,s,ds,m))
+      .sort((p,q)=>monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
+    if(direct[0]){assign(a,g,e,k,direct[0].name,true);return true}
+    if(depth<=0)return false;
+    let moves=[...g].filter(mk=>movable(mk)&&!stack.has(mk))
+      .sort((p,q)=>{const [pds,ps]=p.split('|'),[qds,qs]=q.split('|');return (wk(pds)===wk(ds)?0:1)-(wk(qds)===wk(ds)?0:1)||(ps===s?0:1)-(qs===s?0:1)});
+    for(const mk of moves){
+      if(ctx.nodes++>=MAX_NODES)break;
+      const moved=a[mk],d=docMap.get(moved);
+      if(!autoDoc(d))continue;
+      const oldMove=a[mk],mg=g.has(mk),me=e.has(mk);
+      const oldTarget=a[k],tg=g.has(k),te=e.has(k);
+      delete a[mk];g.delete(mk);e.delete(mk);
+      if(oldTarget==='NESSUNO')delete a[k];
+      if(canEmergencyCoverage(a,d,s,ds,m)){
+        assign(a,g,e,k,moved,true);
+        const ns=new Set(stack);ns.add(k);ns.add(mk);
+        if(trySlot(mk,depth-1,ctx,ns))return true;
+      }
+      restore(k,oldTarget,tg,te);restore(mk,oldMove,mg,me);
+    }
+    return false;
+  }
+  const holes=unresolved(a,m,days,y,mo,protectedKeys).sort((ka,kb)=>{
+    const sa=ka.split('|')[1],sb=kb.split('|')[1];
+    const rank=s=>s==='oppom'?0:(s==='op1'||s==='op2'?1:2);
+    return rank(sa)-rank(sb)||ka.localeCompare(kb);
+  });
+  const ctx={nodes:0};let fixed=0;
+  for(const k of holes)if(isOpen(k)&&trySlot(k,MAX_DEPTH,ctx,new Set([k])))fixed++;
+  return{fixed,nodes:ctx.nodes,remaining:unresolved(a,m,days,y,mo,protectedKeys).length};
 }
 function assignServiceMonth(a,g,e,doctors,m,dates,s,protectedKeys){for(const{ds}of dates)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;let c=cand(doctors,a,s,ds,m,false,false);if(c[0])assign(a,g,e,k,c[0].name)}}
 function fillHoles(a,g,e,doctors,m,days,y,mo,protectedKeys){for(let pass=0;pass<6;pass++){let changed=false;for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;let c=cand(doctors,a,s,ds,m,true,false).filter(d=>d.cat==='Strutturato'&&!manualOnly(d));if(c[0]){assign(a,g,e,k,c[0].name,true);changed=true}}}if(!changed)break}}
@@ -382,12 +449,12 @@ function rebalanceOpTotals(a,g,e,doctors,m,protectedKeys){
   };
   const restore=(k,val,wasGen,wasExtra)=>{if(val===undefined)delete a[k];else a[k]=val;wasGen?g.add(k):g.delete(k);wasExtra?e.add(k):e.delete(k)};
   let guard=0;
-  while(opSpread()>1&&guard++<800){
+  while(opSpread()>3&&guard++<800){
     const ordered=[...cohort].sort((p,q)=>op(p.name)-op(q.name)||tot(p.name)-tot(q.name));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(op(high.name)-op(low.name)<=1)continue;
+        if(op(high.name)-op(low.name)<=3)continue;
         const opKeys=[...g].filter(k=>k.startsWith(m+'-')&&opMovable(k,high.name));
         for(const ok of opKeys){
           const [ods,os]=ok.split('|'),oval=a[ok],og=g.has(ok),oe=e.has(ok),before=opSpread();
@@ -438,12 +505,12 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
     return services.includes(k.split('|')[1]);
   };
   let guard=0;
-  while(spread()>1&&guard++<500){
+  while(spread()>3&&guard++<500){
     const ordered=[...cohort].sort((p,q)=>pom(p.name)-pom(q.name)||orCount(a,p.name,m)-orCount(a,q.name,m));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(pom(high.name)-pom(low.name)<=1)continue;
+        if(pom(high.name)-pom(low.name)<=3)continue;
         if(high.name==='CALZAVARA'&&pom(high.name)<=1)continue;
         const pomKeys=[...g].filter(k=>k.startsWith(m+'-')&&movable(k,high.name,['oppom']));
         const swapKeys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===low.name&&REQ.includes(k.split('|')[1])&&k.split('|')[1]!=='oppom'&&!protectedKeys.has(k));
@@ -461,7 +528,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
               assign(a,g,e,pk,low.name,pe);
               assign(a,g,e,mk,high.name,me);
               const opVals=cohort.map(d=>orCount(a,d.name,m)),afterOpSpread=Math.max(...opVals)-Math.min(...opVals);
-              if(spread()<before && afterOpSpread<=1 && afterOpSpread<=beforeOpSpread && opPomCount(a,'CALZAVARA',m)>=1){
+              if(spread()<before && afterOpSpread<=3 && afterOpSpread<=beforeOpSpread && opPomCount(a,'CALZAVARA',m)>=1){
                 changed=true;
                 break;
               }
@@ -521,7 +588,74 @@ function finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
 }
 function normalizeExtras(a,g,e,doctors,m){for(const k of [...e])if(k.startsWith(m+'-'))e.delete(k);for(const d of doctors){if(manualOnly(d))continue;let over=Math.max(0,monthEq(a,d.name,m)-target(d.name,m));if(!over)continue;let keys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===d.name&&REQ.includes(k.split('|')[1])).sort().reverse();for(const k of keys){if(over<=0)break;e.add(k);over-=1}}}
 function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k))continue;if(!a[k]||a[k]==='NESSUNO')u.push(k)}}return u}
-async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{await new Promise(r=>setTimeout(r,50));let x=await cloud(),doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),fullSchedule={...(x.schedule||{})},keepMonths=new Set(triMonths(m)),a=Object.fromEntries(Object.entries(fullSchedule).filter(([k])=>keepMonths.has(k.slice(0,7)))),g=new Set(x.generatedKeys||[]),e=new Set(x.extraKeys||[]),baseline={...(x.savedStates?.[m]||{})};for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];let protectedKeys=new Set(Object.keys(baseline)),[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),dates=monthDays(m,days,y,mo);clear(a,g,e,m,doctors,protectedKeys);for(const k of Object.keys(a))if(k.startsWith(m+'-')&&k.includes('|ferie|'))delete a[k];for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;applyStructuralDefaults(a,m,days,y,mo,protectedKeys);let absence=x.absenceManagement||{},byDate={};for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)}for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);if(m<'2026-11')for(const{ds}of dates){let k=K(ds,'esami',0);if(!protectedKeys.has(k)&&!a[k])a[k]='NESSUNO'}applySaturdayContinuity(a,g,e,doctors,m,protectedKeys);await optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys);assignCiprian(a,g,e,m,days,y,mo,protectedKeys);for(const s of REST)assignServiceMonth(a,g,e,doctors,m,dates,s,protectedKeys);for(const{ds}of dates){assignDisp(a,g,e,doctors,ds,m,'disp1',protectedKeys);assignDisp(a,g,e,doctors,ds,m,'disp2',protectedKeys)}fillHoles(a,g,e,doctors,m,days,y,mo,protectedKeys);assignCiprian(a,g,e,m,days,y,mo,protectedKeys);backtrackFill(a,g,e,doctors,m,days,y,mo,protectedKeys);ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);rebalanceStructuredTotals(a,g,e,doctors,m,protectedKeys);ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);rebalanceStructuredTotals(a,g,e,doctors,m,protectedKeys);rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);globalHoleOptimize(a,g,e,doctors,m,days,y,mo,protectedKeys);rebalanceStructuredTotals(a,g,e,doctors,m,protectedKeys);rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);emergencyCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);normalizeExtras(a,g,e,doctors,m);let u=unresolved(a,m,days,y,mo,protectedKeys),allU=new Set(x.unresolvedKeys||[]);for(const k of [...allU])if(k.startsWith(m+'-'))allU.delete(k);u.forEach(k=>allU.add(k));let finalSchedule={...fullSchedule};for(const k of Object.keys(finalSchedule))if(k.startsWith(m+'-'))delete finalSchedule[k];for(const[k,v]of Object.entries(a))if(k.startsWith(m+'-'))finalSchedule[k]=v;await setDoc(root,{schedule:finalSchedule,generatedKeys:[...g],extraKeys:[...e],unresolvedKeys:[...allU],updatedAt:new Date().toISOString()},{merge:true});location.reload()}finally{if(b){b.disabled=false;b.textContent='GENERA BOZZA'}}}
+async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
+  await new Promise(r=>setTimeout(r,30));
+  let x=await cloud(),
+      doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
+      fullSchedule={...(x.schedule||{})},
+      keepMonths=new Set(triMonths(m)),
+      a=Object.fromEntries(Object.entries(fullSchedule).filter(([k])=>keepMonths.has(k.slice(0,7)))),
+      g=new Set(x.generatedKeys||[]),
+      e=new Set(x.extraKeys||[]),
+      baseline={...(x.savedStates?.[m]||{})};
+
+  for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
+  let protectedKeys=new Set(Object.keys(baseline)),
+      [y,mo]=m.split('-').map(Number),
+      days=new Date(y,mo,0).getDate(),
+      dates=monthDays(m,days,y,mo);
+
+  clear(a,g,e,m,doctors,protectedKeys);
+  for(const k of Object.keys(a))if(k.startsWith(m+'-')&&k.includes('|ferie|'))delete a[k];
+  for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;
+  applyStructuralDefaults(a,m,days,y,mo,protectedKeys);
+
+  let absence=x.absenceManagement||{},byDate={};
+  for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){
+    byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)
+  }
+  for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);
+  if(m<'2026-11')for(const{ds}of dates){let k=K(ds,'esami',0);if(!protectedKeys.has(k)&&!a[k])a[k]='NESSUNO'}
+
+  // A. Regole fisse.
+  applySaturdayContinuity(a,g,e,doctors,m,protectedKeys);
+  assignCiprian(a,g,e,m,days,y,mo,protectedKeys);
+
+  // B. Unica generazione di tutti i servizi richiesti.
+  assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys);
+
+  // Disponibilità dopo i servizi.
+  for(const{ds}of dates){
+    assignDisp(a,g,e,doctors,ds,m,'disp1',protectedKeys);
+    assignDisp(a,g,e,doctors,ds,m,'disp2',protectedKeys);
+  }
+
+  // C. Secondo passaggio: extra consentiti, target e 36h non bloccano.
+  emergencyCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+  finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+
+  // D. Backtracking piccolo solo sui buchi residui.
+  if(unresolved(a,m,days,y,mo,protectedKeys).length){
+    finalHoleRepair(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+  }
+
+  // E. Solo a copertura completata: riequilibrio leggero OP (tolleranza gestita dalla funzione corrente).
+  if(!unresolved(a,m,days,y,mo,protectedKeys).length){
+    ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);
+  }
+
+  normalizeExtras(a,g,e,doctors,m);
+  let u=unresolved(a,m,days,y,mo,protectedKeys),allU=new Set(x.unresolvedKeys||[]);
+  for(const k of [...allU])if(k.startsWith(m+'-'))allU.delete(k);
+  u.forEach(k=>allU.add(k));
+  let finalSchedule={...fullSchedule};
+  for(const k of Object.keys(finalSchedule))if(k.startsWith(m+'-'))delete finalSchedule[k];
+  for(const[k,v]of Object.entries(a))if(k.startsWith(m+'-'))finalSchedule[k]=v;
+
+  await setDoc(root,{schedule:finalSchedule,generatedKeys:[...g],extraKeys:[...e],unresolvedKeys:[...allU],updatedAt:new Date().toISOString()},{merge:true});
+  location.reload();
+}finally{if(b){b.disabled=false;b.textContent='GENERA BOZZA'}}}
 function ensureStyle(){if(document.getElementById('unresolvedStyle'))return;let s=document.createElement('style');s.id='unresolvedStyle';s.textContent='select.unresolvedShift{background:#fff3cd!important;border:3px solid #f59e0b!important;box-shadow:0 0 0 1px #b45309!important}';document.head.appendChild(s)}
 async function paintUnresolved(){ensureStyle();let x=await cloud(),u=new Set(x.unresolvedKeys||[]),m=$('month')?.value||'';document.querySelectorAll('#schedule select[data-k]').forEach(s=>s.classList.toggle('unresolvedShift',!!m&&u.has(s.dataset.k)))}
 function restoreMonth(){let el=$('month'),m=localStorage.getItem('turniLastMonth');if(el&&m&&/^\d{4}-\d{2}$/.test(m))el.value=m}

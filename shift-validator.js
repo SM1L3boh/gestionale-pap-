@@ -101,7 +101,7 @@ function personalRuleIssues(doc,s,ds){
 function assignmentIssues(a,absence,docs,name,k){
   const {ds,s}=parts(k),doc=doctorMap(docs).get(name),issues=[];
   if(!name||name==='NESSUNO'||!ds||!s)return issues;
-  if(doc?.cat==='Contratto')return issues;
+  if(doc?.cat==='Contratto'||name==='PINI')return issues;
   if((absence?.[name]||[]).includes(ds))issues.push('medico segnato in ferie/assenza in questa data');
   if(s!=='ferie'&&hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))issues.push('servizio il giorno successivo a una guardia notturna');
   if(s==='guardia'){
@@ -128,7 +128,7 @@ function audit(a,absence,docs,month){
     if(seen.has(id))return;seen.add(id);
     anomalies.push({type,name,ds,msg,keys});
   };
-  const names=(docs||[]).filter(d=>d.active&&d.cat!=='Contratto').map(d=>d.name);
+  const names=(docs||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI').map(d=>d.name);
   for(const name of names){
     const monthAsg=assignments(a,name,p=>p.ds.startsWith(month+'-')&&p.s!=='ferie');
     for(const p of monthAsg){

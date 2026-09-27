@@ -99,6 +99,7 @@ function personalRuleIssues(doc,s,ds){
 function assignmentIssues(a,absence,docs,name,k){
   const {ds,s}=parts(k),doc=doctorMap(docs).get(name),issues=[];
   if(!name||name==='NESSUNO'||!ds||!s)return issues;
+  if(doc?.cat==='Contratto')return issues;
   if((absence?.[name]||[]).includes(ds))issues.push('medico segnato in ferie/assenza in questa data');
   if(s!=='ferie'&&hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))issues.push('servizio il giorno successivo a una guardia notturna');
   if(s==='guardia'){
@@ -114,7 +115,7 @@ function assignmentIssues(a,absence,docs,name,k){
   if(wh>36)issues.push('supera 36 ore nella settimana ('+wh+' h)');
   const dd=doubleDaysInWeek(a,name,wk);
   if(dd.length>1)issues.push('più di una giornata da 12 ore (mattina + pomeriggio) nella stessa settimana');
-  if(consecutiveSame(a,name,s,ds))issues.push('tre giorni consecutivi nello stesso servizio');
+  if(name!=='CIPRIAN'&&consecutiveSame(a,name,s,ds))issues.push('tre giorni consecutivi nello stesso servizio');
   issues.push(...personalRuleIssues(doc,s,ds));
   return [...new Set(issues)];
 }
@@ -125,7 +126,7 @@ function audit(a,absence,docs,month){
     if(seen.has(id))return;seen.add(id);
     anomalies.push({type,name,ds,msg,keys});
   };
-  const names=(docs||[]).filter(d=>d.active).map(d=>d.name);
+  const names=(docs||[]).filter(d=>d.active&&d.cat!=='Contratto').map(d=>d.name);
   for(const name of names){
     const monthAsg=assignments(a,name,p=>p.ds.startsWith(month+'-')&&p.s!=='ferie');
     for(const p of monthAsg){
@@ -135,7 +136,7 @@ function audit(a,absence,docs,month){
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);
       if((AM.has(p.s)||PM.has(p.s))&&sameBandCount(a,name,p.ds,p.s)>1)
         add('Sovrapposizione',name,p.ds,AM.has(p.s)?'più servizi nella stessa mattina':'più servizi nello stesso pomeriggio',[p.k]);
-      if(consecutiveSame(a,name,p.s,p.ds))add('Sequenza',name,p.ds,'tre giorni consecutivi nello stesso servizio',[p.k]);
+      if(name!=='CIPRIAN'&&consecutiveSame(a,name,p.s,p.ds))add('Sequenza',name,p.ds,'tre giorni consecutivi nello stesso servizio',[p.k]);
       for(const msg of personalRuleIssues(doctorMap(docs).get(name),p.s,p.ds))
         add('Regola medico',name,p.ds,msg,[p.k]);
     }

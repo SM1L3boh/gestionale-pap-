@@ -32,6 +32,7 @@ function monthDefaultCells(month){
     // Weekend only exposes these services.
     put('guardia',0); put('giorno',0);
     if(w===0||w===6)continue;
+    put('esami',0);
     put('gessi',1);
     put('amb',1);
     if(w===2){put('op2',0);put('op2',1)}

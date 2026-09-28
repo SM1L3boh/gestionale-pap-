@@ -15,7 +15,7 @@ function applyRoleUI(){let a=isAdmin();document.querySelectorAll('.adminOnly').f
 function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorno','disp1','disp2','ferie'].includes(s);return true}function defaultCellValue(m,dt,s,i){
   if(m<'2026-11')return(i===1&&['gessi','amb'].includes(s))?'NESSUNO':'';
   if(s==='ferie')return'NESSUNO';
-  if(s==='guardia'||s==='giorno')return'NESSUNO';
+  if(s==='guardia'||s==='giorno'||s==='esami')return'NESSUNO';
   if(s==='disp1'||s==='disp2')return'';
   if(s==='gessi')return i===1?'NESSUNO':'';
   if(s==='gessirep'||s==='reparto'||s==='op1')return'';

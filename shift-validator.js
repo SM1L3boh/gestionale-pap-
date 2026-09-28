@@ -279,17 +279,16 @@ async function runRedDiagnostics(){
   }
   const rows=reds.map(z=>{
     const total=monthEquivalent(a,z.name,m),target=validatorTarget(z.name,m),over=Math.max(0,total-target);
-    const wh=weekHours(a,z.name,weekKey(z.ds));
-    const dayAsg=assignments(a,z.name,p=>p.ds===z.ds&&p.s!=='ferie');
-    const am=dayAsg.some(p=>AM.has(p.s)),pm=dayAsg.some(p=>PM.has(p.s));
+    const wkKey=weekKey(z.ds),wh=weekHours(a,z.name,wkKey);
     const why=[];
     if(over>0)why.push('totale mensile '+total+' vs target '+target+' (+'+over+')');
     if(wh>36)why.push('settimana da '+wh+' h (>36 h)');
-    if(am&&pm)why.push('giornata con mattina + pomeriggio');
+    const doubleDays=doubleDaysInWeek(a,z.name,wkKey);
+    if(doubleDays.length>1)why.push('seconda giornata da 12 h nella stessa settimana ('+doubleDays.map(formatItalianDate).join(', ')+')');
     if(!why.length)why.push('cella presente in extraKeys del generatore');
     return '<tr><td>'+formatItalianDate(z.ds)+'</td><td><b>'+z.name+'</b></td><td>'+(LABELS[z.s]||z.s)+'</td><td>'+(Number(z.i)+1)+'</td><td style="text-align:left">'+why.join('; ')+'</td></tr>';
   }).join('');
-  $('redDiagnosticInfo').textContent=reds.length+' turni rossi analizzati. Il rosso indica una cella automatica registrata come EXTRA. Con la logica attuale, dopo la generazione il sistema marca un numero di celle pari all’eccedenza mensile rispetto al target: quindi la singola cella rossa non è necessariamente il turno che ha materialmente causato il superamento. La tabella mostra anche eventuale superamento delle 36 h e giornate mattina+pomeriggio.';
+  $('redDiagnosticInfo').textContent=reds.length+' turni rossi analizzati. Il rosso indica una cella automatica registrata come EXTRA. Con la logica attuale, dopo la generazione il sistema marca un numero di celle pari all’eccedenza mensile rispetto al target: quindi la singola cella rossa non è necessariamente il turno che ha materialmente causato il superamento. La tabella mostra anche eventuale superamento delle 36 h e segnala i turni da 12 h solo quando nella stessa settimana ce n\'è più di uno.';
   $('redDiagnosticTable').innerHTML='<tr><th>Data</th><th>Medico</th><th>Servizio</th><th>Slot</th><th>Perché è rosso / contesto</th></tr>'+rows;
 }
 function installRedDiagnosticButton(){

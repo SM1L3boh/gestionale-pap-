@@ -89,7 +89,7 @@ function ensureMobileShiftView(){
   let btn=$('mobileViewBtn');
   if(!btn){
     btn=document.createElement('button');btn.id='mobileViewBtn';btn.type='button';btn.className='mobileViewToggle';btn.textContent='VISTA MOBILE';
-    btn.onclick=()=>{mobileViewExplicit=!mobileShouldBeOn();applyMobileShiftMode()};
+    btn.onclick=()=>{const next=!mobileShouldBeOn();mobileViewExplicit=next;if(next)mobileDoctor='';applyMobileShiftMode()};
     toolbar.appendChild(btn);
   }
   let panel=$('mobileShiftPanel');

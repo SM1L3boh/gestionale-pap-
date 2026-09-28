@@ -90,12 +90,22 @@ function sameBandCount(a,name,ds,s){
   if(!set)return 0;
   return assignments(a,name,p=>p.ds===ds&&set.has(p.s)).length;
 }
-function consecutiveSame(a,name,s,ds){
-  if(!REQUIRED.has(s))return false;
-  const has=d=>hasService(a,name,d,x=>x===s);
-  return (has(shiftDay(ds,-2))&&has(shiftDay(ds,-1))&&has(ds))||
-         (has(shiftDay(ds,-1))&&has(ds)&&has(shiftDay(ds,1)))||
-         (has(ds)&&has(shiftDay(ds,1))&&has(shiftDay(ds,2)));
+function hasGroupDay(a,name,ds,pred){return assignments(a,name,p=>p.ds===ds&&pred(p.s)).length>0}
+function consecutiveGroupViolation(a,name,s,ds){
+  const docService=s;
+  if(docService==='reparto')return '';
+  let pred,limit,label;
+  if(['op1','op2','oppom'].includes(docService)){pred=x=>['op1','op2','oppom'].includes(x);limit=4;label='più di 4 giorni consecutivi in sala operatoria'}
+  else if(AM.has(docService)){pred=x=>AM.has(x)&&!['op1','op2'].includes(x)&&x!=='reparto';limit=3;label='più di 3 giorni consecutivi nei servizi del mattino'}
+  else return '';
+  let run=1;
+  for(let o=-1;o>=-limit;o--){if(hasGroupDay(a,name,shiftDay(ds,o),pred))run++;else break}
+  for(let o=1;o<=limit;o++){if(hasGroupDay(a,name,shiftDay(ds,o),pred))run++;else break}
+  return run>limit?label:'';
+}
+function disp1ThreeDayViolation(a,name,ds){
+  const h=o=>hasService(a,name,shiftDay(ds,o),x=>x==='disp1');
+  return (h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2));
 }
 function sundayRestIssue(a,name,ds){const w=dayObj(ds).getDay();if(w===1&&hasService(a,name,shiftDay(ds,-1),x=>x==='disp1'))return 'riposo compensativo: 1ª disponibilità della domenica → lunedì libero';if(w===2&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp2'))return 'riposo compensativo: 2ª disponibilità della domenica → martedì libero';return ''}
 function sundayAvailabilityFutureIssue(a,name,ds,s){if(dayObj(ds).getDay()!==0)return'';if(s==='disp1'){const d=shiftDay(ds,1);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '1ª disponibilità della domenica: il lunedì successivo deve essere libero'}if(s==='disp2'){const d=shiftDay(ds,2);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '2ª disponibilità della domenica: il martedì successivo deve essere libero'}return''}
@@ -122,15 +132,15 @@ function assignmentIssues(a,absence,docs,name,k){
   }
   if((s==='disp1'&&hasService(a,name,ds,x=>x==='disp2'))||(s==='disp2'&&hasService(a,name,ds,x=>x==='disp1')))
     issues.push('stesso medico in 1ª e 2ª disponibilità nello stesso giorno');
-  if(s==='disp1'&&(hasService(a,name,shiftDay(ds,-1),x=>x==='disp1')||hasService(a,name,shiftDay(ds,1),x=>x==='disp1')))
-    issues.push('1ª disponibilità assegnata per due giorni consecutivi');
+  if(doc?.cat==='Strutturato'&&name!=='PINI'&&s==='disp1'&&disp1ThreeDayViolation(a,name,ds))
+    issues.push('1ª disponibilità assegnata per più di 2 giorni consecutivi');
   if((AM.has(s)||PM.has(s))&&sameBandCount(a,name,ds,s)>1)
     issues.push(AM.has(s)?'più servizi contemporanei nella fascia mattutina':'più servizi contemporanei nella fascia pomeridiana');
   const wk=weekKey(ds),wh=weekHours(a,name,wk);
   if(wh>36)issues.push('supera 36 ore nella settimana ('+wh+' h)');
   const dd=doubleDaysInWeek(a,name,wk);
   if(dd.length>1)issues.push('più di una giornata da 12 ore (mattina + pomeriggio) nella stessa settimana');
-  if(name!=='CIPRIAN'&&s!=='reparto'&&consecutiveSame(a,name,s,ds))issues.push('tre giorni consecutivi nello stesso servizio: '+(LABELS[s]||s));
+  if(doc?.cat==='Strutturato'&&name!=='PINI'){const seq=consecutiveGroupViolation(a,name,s,ds);if(seq)issues.push(seq)}
   issues.push(...personalRuleIssues(doc,s,ds));
   return [...new Set(issues)];
 }
@@ -149,11 +159,12 @@ function audit(a,absence,docs,month){
       if(hasService(a,name,shiftDay(p.ds,-1),x=>x==='guardia'))add('Post-guardia',name,p.ds,'turno il giorno successivo alla guardia',[p.k]);
       if((p.s==='disp1'&&hasService(a,name,p.ds,x=>x==='disp2'))||(p.s==='disp2'&&hasService(a,name,p.ds,x=>x==='disp1')))
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);
-      if(p.s==='disp1'&&(hasService(a,name,shiftDay(p.ds,-1),x=>x==='disp1')||hasService(a,name,shiftDay(p.ds,1),x=>x==='disp1')))
-        add('Disponibilità',name,p.ds,'1ª disponibilità per due giorni consecutivi',[p.k]);
+      const auditDoc=doctorMap(docs).get(name);
+      if(auditDoc?.cat==='Strutturato'&&name!=='PINI'&&p.s==='disp1'&&disp1ThreeDayViolation(a,name,p.ds))
+        add('Disponibilità',name,p.ds,'1ª disponibilità per più di 2 giorni consecutivi',[p.k]);
       if((AM.has(p.s)||PM.has(p.s))&&sameBandCount(a,name,p.ds,p.s)>1)
         add('Sovrapposizione',name,p.ds,AM.has(p.s)?'più servizi nella stessa mattina':'più servizi nello stesso pomeriggio',[p.k]);
-      if(name!=='CIPRIAN'&&p.s!=='reparto'&&consecutiveSame(a,name,p.s,p.ds))add('Sequenza',name,p.ds,'tre giorni consecutivi nello stesso servizio: '+(LABELS[p.s]||p.s),[p.k]);
+      if(auditDoc?.cat==='Strutturato'&&name!=='PINI'){const seq=consecutiveGroupViolation(a,name,p.s,p.ds);if(seq)add('Sequenza',name,p.ds,seq,[p.k])}
       for(const msg of personalRuleIssues(doctorMap(docs).get(name),p.s,p.ds))
         add('Regola medico',name,p.ds,msg,[p.k]);
     }
@@ -182,12 +193,9 @@ function generatorWeekendRest(a,name,ds){
   if(w===2&&hasService(a,name,shiftDay(ds,-3),x=>x==='disp2'))return 'riposo dopo 2ª DISP del sabato';
   return '';
 }
-function generatorThreeConsecutive(a,name,s,ds){
-  if(!REQUIRED.has(s)||name==='CIPRIAN')return false;
-  const has=d=>hasService(a,name,d,x=>x===s);
-  return (has(shiftDay(ds,-2))&&has(shiftDay(ds,-1)))||
-         (has(shiftDay(ds,-1))&&has(shiftDay(ds,1)))||
-         (has(shiftDay(ds,1))&&has(shiftDay(ds,2)));
+function generatorConsecutiveViolation(a,doc,s,ds){
+  if(doc?.cat!=='Strutturato'||doc?.name==='PINI')return '';
+  return consecutiveGroupViolation(a,doc.name,s,ds);
 }
 function generatorBlockReasons(a,absence,doc,k){
   const {ds,s}=parts(k),name=doc?.name,out=[];
@@ -212,7 +220,7 @@ function generatorBlockReasons(a,absence,doc,k){
   if(PM.has(s)&&sameBandCount(a,name,ds,s)>0)out.push('pomeriggio già occupato');
   if(AM.has(s)&&assignments(a,name,p=>p.ds===ds&&PM.has(p.s)).length&&doubleDaysInWeek(a,name,weekKey(ds)).length>=1)out.push('già presente un doppio turno nella settimana');
   if(PM.has(s)&&assignments(a,name,p=>p.ds===ds&&AM.has(p.s)).length&&doubleDaysInWeek(a,name,weekKey(ds)).length>=1)out.push('già presente un doppio turno nella settimana');
-  if(generatorThreeConsecutive(a,name,s,ds))out.push('3 giorni consecutivi nello stesso servizio');
+  const seq=generatorConsecutiveViolation(a,doc,s,ds);if(seq)out.push(seq);
   return [...new Set(out)];
 }
 

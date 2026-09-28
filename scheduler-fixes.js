@@ -55,7 +55,7 @@ function consecutiveRuleBlocked(a,d,s,ds){
   if(d?.cat!=='Strutturato'||d?.name==='PINI')return false;
   if(s==='reparto')return false;
   if(OR.includes(s))return wouldCreateConsecutive(a,d.name,ds,x=>OR.includes(x),4);
-  if(AM.includes(s))return wouldCreateConsecutive(a,d.name,ds,x=>AM.includes(x)&&!OR.includes(x)&&x!=='reparto',3);
+  if(AM.includes(s))return wouldCreateConsecutive(a,d.name,ds,x=>x===s,3);
   return false;
 }
 function hasBand(a,n,ds,band){let set=band==='am'?AM:PM;return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&set.includes(k.split('|')[1]))}
@@ -81,7 +81,7 @@ function structuralDefault(m,ds,s,i){
   if(m<'2026-11')return null;
   const w=new Date(ds+'T12:00:00').getDay();
   if(s==='ferie')return'NESSUNO';
-  if(s==='guardia'||s==='giorno')return'NESSUNO';
+  if(s==='guardia'||s==='giorno'||s==='esami')return'NESSUNO';
   if(s==='disp1'||s==='disp2')return null;
   if(s==='gessi')return i===1?'NESSUNO':null;
   if(s==='gessirep'||s==='reparto'||s==='op1')return null;

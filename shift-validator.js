@@ -31,7 +31,7 @@ function isAdminUI(){
 }
 function parts(k){const p=(k||'').split('|');return{ds:p[0]||'',s:p[1]||'',i:p[2]||'0'}}
 function dayObj(ds){return new Date(ds+'T12:00:00')}
-function formatItalianDate(ds){const [y,m,d]=(ds||'').split('-');return d&&m&&y?`${d}/${m}/${y}`:ds}
+function formatItalianDate(ds){const [y,m,d]=(ds||'').split('-'),mesi=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'],mi=Number(m)-1;return d&&m&&y&&mesi[mi]?`${Number(d)}-${mesi[mi]}-${y}`:ds}
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function hours(s,ds){
@@ -326,7 +326,7 @@ async function runAudit(){
   }
   $('validatorInfo').textContent=items.length+' anomalie rilevate. Le celle coinvolte sono evidenziate in rosso nella griglia.';
   $('validatorTable').innerHTML='<tr><th>Data/settimana</th><th>Medico</th><th>Tipo</th><th>Anomalia</th></tr>'+
-    items.map(z=>'<tr><td>'+z.ds+'</td><td><b>'+z.name+'</b></td><td>'+z.type+'</td><td style="text-align:left">'+z.msg+'</td></tr>').join('');
+    items.map(z=>'<tr><td>'+formatItalianDate(z.ds)+'</td><td><b>'+z.name+'</b></td><td>'+z.type+'</td><td style="text-align:left">'+z.msg+'</td></tr>').join('');
 }
 function installButton(){
   const b=$('validateShiftsBtn');

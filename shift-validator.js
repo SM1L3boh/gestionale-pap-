@@ -32,6 +32,11 @@ function isAdminUI(){
 function parts(k){const p=(k||'').split('|');return{ds:p[0]||'',s:p[1]||'',i:p[2]||'0'}}
 function dayObj(ds){return new Date(ds+'T12:00:00')}
 function formatItalianDate(ds){const [y,m,d]=(ds||'').split('-'),mesi=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'],mi=Number(m)-1;return d&&m&&y&&mesi[mi]?`${Number(d)}-${mesi[mi]}-${y}`:ds}
+function validatorEaster(y){let a=y%19,b=Math.floor(y/100),cc=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(cc/4),k=cc%4,l=(32+2*e+2*i-h-k)%7,mm=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*mm+114)/31),da=(h+l-7*mm+114)%31+1;return new Date(y,mo-1,da,12)}
+function validatorHoliday(dt){const md=`${dt.getMonth()+1}-${dt.getDate()}`,fixed=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(fixed.has(md))return true;const p=validatorEaster(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
+function validatorTarget(name,m){const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();let q=0;for(let d=1;d<=days;d++){const dt=new Date(y,mo-1,d,12),w=dt.getDay();if(name==='CIPRIAN'){if(w>=1&&w<=5&&!validatorHoliday(dt))q++}else if(w!==0&&!validatorHoliday(dt))q++}return q}
+function monthEquivalent(a,name,m){return assignments(a,name,p=>p.ds.startsWith(m+'-')).reduce((q,p)=>q+hours(p.s,p.ds)/6,0)}
+
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function hours(s,ds){
@@ -245,6 +250,63 @@ function visibleEmptyRequiredCells(month){
   });
   return out;
 }
+
+function ensureRedDiagnosticModal(){
+  if($('redDiagnosticModal'))return;
+  document.body.insertAdjacentHTML('beforeend',`
+  <div id="redDiagnosticModal" class="modalBack hidden">
+    <div class="modal" style="width:min(1150px,97vw)">
+      <h2>Diagnostica turni rossi</h2>
+      <p id="redDiagnosticInfo" class="small"></p>
+      <div class="countWrap"><table id="redDiagnosticTable"></table></div>
+      <div class="modalActions"><button id="redDiagnosticClose" type="button">Chiudi</button></div>
+    </div>
+  </div>`);
+  $('redDiagnosticClose').onclick=()=>$('redDiagnosticModal').classList.add('hidden');
+}
+async function runRedDiagnostics(){
+  const m=$('month')?.value;if(!m)return;
+  ensureRedDiagnosticModal();
+  $('redDiagnosticModal').classList.remove('hidden');
+  $('redDiagnosticInfo').textContent='Analisi in corso…';
+  $('redDiagnosticTable').innerHTML='';
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},a=scheduleFromDom(x.schedule||{}),extra=new Set(x.extraKeys||[]);
+  const reds=[...extra].filter(k=>k.startsWith(m+'-')).map(k=>{const p=parts(k);return{...p,k,name:a[k]}}).filter(z=>z.name&&z.name!=='NESSUNO').sort((p,q)=>p.ds.localeCompare(q.ds)||p.name.localeCompare(q.name));
+  if(!reds.length){
+    $('redDiagnosticInfo').textContent='Nessun turno rosso nel mese selezionato.';
+    $('redDiagnosticTable').innerHTML='<tr><td style="padding:18px"><b>✓ Nessuna assegnazione extra marcata in rosso.</b></td></tr>';
+    return;
+  }
+  const rows=reds.map(z=>{
+    const total=monthEquivalent(a,z.name,m),target=validatorTarget(z.name,m),over=Math.max(0,total-target);
+    const wh=weekHours(a,z.name,weekKey(z.ds));
+    const dayAsg=assignments(a,z.name,p=>p.ds===z.ds&&p.s!=='ferie');
+    const am=dayAsg.some(p=>AM.has(p.s)),pm=dayAsg.some(p=>PM.has(p.s));
+    const why=[];
+    if(over>0)why.push('totale mensile '+total+' vs target '+target+' (+'+over+')');
+    if(wh>36)why.push('settimana da '+wh+' h (>36 h)');
+    if(am&&pm)why.push('giornata con mattina + pomeriggio');
+    if(!why.length)why.push('cella presente in extraKeys del generatore');
+    return '<tr><td>'+formatItalianDate(z.ds)+'</td><td><b>'+z.name+'</b></td><td>'+(LABELS[z.s]||z.s)+'</td><td>'+(Number(z.i)+1)+'</td><td style="text-align:left">'+why.join('; ')+'</td></tr>';
+  }).join('');
+  $('redDiagnosticInfo').textContent=reds.length+' turni rossi analizzati. Il rosso indica una cella automatica registrata come EXTRA. Con la logica attuale, dopo la generazione il sistema marca un numero di celle pari all’eccedenza mensile rispetto al target: quindi la singola cella rossa non è necessariamente il turno che ha materialmente causato il superamento. La tabella mostra anche eventuale superamento delle 36 h e giornate mattina+pomeriggio.';
+  $('redDiagnosticTable').innerHTML='<tr><th>Data</th><th>Medico</th><th>Servizio</th><th>Slot</th><th>Perché è rosso / contesto</th></tr>'+rows;
+}
+function installRedDiagnosticButton(){
+  let b=$('diagnoseRedBtn');
+  if(!b){
+    const anchor=$('diagnoseEmptyBtn')||$('validateShiftsBtn');
+    if(!anchor)return;
+    b=document.createElement('button');
+    b.id='diagnoseRedBtn';b.type='button';b.className='adminOnly';b.textContent='DIAGNOSTICA ROSSI';
+    b.style.cssText='background:#dc2626!important;border-color:#b91c1c!important;color:#fff!important;font-weight:800!important';
+    anchor.insertAdjacentElement('afterend',b);
+  }
+  if(!b.dataset.bound){
+    b.dataset.bound='1';
+    b.addEventListener('click',e=>{e.preventDefault();runRedDiagnostics().catch(err=>alert('Errore diagnostica rossi: '+err.message))});
+  }
+}
 function ensureDiagnosticModal(){
   if($('emptyDiagnosticModal'))return;
   document.body.insertAdjacentHTML('beforeend',`
@@ -379,6 +441,6 @@ function installManualAlerts(){
     s.dispatchEvent(new Event('change',{bubbles:true}));
   },true);
 }
-function start(){ensureModal();ensureDiagnosticModal();installButton();installDiagnosticButton();installManualAlerts()}
+function start(){ensureModal();ensureDiagnosticModal();ensureRedDiagnosticModal();installButton();installDiagnosticButton();installRedDiagnosticButton();installManualAlerts()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
-setTimeout(installButton,700);setTimeout(installDiagnosticButton,700);setTimeout(installDiagnosticButton,1800);
+setTimeout(installButton,700);setTimeout(installDiagnosticButton,700);setTimeout(installRedDiagnosticButton,800);setTimeout(installDiagnosticButton,1800);setTimeout(installRedDiagnosticButton,1900);

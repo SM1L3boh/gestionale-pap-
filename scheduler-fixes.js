@@ -188,6 +188,17 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const k of best.G)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))g.add(k);
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
 }
+function fillManuallyOpenedCells(a,g,e,doctors,m,openedKeys){
+  let filled=0;
+  for(const k of openedKeys){
+    const [ds,s]=k.split('|');
+    if(!REQ.includes(s)||a[k]&&a[k]!=='NESSUNO')continue;
+    let list=cand(doctors,a,s,ds,m,false,false);
+    if(!list.length)list=doctors.filter(d=>canEmergencyCoverage(a,d,s,ds,m));
+    if(list[0]){assign(a,g,e,k,list[0].name,!can(a,list[0],s,ds,m,false,false));filled++}
+  }
+  return filled;
+}
 function assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys){
   const order=['oppom','op1','op2','reparto','gessi','gessirep','amb'];
   const pending=[];
@@ -596,6 +607,11 @@ function finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
 function normalizeExtras(a,g,e,doctors,m){for(const k of [...e])if(k.startsWith(m+'-'))e.delete(k);for(const d of doctors){if(manualOnly(d))continue;let over=Math.max(0,monthEq(a,d.name,m)-target(d.name,m));if(!over)continue;let keys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===d.name&&REQ.includes(k.split('|')[1])).sort().reverse();for(const k of keys){if(over<=0)break;e.add(k);over-=1}}}
 function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k))continue;if(!a[k]||a[k]==='NESSUNO')u.push(k)}}return u}
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
+  const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
+    const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
+    const [ds,s,i]=k.split('|');
+    return REQ.includes(s)&&structuralDefault(m,ds,s,Number(i))==='NESSUNO';
+  }).map(sel=>sel.dataset.k));
   await new Promise(r=>setTimeout(r,30));
   let x=await cloud(),
       doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
@@ -607,6 +623,7 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
       baseline={...(x.savedStates?.[m]||{})};
 
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
+  for(const k of openedStructuralKeys)delete baseline[k];
   let protectedKeys=new Set(Object.keys(baseline)),
       [y,mo]=m.split('-').map(Number),
       days=new Date(y,mo,0).getDate(),
@@ -616,6 +633,7 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of Object.keys(a))if(k.startsWith(m+'-')&&k.includes('|ferie|'))delete a[k];
   for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;
   applyStructuralDefaults(a,m,days,y,mo,protectedKeys);
+  for(const k of openedStructuralKeys){delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)}
 
   let absence=x.absenceManagement||{},byDate={};
   for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){
@@ -630,6 +648,10 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
 
   // B. Unica generazione di tutti i servizi richiesti.
   assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys);
+
+  // Celle strutturalmente NESSUNO che l'utente ha liberato manualmente:
+  // diventano celle generabili per questa bozza, incluse le seconde celle opzionali.
+  fillManuallyOpenedCells(a,g,e,doctors,m,openedStructuralKeys);
 
   // Disponibilità dopo i servizi.
   for(const{ds}of dates){

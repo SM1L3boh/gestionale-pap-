@@ -70,6 +70,7 @@ async function emptyCurrentMonth(){
       extraKeys:stripMonth(x.extraKeys),
       manualKeys:stripMonth(x.manualKeys),
       unresolvedKeys:stripMonth(x.unresolvedKeys),
+      openedStructuralKeys:stripMonth(x.openedStructuralKeys),
       savedStates,
       savedAbsenceStates,
       updatedAt:new Date().toISOString()

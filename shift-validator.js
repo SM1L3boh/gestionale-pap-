@@ -112,6 +112,8 @@ function assignmentIssues(a,absence,docs,name,k){
   }
   if((s==='disp1'&&hasService(a,name,ds,x=>x==='disp2'))||(s==='disp2'&&hasService(a,name,ds,x=>x==='disp1')))
     issues.push('stesso medico in 1ª e 2ª disponibilità nello stesso giorno');
+  if(s==='disp1'&&(hasService(a,name,shiftDay(ds,-1),x=>x==='disp1')||hasService(a,name,shiftDay(ds,1),x=>x==='disp1')))
+    issues.push('1ª disponibilità assegnata per due giorni consecutivi');
   if((AM.has(s)||PM.has(s))&&sameBandCount(a,name,ds,s)>1)
     issues.push(AM.has(s)?'più servizi contemporanei nella fascia mattutina':'più servizi contemporanei nella fascia pomeridiana');
   const wk=weekKey(ds),wh=weekHours(a,name,wk);
@@ -137,6 +139,8 @@ function audit(a,absence,docs,month){
       if(hasService(a,name,shiftDay(p.ds,-1),x=>x==='guardia'))add('Post-guardia',name,p.ds,'turno il giorno successivo alla guardia',[p.k]);
       if((p.s==='disp1'&&hasService(a,name,p.ds,x=>x==='disp2'))||(p.s==='disp2'&&hasService(a,name,p.ds,x=>x==='disp1')))
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);
+      if(p.s==='disp1'&&(hasService(a,name,shiftDay(p.ds,-1),x=>x==='disp1')||hasService(a,name,shiftDay(p.ds,1),x=>x==='disp1')))
+        add('Disponibilità',name,p.ds,'1ª disponibilità per due giorni consecutivi',[p.k]);
       if((AM.has(p.s)||PM.has(p.s))&&sameBandCount(a,name,p.ds,p.s)>1)
         add('Sovrapposizione',name,p.ds,AM.has(p.s)?'più servizi nella stessa mattina':'più servizi nello stesso pomeriggio',[p.k]);
       if(name!=='CIPRIAN'&&p.s!=='reparto'&&consecutiveSame(a,name,p.s,p.ds))add('Sequenza',name,p.ds,'tre giorni consecutivi nello stesso servizio: '+(LABELS[p.s]||p.s),[p.k]);

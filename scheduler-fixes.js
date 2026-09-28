@@ -624,7 +624,7 @@ function normalizeExtras(a,g,e,doctors,m){for(const k of [...e])if(k.startsWith(
 function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k))continue;if(!a[k]||a[k]==='NESSUNO')u.push(k)}}return u}
 
 const COLUMN_GENERATORS=[
-  ['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],
+  ['guardia','GUARDIA NOTT.'],['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],
   ['gessirep','GESSI+REP POM'],['reparto','REPARTO'],['amb','AMBULATORIO'],
   ['esami','AMB ESAMI'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM']
 ];
@@ -642,7 +642,7 @@ function columnCandidateKeys(m,s,a,opened){
   const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),out=[];
   for(let day=1;day<=days;day++){
     const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
-    if(w===0||w===6||holiday(dt))continue;
+    if(s!=='guardia'&&(w===0||w===6||holiday(dt)))continue;
     for(let i=0;i<columnSlotCount(s);i++){
       const k=K(ds,s,i);
       if(a[k]&&a[k]!=='NESSUNO')continue;
@@ -652,6 +652,24 @@ function columnCandidateKeys(m,s,a,opened){
     }
   }
   return out;
+}
+function nextDayHasWork(a,n,ds){
+  const nx=shiftDay(ds,1);
+  return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(nx+'|')&&!['ferie','guardia'].includes(k.split('|')[1])&&v!=='NESSUNO');
+}
+function canGuardiaColumn(a,d,ds,m,allowExtra=false){
+  const dt=new Date(ds+'T12:00:00'),n=d.name;
+  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
+  if(!allowExtra){
+    const weeklyCap=Math.min(Number(d.hours)||36,36);
+    if(weekHours(a,n,ds)+12>weeklyCap)return false;
+  }
+  return true;
+}
+function serviceCountMonth(a,n,m,s){
+  let q=0;
+  for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;
+  return q;
 }
 async function generateColumnV1(){
   const m=$('month')?.value,s=$('generateColumnSelect')?.value,b=$('generateColumnBtn');
@@ -690,7 +708,24 @@ async function generateColumnV1(){
     }
 
     const keys=columnCandidateKeys(m,s,a,opened);
-    if(s==='disp1'||s==='disp2'){
+    if(s==='guardia'){
+      const ranked=keys.map(k=>{
+        const ds=k.split('|')[0];
+        return {k,count:doctors.reduce((q,d)=>q+(canGuardiaColumn(a,d,ds,m,false)?1:0),0)};
+      }).sort((p,q)=>p.count-q.count||p.k.localeCompare(q.k));
+      for(const {k} of ranked){
+        if(a[k]&&a[k]!=='NESSUNO')continue;
+        const ds=k.split('|')[0];
+        let list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))
+          .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
+        if(list[0])assign(a,g,e,k,list[0].name,false);
+        else{
+          list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,true))
+            .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
+          if(list[0])assign(a,g,e,k,list[0].name,true);
+        }
+      }
+    }else if(s==='disp1'||s==='disp2'){
       for(const k of keys){
         const ds=k.split('|')[0];
         const list=doctors.filter(d=>dispOK(a,d,ds,s))

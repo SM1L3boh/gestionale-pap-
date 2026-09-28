@@ -1,7 +1,7 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
-document.head.insertAdjacentHTML('beforeend','<style>#schedule select.manualShift{background:#dff1ff!important}#schedule select.autoShift{background:#e3f6e9!important}#schedule select.extraShift{background:#ffdede!important}.doctorFilter{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin-left:0;width:auto;flex:1 1 auto;min-width:0;border-left:0;padding-left:0;padding-top:4px;white-space:nowrap}.doctorFilterLabel{font-size:12px;font-weight:700;color:#334155}.doctorFilter button{padding:5px 8px;font-size:11px}.doctorFilter button.active{background:#1d5b93;color:#fff;border-color:#1d5b93}.doctorHighlighted{box-shadow:0 0 0 3px #f59e0b!important;border-color:#d97706!important;font-weight:700!important;position:relative;z-index:2}.leaveCell{grid-template-columns:1fr 1fr!important}#openLeave,#leaveModal{display:none!important}.printValue{display:none}.noneValue{background:#fff!important}.leaveValue{background:#fff2b3!important}@media print{.printValue{display:block!important}}</style>');
+document.head.insertAdjacentHTML('beforeend','<style>#schedule select.manualShift{background:#dff1ff!important}#schedule select.autoShift{background:#e3f6e9!important}#schedule select.extraShift{background:#ffdede!important}.doctorFilter{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin-left:0;width:auto;flex:1 1 auto;min-width:0;border-left:0;padding-left:0;padding-top:4px;white-space:nowrap}.doctorFilterLabel{font-size:12px;font-weight:700;color:#334155}.doctorFilter button{padding:5px 8px;font-size:11px}.doctorFilter button.active{background:#1d5b93;color:#fff;border-color:#1d5b93}.doctorHighlighted{box-shadow:0 0 0 3px #f59e0b!important;border-color:#d97706!important;font-weight:700!important;position:relative;z-index:2}.leaveCell{grid-template-columns:1fr 1fr!important}#openLeave,#leaveModal{display:none!important}.printValue{display:none}.noneValue{background:#fff!important}.leaveValue{background:#fff2b3!important}@media print{.printValue{display:block!important}}.mobileShiftPanel{display:none}.mobileShiftControls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.mobileShiftControls label{font-size:12px;font-weight:700;color:#334155}.mobileShiftControls select{min-width:180px;padding:8px;border:1px solid #94a3b8;border-radius:7px;background:#fff}.mobileShiftList{display:flex;flex-direction:column;gap:10px}.mobileDayCard{background:#fff;border:1px solid #dbe3ec;border-radius:10px;padding:10px 12px;box-shadow:0 1px 2px #0f172a12}.mobileDayHead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:7px}.mobileDayHead b{font-size:15px}.mobileDayHead span{font-size:12px;color:#64748b}.mobileShiftRow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,1.25fr);gap:8px;padding:6px 0;border-top:1px solid #eef2f7;font-size:13px}.mobileShiftRow:first-of-type{border-top:0}.mobileShiftSvc{font-weight:700;color:#334155}.mobileShiftWho{color:#0f172a}.mobileShiftEmpty{padding:18px;text-align:center;color:#64748b;background:#fff;border:1px dashed #cbd5e1;border-radius:10px}.mobileViewToggle{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;font-weight:800!important}.mobileShiftsView #gridwrap,.mobileShiftsView .scrollDock,.mobileShiftsView #turni>.notice,.mobileShiftsView #doctorFilter{display:none!important}.mobileShiftsView .mobileShiftPanel{display:block!important}.mobileShiftsView #turni .toolbar>*{display:none!important}.mobileShiftsView #turni .toolbar #prev,.mobileShiftsView #turni .toolbar #month,.mobileShiftsView #turni .toolbar #next,.mobileShiftsView #turni .toolbar #mobileViewBtn{display:inline-flex!important}.mobileShiftsView #turni .toolbar{gap:6px;flex-wrap:wrap}.mobileShiftsView #mobileViewBtn{margin-left:auto}@media(max-width:760px){.mobileShiftRow{grid-template-columns:1fr}.mobileDayCard{padding:10px}.mobileShiftControls{position:sticky;top:0;z-index:4;background:#f8fafc;padding:8px 0;margin-top:4px}.mobileShiftControls select{flex:1;min-width:150px}}</style>');
 let highlightedDoctor='',building=false,doctorNames=[],leaveBusy=false;const manualKeys=new Set();let leaveSaveQueue=Promise.resolve();
 function mergeWeekendServiceCells(){document.querySelectorAll('#schedule tbody tr.weekend').forEach(row=>{if(row.dataset.weekendMerged)return;let tds=[...row.children];if(tds.length<15)return;let first=tds[6],leave=tds[14];if(!first||!leave)return;first.colSpan=8;first.classList.add('weekendMerged');first.innerHTML='<div class="weekendReperibili"><b>I reperibile 14–20</b><b>II reperibile 14–20</b></div>';for(let i=13;i>=7;i--)tds[i]?.remove();row.dataset.weekendMerged='1'})}
 async function applyValueColors(){let snap=await getDoc(root),x=snap.exists()?snap.data():{},generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]);document.querySelectorAll('#schedule select[data-k]').forEach(s=>{let k=s.dataset.k,none=!s.value||s.value==='NESSUNO',ferie=k?.includes('|ferie|');s.classList.remove('manualShift','autoShift','extraShift','leaveValue','noneValue');s.classList.toggle('noneValue',none);s.classList.toggle('leaveValue',ferie&&!none);if(!none&&!ferie){s.classList.toggle('extraShift',extra.has(k));s.classList.toggle('autoShift',generated.has(k)&&!extra.has(k));s.classList.toggle('manualShift',!generated.has(k)&&!extra.has(k))}})}
@@ -38,7 +38,72 @@ function isStructuralNessunoKey(k){
 async function persistManualKey(k){if(!k||k.includes('|ferie|'))return;let sel=document.querySelector(`#schedule select[data-k="${CSS.escape(k)}"]`),v=sel?.value||'';let snap=await getDoc(root),x=snap.exists()?snap.data():{},mk=new Set(x.manualKeys||[]),g=new Set(x.generatedKeys||[]),ex=new Set(x.extraKeys||[]),opened=new Set(x.openedStructuralKeys||[]);if(!v){manualKeys.delete(k);mk.delete(k);g.delete(k);ex.delete(k);if(isStructuralNessunoKey(k))opened.add(k);else opened.delete(k)}else{manualKeys.add(k);mk.add(k);g.delete(k);ex.delete(k);opened.delete(k)}await setDoc(root,{manualKeys:[...mk],generatedKeys:[...g],extraKeys:[...ex],openedStructuralKeys:[...opened],updatedAt:new Date().toISOString()},{merge:true});applyValueColors().catch(()=>{})}
 function trackManualChanges(){let schedule=$('schedule');if(!schedule||schedule.dataset.manualTracking)return;schedule.dataset.manualTracking='1';schedule.addEventListener('change',e=>{let s=e.target;if(s instanceof HTMLSelectElement&&s.dataset.k&&!s.dataset.k.includes('|ferie|')){applyValueColors();persistManualKey(s.dataset.k).catch(()=>{})}},true)}
 async function clearGeneratedSafe(e){e.preventDefault();e.stopImmediatePropagation();let m=$('month')?.value;if(!m)return;if(!confirm(`Ripristinare lo stato manuale salvato di ${m}? Verranno eliminati soltanto i turni aggiunti dalla bozza automatica.`))return;let snap=await getDoc(root),x=snap.exists()?snap.data():{},baseline=x.savedStates?.[m],absenceBaseline=x.savedAbsenceStates?.[m];if(!baseline){alert('Nessuno stato manuale salvato per '+m+'. Per sicurezza non è stato cancellato nulla.');return}let schedule={...(x.schedule||{})};for(const k of Object.keys(schedule))if(k.startsWith(m+'-'))delete schedule[k];for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))schedule[k]=v;let generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]),unresolved=new Set(x.unresolvedKeys||[]),manual=new Set(x.manualKeys||[]),opened=new Set(x.openedStructuralKeys||[]);for(const k of opened)if(k.startsWith(m+'-')){delete schedule[k];manual.delete(k)};for(const set of[generated,extra,unresolved])for(const k of[...set])if(k.startsWith(m+'-'))set.delete(k);for(const k of Object.keys(baseline))manual.add(k);let sync=$('sync');try{if(sync)sync.textContent='Ripristino stato manuale…';let absenceManagement=absenceBaseline!==undefined?structuredClone(absenceBaseline):(x.absenceManagement||{});await setDoc(root,{schedule,absenceManagement,generatedKeys:[...generated],extraKeys:[...extra],unresolvedKeys:[...unresolved],manualKeys:[...manual],openedStructuralKeys:[...opened],updatedAt:new Date().toISOString()},{merge:true});if(sync){sync.textContent='● Stato manuale ripristinato';sync.className='status online'}alert('Bozza '+m+' cancellata. Ripristinato esattamente lo stato salvato con SALVA STATO.');location.reload()}catch(err){if(sync)sync.textContent='Errore ripristino';alert('Errore durante il ripristino: '+err.message)}}
+
+let mobileViewExplicit=null,mobileDoctor='';
+const MOBILE_SERVICE_ORDER=['guardia','giorno','disp1','disp2','gessi','gessirep','reparto','amb','esami','op1','op2','oppom'];
+function escHtml(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function mobileShouldBeOn(){return mobileViewExplicit===null?window.matchMedia('(max-width:760px)').matches:mobileViewExplicit}
+async function renderMobileShiftView(){
+  const panel=$('mobileShiftPanel'),sel=$('mobileDoctorSelect'),month=$('month')?.value;
+  if(!panel||!sel||!month)return;
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},docs=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
+  doctorNames=docs;
+  const previous=mobileDoctor||sel.value||'';
+  sel.innerHTML='<option value="">Tutti i medici</option>'+docs.map(n=>`<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+  mobileDoctor=docs.includes(previous)?previous:'';
+  sel.value=mobileDoctor;
+
+  const byDate={};
+  for(const [k,name] of Object.entries(schedule)){
+    if(!k.startsWith(month+'-')||!name||name==='NESSUNO')continue;
+    const [ds,svc]=k.split('|');
+    if(svc==='ferie')continue;
+    if(mobileDoctor&&name!==mobileDoctor)continue;
+    byDate[ds]??={};
+    byDate[ds][svc]??=[];
+    if(!byDate[ds][svc].includes(name))byDate[ds][svc].push(name);
+  }
+  const dates=Object.keys(byDate).sort();
+  const list=$('mobileShiftList');
+  if(!dates.length){list.innerHTML='<div class="mobileShiftEmpty">Nessun turno assegnato nel mese selezionato.</div>';return}
+  const weekdays=['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+  const months=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  list.innerHTML=dates.map(ds=>{
+    const d=new Date(ds+'T12:00:00'),groups=byDate[ds];
+    const rows=MOBILE_SERVICE_ORDER.filter(s=>groups[s]?.length).map(s=>{
+      const who=mobileDoctor?'':groups[s].join(' / ');
+      return `<div class="mobileShiftRow"><div class="mobileShiftSvc">${escHtml(serviceLabel(s))}</div><div class="mobileShiftWho">${escHtml(who||mobileDoctor)}</div></div>`;
+    }).join('');
+    return `<div class="mobileDayCard"><div class="mobileDayHead"><b>${weekdays[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}</b><span>${ds.split('-').reverse().join('/')}</span></div>${rows}</div>`;
+  }).join('');
+}
+function applyMobileShiftMode(){
+  const on=mobileShouldBeOn(),turni=$('turni'),btn=$('mobileViewBtn');
+  turni?.classList.toggle('mobileShiftsView',on);
+  if(btn)btn.textContent=on?'VISTA COMPLETA':'VISTA MOBILE';
+  if(on)renderMobileShiftView().catch(()=>{});
+}
+function ensureMobileShiftView(){
+  const turni=$('turni'),toolbar=turni?.querySelector('.toolbar');
+  if(!turni||!toolbar)return;
+  let btn=$('mobileViewBtn');
+  if(!btn){
+    btn=document.createElement('button');btn.id='mobileViewBtn';btn.type='button';btn.className='mobileViewToggle';btn.textContent='VISTA MOBILE';
+    btn.onclick=()=>{mobileViewExplicit=!mobileShouldBeOn();applyMobileShiftMode()};
+    toolbar.appendChild(btn);
+  }
+  let panel=$('mobileShiftPanel');
+  if(!panel){
+    panel=document.createElement('div');panel.id='mobileShiftPanel';panel.className='mobileShiftPanel';
+    panel.innerHTML='<div class="mobileShiftControls"><label for="mobileDoctorSelect">Medico</label><select id="mobileDoctorSelect"><option value="">Tutti i medici</option></select></div><div id="mobileShiftList" class="mobileShiftList"></div>';
+    const notice=turni.querySelector('.notice'),grid=$('gridwrap');
+    (notice||grid)?.insertAdjacentElement('afterend',panel);
+    $('mobileDoctorSelect')?.addEventListener('change',e=>{mobileDoctor=e.target.value||'';renderMobileShiftView().catch(()=>{})});
+  }
+  applyMobileShiftMode();
+}
 function installSafeClear(){let b=$('clearDraft');if(!b||b.dataset.safeClear)return;b.dataset.safeClear='1';b.addEventListener('click',clearGeneratedSafe,true)}
-function refreshEnhancements(){mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();installSafeClear()}
-function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},80));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
+function refreshEnhancements(){mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();installSafeClear();ensureMobileShiftView()}
+function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();renderMobileShiftView().catch(()=>{})},80));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
+window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);

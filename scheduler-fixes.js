@@ -584,7 +584,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
 }
 function canEmergencyCoverage(a,d,s,ds,m){
   const dt=new Date(ds+'T12:00:00'),n=d.name;
-  if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,false)||(n!=='CIPRIAN'&&createsThreeConsecutive(a,n,s,ds)))return false;
+  if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,false)||consecutiveRuleBlocked(a,d,s,ds))return false;
   if(AM.includes(s)&&hasBand(a,n,ds,'am'))return false;
   if(PM.includes(s)&&hasBand(a,n,ds,'pm'))return false;
   return true;

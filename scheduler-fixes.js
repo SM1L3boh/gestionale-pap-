@@ -659,7 +659,8 @@ function nextDayHasWork(a,n,ds){
 }
 function canGuardiaColumn(a,d,ds,m,allowExtra=false){
   const dt=new Date(ds+'T12:00:00'),n=d.name;
-  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
+  // Regola notti: mai due guardie in giorni consecutivi, né prima né dopo.
+  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
   if(!allowExtra){
     const weeklyCap=Math.min(Number(d.hours)||36,36);
     if(weekHours(a,n,ds)+12>weeklyCap)return false;
@@ -717,7 +718,7 @@ async function generateColumnV1(){
         if(a[k]&&a[k]!=='NESSUNO')continue;
         const ds=k.split('|')[0];
         let list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))
-          .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
+          .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds)||p.name.localeCompare(q.name));
         if(list[0])assign(a,g,e,k,list[0].name,false);
         else{
           list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,true))

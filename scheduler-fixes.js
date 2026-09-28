@@ -2,7 +2,7 @@ import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/fire
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),K=(d,s,i)=>`${d}|${s}|${i}`;
 const DATA_START_MONTH='2026-09';
-const AM=['gessi','reparto','amb','esami','op1','op2'],PM=['gessirep','oppom'],DAY=[...AM,...PM],REQ=['op1','op2','oppom','gessi','gessirep','reparto','amb'],OR=['op1','op2','oppom'],OPFIRST=['oppom','op1','op2'],REST=['gessi','gessirep','reparto','amb'];
+const AM=['gessi','reparto','amb','esami','op1','op2'],PM=['gessirep','oppom'],DAY=[...AM,...PM],REQ=['op1','op2','oppom','gessi','gessirep','reparto','amb','esami'],OR=['op1','op2','oppom'],OPFIRST=['oppom','op1','op2'],REST=['gessi','gessirep','reparto','amb'];
 const RULES={
 'PINI':{manual:true},
 'VIALE':{freePm:[3]},
@@ -65,7 +65,7 @@ function structuralDefault(m,ds,s,i){
   if(m<'2026-11')return null;
   const w=new Date(ds+'T12:00:00').getDay();
   if(s==='ferie')return'NESSUNO';
-  if(s==='guardia'||s==='giorno'||s==='esami')return'NESSUNO';
+  if(s==='guardia'||s==='giorno')return'NESSUNO';
   if(s==='disp1'||s==='disp2')return null;
   if(s==='gessi')return i===1?'NESSUNO':null;
   if(s==='gessirep'||s==='reparto'||s==='op1')return null;
@@ -200,7 +200,7 @@ function fillManuallyOpenedCells(a,g,e,doctors,m,openedKeys){
   return filled;
 }
 function assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys){
-  const order=['oppom','op1','op2','reparto','gessi','gessirep','amb'];
+  const order=['oppom','op1','op2','reparto','gessi','gessirep','amb','esami'];
   const pending=[];
   for(const {ds} of dates)for(const s of order)for(const i of slots(s)){
     const k=K(ds,s,i);
@@ -606,6 +606,134 @@ function finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
 }
 function normalizeExtras(a,g,e,doctors,m){for(const k of [...e])if(k.startsWith(m+'-'))e.delete(k);for(const d of doctors){if(manualOnly(d))continue;let over=Math.max(0,monthEq(a,d.name,m)-target(d.name,m));if(!over)continue;let keys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===d.name&&REQ.includes(k.split('|')[1])).sort().reverse();for(const k of keys){if(over<=0)break;e.add(k);over-=1}}}
 function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k))continue;if(!a[k]||a[k]==='NESSUNO')u.push(k)}}return u}
+
+const COLUMN_GENERATORS=[
+  ['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],
+  ['gessirep','GESSI+REP POM'],['reparto','REPARTO'],['amb','AMBULATORIO'],
+  ['esami','AMB ESAMI'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM']
+];
+const columnSlotCount=s=>['gessi','reparto','amb','op1','op2','oppom'].includes(s)?2:1;
+function domMonthSchedule(base,m){
+  const a={...base};
+  document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
+    const k=sel.dataset.k;if(!k?.startsWith(m+'-'))return;
+    const v=sel.value;
+    if(v&&v!=='NESSUNO')a[k]=v; else delete a[k];
+  });
+  return a;
+}
+function columnCandidateKeys(m,s,a,opened){
+  const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),out=[];
+  for(let day=1;day<=days;day++){
+    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
+    if(w===0||w===6||holiday(dt))continue;
+    for(let i=0;i<columnSlotCount(s);i++){
+      const k=K(ds,s,i);
+      if(a[k]&&a[k]!=='NESSUNO')continue;
+      const def=structuralDefault(m,ds,s,i);
+      if(def==='NESSUNO'&&!opened.has(k))continue;
+      out.push(k);
+    }
+  }
+  return out;
+}
+async function generateColumnV1(){
+  const m=$('month')?.value,s=$('generateColumnSelect')?.value,b=$('generateColumnBtn');
+  if(!m||!s)return;
+  localStorage.setItem('turniLastMonth',m);
+  if(b){b.disabled=true;b.textContent='GENERAZIONE…'}
+  try{
+    await new Promise(r=>setTimeout(r,20));
+    const x=await cloud(),
+      doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
+      fullSchedule={...(x.schedule||{})},
+      keepMonths=new Set(triMonths(m)),
+      hist=Object.fromEntries(Object.entries(fullSchedule).filter(([k])=>keepMonths.has(k.slice(0,7)))),
+      a=domMonthSchedule(hist,m),
+      g=new Set(x.generatedKeys||[]),
+      e=new Set(x.extraKeys||[]),
+      opened=new Set((x.openedStructuralKeys||[]).filter(k=>k.startsWith(m+'-')));
+
+    document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
+      const k=sel.dataset.k;if(!k?.startsWith(m+'-')||sel.value)return;
+      const [ds,svc,i]=k.split('|');
+      if(structuralDefault(m,ds,svc,Number(i))==='NESSUNO')opened.add(k);
+    });
+
+    const absence=x.absenceManagement||{},byDate={};
+    for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){
+      byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)
+    }
+    for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);
+
+    if(s==='reparto'){
+      const protectedKeys=new Set();
+      applySaturdayContinuity(a,g,e,doctors,m,protectedKeys);
+      const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
+      assignCiprian(a,g,e,m,days,y,mo,protectedKeys);
+    }
+
+    const keys=columnCandidateKeys(m,s,a,opened);
+    if(s==='disp1'||s==='disp2'){
+      for(const k of keys){
+        const ds=k.split('|')[0];
+        const list=doctors.filter(d=>dispOK(a,d,ds,s))
+          .sort((p,q)=>dispCount(a,p.name,m,s)-dispCount(a,q.name,m,s)||monthEq(a,p.name,m)-monthEq(a,q.name,m));
+        if(list[0])assign(a,g,e,k,list[0].name,false);
+      }
+    }else{
+      const ranked=keys.map(k=>{
+        const ds=k.split('|')[0];
+        return {k,count:doctors.reduce((q,d)=>q+(can(a,d,s,ds,m,false,false)?1:0),0)};
+      }).sort((p,q)=>p.count-q.count||p.k.localeCompare(q.k));
+
+      for(const {k} of ranked){
+        if(a[k]&&a[k]!=='NESSUNO')continue;
+        const ds=k.split('|')[0];
+        let list=cand(doctors,a,s,ds,m,false,false);
+        if(list[0])assign(a,g,e,k,list[0].name,false);
+        else{
+          list=doctors.filter(d=>canEmergencyCoverage(a,d,s,ds,m))
+            .sort((p,q)=>monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
+          if(list[0])assign(a,g,e,k,list[0].name,true);
+        }
+      }
+    }
+
+    normalizeExtras(a,g,e,doctors,m);
+
+    const finalSchedule={...fullSchedule};
+    for(const k of Object.keys(finalSchedule))if(k.startsWith(m+'-'))delete finalSchedule[k];
+    for(const[k,v]of Object.entries(a))if(k.startsWith(m+'-')&&v)finalSchedule[k]=v;
+
+    await setDoc(root,{
+      schedule:finalSchedule,
+      generatedKeys:[...g],
+      extraKeys:[...e],
+      openedStructuralKeys:[...new Set([...(x.openedStructuralKeys||[]),...opened])],
+      updatedAt:new Date().toISOString()
+    },{merge:true});
+    location.reload();
+  }finally{
+    if(b){b.disabled=false;b.textContent='GENERA COLONNA'}
+  }
+}
+function ensureColumnGeneratorUI(){
+  if($('generateColumnSelect')&&$('generateColumnBtn'))return;
+  const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
+  if(!wrap||!anchor)return;
+  const sel=document.createElement('select');
+  sel.id='generateColumnSelect';
+  sel.title='Seleziona la colonna da compilare';
+  sel.style.cssText='min-width:155px;padding:7px 8px;border:1px solid #94a3b8;border-radius:6px;background:#fff';
+  sel.innerHTML=COLUMN_GENERATORS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  const btn=document.createElement('button');
+  btn.id='generateColumnBtn';btn.type='button';btn.textContent='GENERA COLONNA';
+  btn.style.cssText='background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;font-weight:800!important';
+  btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();generateColumnV1().catch(err=>alert('Errore generazione colonna: '+err.message))});
+  wrap.insertBefore(sel,anchor);
+  wrap.insertBefore(btn,anchor);
+}
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
   const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
     const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
@@ -689,6 +817,6 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
 function ensureStyle(){if(document.getElementById('unresolvedStyle'))return;let s=document.createElement('style');s.id='unresolvedStyle';s.textContent='select.unresolvedShift{background:#fff3cd!important;border:3px solid #f59e0b!important;box-shadow:0 0 0 1px #b45309!important}';document.head.appendChild(s)}
 async function paintUnresolved(){ensureStyle();let x=await cloud(),u=new Set(x.unresolvedKeys||[]),m=$('month')?.value||'';document.querySelectorAll('#schedule select[data-k]').forEach(s=>s.classList.toggle('unresolvedShift',!!m&&u.has(s.dataset.k)))}
 function restoreMonth(){let el=$('month'),m=localStorage.getItem('turniLastMonth');if(el&&m&&/^\d{4}-\d{2}$/.test(m))el.value=m}
-function install(){if(document.documentElement.dataset.schedulerV11)return;document.documentElement.dataset.schedulerV11='1';document.addEventListener('click',q=>{let b=q.target.closest?.('#generate');if(!b)return;q.preventDefault();q.stopImmediatePropagation();generateV2().catch(err=>alert('Errore generazione: '+err.message))},true);document.addEventListener('change',e=>{let s=e.target;if(s?.matches?.('#schedule select.unresolvedShift'))s.classList.remove('unresolvedShift')},true)}
-function start(){restoreMonth();install();paintUnresolved();new MutationObserver(()=>{install();paintUnresolved()}).observe(document.body,{childList:true,subtree:true})}
+function install(){ensureColumnGeneratorUI();if(document.documentElement.dataset.schedulerV11)return;document.documentElement.dataset.schedulerV11='1';document.addEventListener('click',q=>{let b=q.target.closest?.('#generate');if(!b)return;q.preventDefault();q.stopImmediatePropagation();generateV2().catch(err=>alert('Errore generazione: '+err.message))},true);document.addEventListener('change',e=>{let s=e.target;if(s?.matches?.('#schedule select.unresolvedShift'))s.classList.remove('unresolvedShift')},true)}
+function start(){restoreMonth();ensureColumnGeneratorUI();install();paintUnresolved();new MutationObserver(()=>{ensureColumnGeneratorUI();install();paintUnresolved()}).observe(document.body,{childList:true,subtree:true})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();

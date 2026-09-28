@@ -41,9 +41,14 @@ function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);retu
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function hours(s,ds){
   if(s==='guardia')return 12;
-  if(s==='ferie'||s==='giorno')return 6;
+  if(s==='ferie')return dayObj(ds).getDay()===0?0:6;
+  if(s==='giorno')return 6;
   if(s==='disp1'||s==='disp2'){const w=dayObj(ds).getDay();return(w===0||w===6)?6:0}
   return 6;
+}
+function workedHours(s,ds){
+  if(s==='ferie')return 0;
+  return hours(s,ds);
 }
 function scheduleFromDom(base={}){
   const a={...base};
@@ -68,7 +73,7 @@ function hasService(a,name,ds,pred){
   return assignments(a,name,p=>p.ds===ds&&pred(p.s)).length>0;
 }
 function weekHours(a,name,wk){
-  return assignments(a,name,p=>weekKey(p.ds)===wk).reduce((q,p)=>q+hours(p.s,p.ds),0);
+  return assignments(a,name,p=>weekKey(p.ds)===wk).reduce((q,p)=>q+workedHours(p.s,p.ds),0);
 }
 function doubleDaysInWeek(a,name,wk){
   const d={};
@@ -200,7 +205,7 @@ function generatorBlockReasons(a,absence,doc,k){
   if(fixed.services&&!fixed.services.includes(s))out.push('servizio non previsto');
   if(PM.has(s)&&free.includes(w))out.push('pomeriggio libero');
 
-  const wh=weekHours(a,name,weekKey(ds)),add=hours(s,ds);
+  const wh=weekHours(a,name,weekKey(ds)),add=workedHours(s,ds);
   if(wh+add>Math.min(Number(doc.hours)||36,36))out.push('36 h settimanali ('+wh+'+'+add+' h)');
 
   if(AM.has(s)&&sameBandCount(a,name,ds,s)>0)out.push('mattina già occupata');

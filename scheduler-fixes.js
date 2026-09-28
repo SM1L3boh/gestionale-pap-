@@ -21,10 +21,11 @@ function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(f.has(md))return true;let p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function workTarget(m){let[y,mo]=m.split('-').map(Number),n=0,z=new Date(y,mo,0).getDate();for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()!==0&&!holiday(x))n++}return n}
 function target(n,m){if(n==='CIPRIAN'){let[y,mo]=m.split('-').map(Number),z=new Date(y,mo,0).getDate(),q=0;for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()>=1&&x.getDay()<=5&&!holiday(x))q++}return q}return workTarget(m)}
-function hrs(s,dt){if(s==='guardia')return 12;if(s==='ferie'||s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
+function hrs(s,dt){if(s==='guardia')return 12;if(s==='ferie')return dt.getDay()===0?0:6;if(s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
+function workedHrs(s,dt){if(s==='ferie')return 0;return hrs(s,dt)}
 function leave(a,ds,n){return[0,1,2,3].some(i=>a[K(ds,'ferie',i)]===n)}
 function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
-function weekHours(a,n,ds){let q=0,W=wk(ds);for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W)q+=hrs(s,new Date(x+'T12:00:00'))}return q}
+function weekHours(a,n,ds){let q=0,W=wk(ds);for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W)q+=workedHrs(s,new Date(x+'T12:00:00'))}return q}
 function monthEq(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')){let[ds,s]=k.split('|');q+=hrs(s,new Date(ds+'T12:00:00'))/6}return q}
 function orCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))q++;return q}
 function prevMonths(m){let[y,mo]=m.split('-').map(Number),out=[];for(let i=1;i<=2;i++){let d=new Date(y,mo-1-i,1,12),mm=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;if(mm>=DATA_START_MONTH)out.push(mm)}return out}

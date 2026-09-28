@@ -1,0 +1,19 @@
+{
+  "name": "Gestione Turni Medici",
+  "short_name": "Turni Medici",
+  "description": "Gestione turni medici",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#123a67",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

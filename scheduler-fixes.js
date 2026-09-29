@@ -24,7 +24,7 @@ function target(n,m){if(n==='CIPRIAN'){let[y,mo]=m.split('-').map(Number),z=new 
 function hrs(s,dt){if(s==='guardia')return 12;if(s==='ferie')return dt.getDay()===0?0:6;if(s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
 function workedHrs(s,dt){if(s==='ferie')return 0;return hrs(s,dt)}
 function leave(a,ds,n){return[0,1,2,3].some(i=>a[K(ds,'ferie',i)]===n)}
-function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
+function wk(ds){let d=new Date(ds+'T12:00:00'),offset=(d.getDay()+1)%7;d.setDate(d.getDate()-offset);return d.toISOString().slice(0,10)}
 function weekHours(a,n,ds){let q=0,W=wk(ds);for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W)q+=workedHrs(s,new Date(x+'T12:00:00'))}return q}
 function monthEq(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')){let[ds,s]=k.split('|');q+=hrs(s,new Date(ds+'T12:00:00'))/6}return q}
 function orCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))q++;return q}

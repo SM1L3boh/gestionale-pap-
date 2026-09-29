@@ -766,15 +766,18 @@ async function generateColumnV1(){
         if(list[0])assign(a,g,e,k,list[0].name,false);
       }
     }else{
+      const isOp=['op1','op2','oppom'].includes(s);
       const ranked=keys.map(k=>{
         const ds=k.split('|')[0];
-        return {k,count:doctors.reduce((q,d)=>q+(can(a,d,s,ds,m,false,false)?1:0),0)};
+        return {k,count:doctors.reduce((q,d)=>q+((isOp?canOperatingAll(a,d,s,ds,m):can(a,d,s,ds,m,false,false))?1:0),0)};
       }).sort((p,q)=>p.count-q.count||p.k.localeCompare(q.k));
 
       for(const {k} of ranked){
         if(a[k]&&a[k]!=='NESSUNO')continue;
         const ds=k.split('|')[0];
-        const list=cand(doctors,a,s,ds,m,false,false);
+        const list=isOp
+          ? doctors.filter(d=>canOperatingAll(a,d,s,ds,m)).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name))
+          : cand(doctors,a,s,ds,m,false,false);
         if(list[0])assign(a,g,e,k,list[0].name,false);
         // Nessun candidato valido: non forzare sovrapposizioni, ferie, guardie,
         // post-guardia, tetto settimanale o altri vincoli; lasciare vuoto.

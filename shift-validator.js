@@ -419,9 +419,17 @@ async function validateManualChange(sel){
   const snap=await getDoc(root),x=snap.exists()?snap.data():{};
   const a=scheduleFromDom(x.schedule||{});
   a[k]=newVal;
+  const {ds,s}=parts(k);
+
+  // Vincolo assoluto: mai due servizi nella stessa fascia oraria,
+  // neppure con inserimento manuale forzato.
+  if((AM.has(s)||PM.has(s))&&sameBandCount(a,newVal,ds,s)>1){
+    alert('INSERIMENTO NON CONSENTITO\n\n'+newVal+' · '+ds+' · '+(LABELS[s]||s)+'\n\nIl medico ha già un altro servizio nella stessa fascia '+(AM.has(s)?'mattutina':'pomeridiana')+'.');
+    return false;
+  }
+
   const issues=assignmentIssues(a,x.absenceManagement||{},x.doctors||[],newVal,k);
   if(!issues.length)return true;
-  const {ds,s}=parts(k);
   const msg='ATTENZIONE — inserimento manuale\n\n'+newVal+' · '+ds+' · '+(LABELS[s]||s)+'\n\n'+
     issues.map((x,i)=>(i+1)+'. '+x).join('\n')+
     '\n\nVuoi FORZARE comunque questo inserimento?';

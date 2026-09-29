@@ -632,7 +632,7 @@ function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=day
 const COLUMN_GENERATORS=[
   ['guardia','GUARDIA NOTT.'],['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],
   ['gessirep','GESSI+REP POM'],['reparto','REPARTO'],['amb','AMBULATORIO'],
-  ['esami','AMB ESAMI'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM']
+  ['esami','AMB ESAMI'],['opall','SALE OPERATORIE · TUTTE'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM']
 ];
 const columnSlotCount=s=>['gessi','reparto','amb','op1','op2','oppom'].includes(s)?2:1;
 function domMonthSchedule(base,m){
@@ -679,6 +679,31 @@ function serviceCountMonth(a,n,m,s){
   for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;
   return q;
 }
+function hasOpMorning(a,n,ds){return ['op1','op2'].some(s=>Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|')))}
+function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|oppom|'))}
+function canOperatingAll(a,d,s,ds,m){
+  const n=d.name;
+  if(s==='oppom'&&hasOpMorning(a,n,ds))return false;
+  if((s==='op1'||s==='op2')&&hasOpAfternoon(a,n,ds))return false;
+  return can(a,d,s,ds,m,false,false);
+}
+function operatingBalanceScore(a,d,s,ds,m){
+  return orCount(a,d.name,m)*100+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*60+triOpCount(a,d.name,m)*8+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+}
+function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
+  const keys=['oppom','op1','op2'].flatMap(s=>columnCandidateKeys(m,s,a,opened));
+  const ranked=keys.map(k=>{
+    const [ds,s]=k.split('|');
+    return {k,count:doctors.reduce((q,d)=>q+(canOperatingAll(a,d,s,ds,m)?1:0),0),pri:s==='oppom'?0:1};
+  }).sort((p,q)=>p.count-q.count||p.pri-q.pri||p.k.localeCompare(q.k));
+  for(const {k} of ranked){
+    if(a[k]&&a[k]!=='NESSUNO')continue;
+    const [ds,s]=k.split('|');
+    const list=doctors.filter(d=>canOperatingAll(a,d,s,ds,m))
+      .sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
+    if(list[0])assign(a,g,e,k,list[0].name,false);
+  }
+}
 async function generateColumnV1(){
   const m=$('month')?.value,s=$('generateColumnSelect')?.value,b=$('generateColumnBtn');
   if(!m||!s)return;
@@ -715,6 +740,9 @@ async function generateColumnV1(){
       assignCiprian(a,g,e,m,days,y,mo,protectedKeys);
     }
 
+    if(s==='opall'){
+      generateOperatingRoomsAll(a,g,e,doctors,m,opened);
+    }else{
     const keys=columnCandidateKeys(m,s,a,opened);
     if(s==='guardia'){
       const ranked=keys.map(k=>{
@@ -751,6 +779,7 @@ async function generateColumnV1(){
         // Nessun candidato valido: non forzare sovrapposizioni, ferie, guardie,
         // post-guardia, tetto settimanale o altri vincoli; lasciare vuoto.
       }
+    }
     }
 
     normalizeExtras(a,g,e,doctors,m);

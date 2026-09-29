@@ -687,8 +687,29 @@ function canOperatingAll(a,d,s,ds,m){
   if((s==='op1'||s==='op2')&&hasOpAfternoon(a,n,ds))return false;
   return can(a,d,s,ds,m,false,false);
 }
+function opWeekCount(a,n,ds){
+  const W=wk(ds);
+  let q=0;
+  for(const[k,v]of Object.entries(a))if(v===n){
+    const[x,s]=k.split('|');
+    if(wk(x)===W&&OR.includes(s))q++;
+  }
+  return q;
+}
 function operatingBalanceScore(a,d,s,ds,m){
-  return orCount(a,d.name,m)*100+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*60+triOpCount(a,d.name,m)*8+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+  // Priorità principale: uniformità delle sale nella settimana sabato→venerdì.
+  // Bilanciamento mensile/trimestrale solo come criterio secondario.
+  const weekly=opWeekCount(a,d.name,ds);
+  return weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+}
+function balancedOperatingCandidates(a,doctors,s,ds,m){
+  const valid=doctors.filter(d=>canOperatingAll(a,d,s,ds,m));
+  if(!valid.length)return valid;
+  const minWeekly=Math.min(...valid.map(d=>opWeekCount(a,d.name,ds)));
+  // Tolleranza operativa: privilegia chi è entro 1 sala dal minimo settimanale
+  // tra i medici realmente eleggibili per quella cella.
+  const balanced=valid.filter(d=>opWeekCount(a,d.name,ds)<=minWeekly+1);
+  return (balanced.length?balanced:valid).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
 }
 function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
   const keys=['oppom','op1','op2'].flatMap(s=>columnCandidateKeys(m,s,a,opened));
@@ -699,8 +720,7 @@ function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
   for(const {k} of ranked){
     if(a[k]&&a[k]!=='NESSUNO')continue;
     const [ds,s]=k.split('|');
-    const list=doctors.filter(d=>canOperatingAll(a,d,s,ds,m))
-      .sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
+    const list=balancedOperatingCandidates(a,doctors,s,ds,m);
     if(list[0])assign(a,g,e,k,list[0].name,false);
   }
 }
@@ -776,7 +796,7 @@ async function generateColumnV1(){
         if(a[k]&&a[k]!=='NESSUNO')continue;
         const ds=k.split('|')[0];
         const list=isOp
-          ? doctors.filter(d=>canOperatingAll(a,d,s,ds,m)).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name))
+          ? balancedOperatingCandidates(a,doctors,s,ds,m)
           : cand(doctors,a,s,ds,m,false,false);
         if(list[0])assign(a,g,e,k,list[0].name,false);
         // Nessun candidato valido: non forzare sovrapposizioni, ferie, guardie,

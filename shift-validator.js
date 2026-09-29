@@ -189,8 +189,8 @@ function markAnomalies(items){
 
 function generatorWeekendRest(a,name,ds){
   const w=dayObj(ds).getDay();
-  if(w===1&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp1'))return 'riposo dopo 1ª DISP del sabato';
-  if(w===2&&hasService(a,name,shiftDay(ds,-3),x=>x==='disp2'))return 'riposo dopo 2ª DISP del sabato';
+  if(w===1&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp1'))return 'riposo lunedì dopo 1ª DISP del sabato';
+  if(w===5&&hasService(a,name,shiftDay(ds,-6),x=>x==='disp2'))return 'riposo venerdì dopo 2ª DISP del sabato';
   return '';
 }
 function generatorConsecutiveViolation(a,doc,s,ds){

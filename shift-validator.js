@@ -38,7 +38,7 @@ function validatorTarget(name,m){const [y,mo]=m.split('-').map(Number),days=new 
 function monthEquivalent(a,name,m){return assignments(a,name,p=>p.ds.startsWith(m+'-')).reduce((q,p)=>q+hours(p.s,p.ds)/6,0)}
 
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
-function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
+function weekKey(ds){const d=dayObj(ds),offset=(d.getDay()+1)%7;d.setDate(d.getDate()-offset);return d.toISOString().slice(0,10)}
 function hours(s,ds){
   if(s==='guardia')return 12;
   if(s==='ferie')return dayObj(ds).getDay()===0?0:6;

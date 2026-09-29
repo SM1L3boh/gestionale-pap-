@@ -69,7 +69,7 @@ function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}
 function slots(s){return['gessi','amb','gessirep'].includes(s)?[0]:[0,1]}
 function dispCount(a,n,m,s){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;return q}
-function dispOK(a,d,ds,s){let n=d.name;if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;if(s==='disp1'){
+function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;const add=hrs(s,dt),weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+add>weeklyCap)return false;if(s==='disp1'){
   const h=o=>a[K(shiftDay(ds,o),'disp1',0)]===n;
   if((h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2)))return false;
 }return true}
@@ -663,10 +663,11 @@ function nextDayHasWork(a,n,ds){
   const nx=shiftDay(ds,1);
   return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(nx+'|')&&!['ferie','guardia'].includes(k.split('|')[1])&&v!=='NESSUNO');
 }
+function hasAvailability(a,n,ds){return ['disp1','disp2'].some(s=>a[K(ds,s,0)]===n)}
 function canGuardiaColumn(a,d,ds,m,allowExtra=false){
   const dt=new Date(ds+'T12:00:00'),n=d.name;
-  // Regola notti: mai due guardie in giorni consecutivi, né prima né dopo.
-  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
+  // Regola notti: mai due guardie consecutive e mai guardia insieme a disponibilità.
+  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||hasAvailability(a,n,ds)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
   if(!allowExtra){
     const weeklyCap=Math.min(Number(d.hours)||36,36);
     if(weekHours(a,n,ds)+12>weeklyCap)return false;
@@ -726,11 +727,8 @@ async function generateColumnV1(){
         let list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))
           .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds)||p.name.localeCompare(q.name));
         if(list[0])assign(a,g,e,k,list[0].name,false);
-        else{
-          list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,true))
-            .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
-          if(list[0])assign(a,g,e,k,list[0].name,true);
-        }
+        // Nessun candidato valido: la cella resta vuota.
+        // Il generatore a singola colonna non forza violazioni di sicurezza/vincoli.
       }
     }else if(s==='disp1'||s==='disp2'){
       for(const k of keys){
@@ -748,13 +746,10 @@ async function generateColumnV1(){
       for(const {k} of ranked){
         if(a[k]&&a[k]!=='NESSUNO')continue;
         const ds=k.split('|')[0];
-        let list=cand(doctors,a,s,ds,m,false,false);
+        const list=cand(doctors,a,s,ds,m,false,false);
         if(list[0])assign(a,g,e,k,list[0].name,false);
-        else{
-          list=doctors.filter(d=>canEmergencyCoverage(a,d,s,ds,m))
-            .sort((p,q)=>monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds));
-          if(list[0])assign(a,g,e,k,list[0].name,true);
-        }
+        // Nessun candidato valido: non forzare sovrapposizioni, ferie, guardie,
+        // post-guardia, tetto settimanale o altri vincoli; lasciare vuoto.
       }
     }
 

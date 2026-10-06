@@ -19,7 +19,98 @@ function isStructuralDefaultNessuno(k){
   }
   return false;
 }
-async function saveVisibleState(){if(busy)return;const month=document.getElementById('month')?.value;if(!month)return;busy=true;const b=document.getElementById('saveStateBtn'),sync=document.getElementById('sync');try{if(b)b.disabled=true;if(sync)sync.textContent='Salvataggio stato…';const snap=await getDoc(root),x=snap.exists()?snap.data():{},manual=new Set(x.manualKeys||[]),generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]),opened=new Set(x.openedStructuralKeys||[]),baseline={},schedule={...(x.schedule||{})};for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];document.querySelectorAll('#schedule select[data-k]').forEach(s=>{const k=s.dataset.k,v=s.value;if(!k?.startsWith(month+'-'))return;if(!v){if(isStructuralDefaultNessuno(k))opened.add(k);else opened.delete(k);manual.delete(k);generated.delete(k);extra.delete(k);return}opened.delete(k);baseline[k]=v;schedule[k]=v});for(const k of [...opened])if(k.startsWith(month+'-')){delete baseline[k];delete schedule[k];manual.delete(k);generated.delete(k);extra.delete(k)}const savedStates={...(x.savedStates||{}),[month]:baseline},savedAbsenceStates={...(x.savedAbsenceStates||{}),[month]:structuredClone(x.absenceManagement||{})},savedOpenedStates={...(x.savedOpenedStates||{}),[month]:[...opened].filter(k=>k.startsWith(month+'-'))};for(const k of Object.keys(baseline)){manual.add(k);generated.delete(k);extra.delete(k)}await updateDoc(root,{schedule,savedStates,savedAbsenceStates,savedOpenedStates,openedStructuralKeys:[...opened],manualKeys:[...manual],generatedKeys:[...generated],extraKeys:[...extra],updatedAt:new Date().toISOString()});if(sync){sync.textContent='● Stato '+monthLabel(month)+' salvato';sync.className='status online'}}catch(err){if(sync)sync.textContent='Errore salvataggio stato';alert('Errore durante il salvataggio: '+err.message)}finally{busy=false;if(b)b.disabled=false}}
+async function saveVisibleState(){
+  if(busy)return;
+  const month=document.getElementById('month')?.value;
+  if(!month)return;
+  busy=true;
+  const b=document.getElementById('saveStateBtn'),sync=document.getElementById('sync');
+  try{
+    if(b)b.disabled=true;
+    if(sync)sync.textContent='Salvataggio stato…';
+
+    // Lascia terminare l'eventuale autosalvataggio partito da una modifica manuale,
+    // così non può sovrascrivere subito dopo lo stato appena congelato.
+    await new Promise(r=>setTimeout(r,450));
+
+    const snap=await getDoc(root),x=snap.exists()?snap.data():{};
+    const manual=new Set(x.manualKeys||[]),
+      generated=new Set(x.generatedKeys||[]),
+      extra=new Set(x.extraKeys||[]),
+      unresolved=new Set(x.unresolvedKeys||[]),
+      opened=new Set(x.openedStructuralKeys||[]),
+      baseline={},
+      schedule={...(x.schedule||{})};
+
+    for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];
+
+    document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
+      const k=s.dataset.k,v=s.value;
+      if(!k?.startsWith(month+'-'))return;
+      if(!v){
+        if(isStructuralDefaultNessuno(k))opened.add(k);else opened.delete(k);
+        manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
+        return;
+      }
+      opened.delete(k);
+      baseline[k]=v;
+      schedule[k]=v;
+    });
+
+    for(const k of [...opened])if(k.startsWith(month+'-')){
+      delete baseline[k];
+      delete schedule[k];
+      manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
+    }
+
+    // SALVA STATO congela tutto ciò che è visibile in quel momento:
+    // non deve più risultare "generato", "extra" o "irrisolto".
+    for(const k of Object.keys(baseline)){
+      manual.add(k);
+      generated.delete(k);
+      extra.delete(k);
+      unresolved.delete(k);
+    }
+    for(const k of [...unresolved])if(k.startsWith(month+'-'))unresolved.delete(k);
+
+    const savedStates={...(x.savedStates||{}),[month]:baseline},
+      savedAbsenceStates={...(x.savedAbsenceStates||{}),[month]:structuredClone(x.absenceManagement||{})},
+      savedOpenedStates={...(x.savedOpenedStates||{}),[month]:[...opened].filter(k=>k.startsWith(month+'-'))};
+
+    await updateDoc(root,{
+      schedule,
+      savedStates,
+      savedAbsenceStates,
+      savedOpenedStates,
+      openedStructuralKeys:[...opened],
+      manualKeys:[...manual],
+      generatedKeys:[...generated],
+      extraKeys:[...extra],
+      unresolvedKeys:[...unresolved],
+      updatedAt:new Date().toISOString()
+    });
+
+    // Verifica reale su Firestore prima di dichiarare il salvataggio riuscito.
+    const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{};
+    const saved=verify.savedStates?.[month]||{};
+    const sameKeys=Object.keys(saved).length===Object.keys(baseline).length;
+    const sameValues=sameKeys&&Object.entries(baseline).every(([k,v])=>saved[k]===v);
+    if(!sameValues)throw new Error('verifica dello stato salvato non riuscita');
+
+    if(sync){
+      sync.textContent='● Stato '+monthLabel(month)+' salvato e verificato';
+      sync.className='status online';
+    }
+    // Ricarica per sincronizzare anche la memoria locale dell'app con lo stato congelato.
+    setTimeout(()=>location.reload(),250);
+  }catch(err){
+    if(sync)sync.textContent='Errore salvataggio stato';
+    alert('Errore durante il salvataggio: '+err.message);
+  }finally{
+    busy=false;
+    if(b)b.disabled=false;
+  }
+}
 function monthDefaultCells(month){
   const out={};
   if(month<'2026-11')return out;

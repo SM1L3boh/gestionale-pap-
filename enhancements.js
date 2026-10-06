@@ -96,7 +96,57 @@ function wrapGenerator(){let b=$('generate');if(!b||b.dataset.contractPriority)r
 async function exportExcel(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');if(!window.XLSX)return alert('Modulo Excel non disponibile. Ricarica la pagina e riprova.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},extra=new Set(x.extraKeys||[]),[y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate(),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],monthNames=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],svcs=[['guardia','GUARDIA NOTT.'],['giorno','GIORNO'],['disp1','1ª DISP.'],['disp2','2ª DISP.'],['gessi','GESSI MAT'],['gessirep','GESSI+REP POM'],['reparto','REPARTO'],['amb','AMBULATORIO'],['esami','AMB ESAMI'],['op1','OP1 MAT'],['op2','OP2 MAT'],['oppom','OP POM'],['ferie','FERIE-VARIE']];let rows=[['TURNI ORTOPEDIA — '+monthNames[mo-1]+' '+y,...Array(svcs.length+1).fill('')],['DATA','GIORNO',...svcs.map(z=>z[1])]],extraCells=[],weekendRows=[];for(let d=1;d<=days;d++){let ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),row=[String(d).padStart(2,'0'),names[dt.getDay()]];if(dt.getDay()===0||dt.getDay()===6)weekendRows.push(rows.length);for(let ci=0;ci<svcs.length;ci++){let s=svcs[ci][0],vals=[];for(let i=0;i<4;i++){let k=ds+'|'+s+'|'+i,v=schedule[k];if(v&&v!=='NESSUNO')vals.push(v);if(extra.has(k))extraCells.push({r:rows.length,c:ci+2})}row.push(vals.join(s==='ferie'?'\n':'  •  '))}rows.push(row)}let ws=XLSX.utils.aoa_to_sheet(rows),lastCol=rows[1].length-1,range=XLSX.utils.decode_range(ws['!ref']);ws['!merges']=[XLSX.utils.decode_range('A1:'+XLSX.utils.encode_col(lastCol)+'1')];ws['!cols']=[{wch:6},{wch:7},...svcs.map(z=>({wch:z[0]==='ferie'?30:16}))];ws['!rows']=rows.map((_,i)=>({hpt:i===0?28:i===1?30:36}));let border={top:{style:'thin',color:{rgb:'B7C5D3'}},bottom:{style:'thin',color:{rgb:'B7C5D3'}},left:{style:'thin',color:{rgb:'B7C5D3'}},right:{style:'thin',color:{rgb:'B7C5D3'}}};for(let R=range.s.r;R<=range.e.r;R++){for(let C=range.s.c;C<=range.e.c;C++){let a=XLSX.utils.encode_cell({r:R,c:C}),cell=ws[a]||(ws[a]={t:'s',v:''}),isTitle=R===0,isHeader=R===1,isWeekend=weekendRows.includes(R);cell.s={font:{name:'Aptos',sz:isTitle?14:isHeader?10:9,bold:isTitle||isHeader||C<2,color:{rgb:isTitle||isHeader?'FFFFFF':'172033'}},fill:{patternType:'solid',fgColor:{rgb:isTitle?'123A67':isHeader?'1D5B93':isWeekend?'FCE8D5':R%2===0?'F7FAFC':'FFFFFF'}},alignment:{vertical:'center',horizontal:'center',wrapText:true},border:isTitle?undefined:border};}}for(let R=2;R<=range.e.r;R++){let a=XLSX.utils.encode_cell({r:R,c:lastCol}),cell=ws[a]||(ws[a]={t:'s',v:''});if(cell.v){cell.s={...cell.s,fill:{patternType:'solid',fgColor:{rgb:'FFF2B3'}},font:{...(cell.s.font||{}),bold:true,color:{rgb:'7A4B00'}},alignment:{vertical:'center',horizontal:'center',wrapText:true}}}}
 for(const q of extraCells){let a=XLSX.utils.encode_cell(q),cell=ws[a];if(cell){cell.s={...cell.s,fill:{patternType:'solid',fgColor:{rgb:'FADBD8'}},font:{...(cell.s.font||{}),bold:true,color:{rgb:'9C1C1C'}}}}}ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:days+1,c:lastCol}})};ws['!freeze']={xSplit:2,ySplit:2,topLeftCell:'C3',activePane:'bottomRight',state:'frozen'};let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true})}
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}
-function fixFullPrint(){let b=$('printBtn');if(!b||b.dataset.fixedPrint)return;b.dataset.fixedPrint='1';b.onclick=()=>{let m=$('month')?.value||'';$('printTitle').textContent='TURNI MENSILI '+m;document.querySelectorAll('#schedule .printValue').forEach(x=>x.remove());document.querySelectorAll('#schedule select').forEach(s=>{let v=document.createElement('span');v.className='printValue';v.textContent=s.value||'';s.insertAdjacentElement('afterend',v)});window.print()}}
+function fixFullPrint(){
+  let b=$('printBtn');
+  if(!b||b.dataset.fixedPrint)return;
+  b.dataset.fixedPrint='1';
+  b.onclick=()=>{
+    const m=$('month')?.value||'';
+    const src=$('schedule');
+    if(!src)return alert('Tabella turni non disponibile.');
+
+    const clone=src.cloneNode(true);
+    const origSelects=[...src.querySelectorAll('select')];
+    const cloneSelects=[...clone.querySelectorAll('select')];
+    cloneSelects.forEach((sel,i)=>{
+      const span=document.createElement('span');
+      span.className='printCellValue';
+      const v=origSelects[i]?.value||'';
+      span.textContent=v==='NESSUNO'?'':v;
+      sel.replaceWith(span);
+    });
+    clone.querySelectorAll('.optionalTag,.weekService').forEach(x=>x.remove());
+
+    const [y,mo]=m.split('-');
+    const monthName=['','gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][Number(mo)]||m;
+    const w=window.open('','_blank','width=1400,height=950');
+    if(!w)return alert('Il browser ha bloccato la finestra di stampa. Consenti i popup per questo sito e riprova.');
+
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni mensili ${monthName} ${y||''}</title><style>
+      @page{size:A4 landscape;margin:4mm}
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}
+      h1{text-align:center;font-size:15px;margin:0 0 3mm}
+      .actions{text-align:center;margin:0 0 4mm}
+      .actions button{padding:8px 18px;font-weight:700}
+      table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:6.2pt}
+      th,td{border:.25mm solid #555;padding:.6mm .4mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+      th{background:#d9e2f3;font-size:6.4pt}
+      th:first-child,td:first-child{width:7mm}
+      th:nth-child(2),td:nth-child(2){width:9mm}
+      .weekend td{background:#fce8e8}
+      .off{background:#eee!important}
+      .pmCol{background:#fff8cc}
+      .printCellValue{display:block;min-height:2.6mm;line-height:1.05}
+      .leaveCell{display:grid;grid-template-columns:1fr 1fr;gap:.4mm}
+      tr{break-inside:avoid}
+      @media print{.actions{display:none}body{zoom:.90}}
+    </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y||''}</h1><div class="actions"><button onclick="window.print()">STAMPA</button></div>${clone.outerHTML}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>{try{w.print()}catch{}},350);
+  };
+}
 function isStructuralNessunoKey(k){
   const [ds,s,iRaw]=(k||'').split('|'),i=Number(iRaw||0),m=ds?.slice(0,7);
   if(!ds||!m||m<'2026-11')return false;

@@ -97,55 +97,93 @@ async function exportExcel(){let month=$('month')?.value;if(!month)return alert(
 for(const q of extraCells){let a=XLSX.utils.encode_cell(q),cell=ws[a];if(cell){cell.s={...cell.s,fill:{patternType:'solid',fgColor:{rgb:'FADBD8'}},font:{...(cell.s.font||{}),bold:true,color:{rgb:'9C1C1C'}}}}}ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:days+1,c:lastCol}})};ws['!freeze']={xSplit:2,ySplit:2,topLeftCell:'C3',activePane:'bottomRight',state:'frozen'};let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true})}
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}
 function fixFullPrint(){
-  let b=$('printBtn');
-  if(!b||b.dataset.fixedPrint)return;
-  b.dataset.fixedPrint='1';
-  b.onclick=()=>{
+  const old=$('printBtn');
+  if(!old)return;
+  const fresh=old.cloneNode(true);
+  old.replaceWith(fresh);
+  fresh.dataset.fixedPrint='1';
+
+  fresh.addEventListener('click',async e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
     const m=$('month')?.value||'';
-    const src=$('schedule');
-    if(!src)return alert('Tabella turni non disponibile.');
+    if(!m)return alert('Seleziona un mese.');
 
-    const clone=src.cloneNode(true);
-    const origSelects=[...src.querySelectorAll('select')];
-    const cloneSelects=[...clone.querySelectorAll('select')];
-    cloneSelects.forEach((sel,i)=>{
-      const span=document.createElement('span');
-      span.className='printCellValue';
-      const v=origSelects[i]?.value||'';
-      span.textContent=v==='NESSUNO'?'':v;
-      sel.replaceWith(span);
+    const [y,mo]=m.split('-').map(Number);
+    const days=new Date(y,mo,0).getDate();
+    const monthName=['','gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][mo]||m;
+    const services=[
+      ['guardia','GUARDIA NOTT.','20–08',1],
+      ['giorno','INTERD','14–20',1],
+      ['disp1','1ª DISP.','20–08',1],
+      ['disp2','2ª DISP.','20–08',1],
+      ['gessi','GESSI MAT','08–14',2],
+      ['gessirep','GESSI+REP POM','14–20',1],
+      ['reparto','REPARTO','08–14',2],
+      ['amb','AMBULATORIO','08–14',2],
+      ['esami','AMB ESAMI','08–14',1],
+      ['op1','OP1 MAT','08–14',2],
+      ['op2','OP2 MAT','08–14',2],
+      ['oppom','OP POM','14–20',2],
+      ['ferie','FERIE-VARIE','',4]
+    ];
+    const weekdays=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+    const visible={};
+    document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
+      const k=sel.dataset.k;
+      if(k?.startsWith(m+'-'))visible[k]=sel.value||'';
     });
-    clone.querySelectorAll('.optionalTag,.weekService').forEach(x=>x.remove());
 
-    const [y,mo]=m.split('-');
-    const monthName=['','gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][Number(mo)]||m;
-    const w=window.open('','_blank','width=1400,height=950');
+    const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const cellText=(ds,svc,count)=>{
+      const vals=[];
+      for(let i=0;i<count;i++){
+        const v=visible[ds+'|'+svc+'|'+i]||'';
+        if(v&&v!=='NESSUNO'&&!vals.includes(v))vals.push(v);
+      }
+      return vals.map(esc).join('<br>');
+    };
+    const allowedPrint=(svc,w)=>![0,6].includes(w)||['guardia','giorno','disp1','disp2','ferie'].includes(svc);
+
+    let head='<tr><th>DATA</th><th>GIORNO</th>'+services.map(s=>'<th>'+esc(s[1])+(s[2]?'<br><small>'+esc(s[2])+'</small>':'')+'</th>').join('')+'</tr>';
+    let body='';
+    for(let d=1;d<=days;d++){
+      const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=m+'-'+String(d).padStart(2,'0');
+      body+='<tr class="'+([0,6].includes(w)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
+      for(const [svc,label,hrs,count] of services){
+        if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
+        body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+cellText(ds,svc,count)+'</td>';
+      }
+      body+='</tr>';
+    }
+
+    const w=window.open('','_blank','width=1500,height=950');
     if(!w)return alert('Il browser ha bloccato la finestra di stampa. Consenti i popup per questo sito e riprova.');
-
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni mensili ${monthName} ${y||''}</title><style>
+    w.document.open();
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni mensili ${monthName} ${y}</title><style>
       @page{size:A4 landscape;margin:4mm}
       *{box-sizing:border-box}
-      body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}
-      h1{text-align:center;font-size:15px;margin:0 0 3mm}
-      .actions{text-align:center;margin:0 0 4mm}
-      .actions button{padding:8px 18px;font-weight:700}
-      table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:6.2pt}
-      th,td{border:.25mm solid #555;padding:.6mm .4mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
-      th{background:#d9e2f3;font-size:6.4pt}
-      th:first-child,td:first-child{width:7mm}
-      th:nth-child(2),td:nth-child(2){width:9mm}
+      body{font-family:Arial,sans-serif;margin:0;padding:4mm;background:#fff;color:#111}
+      h1{text-align:center;font-size:14px;margin:0 0 3mm}
+      .actions{text-align:center;margin:0 0 3mm}
+      .actions button{padding:7px 18px;font-weight:700}
+      table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:5.7pt}
+      th,td{border:.25mm solid #555;padding:.45mm .3mm;text-align:center;vertical-align:middle;line-height:1.05;overflow-wrap:anywhere}
+      th{background:#d9e2f3;font-size:5.8pt;font-weight:700}
+      th:first-child,td:first-child{width:6mm}
+      th:nth-child(2),td:nth-child(2){width:7mm}
       .weekend td{background:#fce8e8}
-      .off{background:#eee!important}
+      .off{background:#eee!important;color:#888}
       .pmCol{background:#fff8cc}
-      .printCellValue{display:block;min-height:2.6mm;line-height:1.05}
-      .leaveCell{display:grid;grid-template-columns:1fr 1fr;gap:.4mm}
       tr{break-inside:avoid}
-      @media print{.actions{display:none}body{zoom:.90}}
-    </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y||''}</h1><div class="actions"><button onclick="window.print()">STAMPA</button></div>${clone.outerHTML}</body></html>`);
+      @media print{.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}}
+    </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);
     w.document.close();
     w.focus();
-    setTimeout(()=>{try{w.print()}catch{}},350);
-  };
+    setTimeout(()=>{try{w.print()}catch{}},900);
+  },true);
 }
 function isStructuralNessunoKey(k){
   const [ds,s,iRaw]=(k||'').split('|'),i=Number(iRaw||0),m=ds?.slice(0,7);

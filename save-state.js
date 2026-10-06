@@ -110,6 +110,7 @@ async function emptyCurrentMonth(){
     }
 
     if(sync){sync.textContent='● '+monthLabel(month)+' svuotato — ferie/assenze verificate';sync.className='status online'}
+    sessionStorage.setItem('turniRestoreMonthOnce',month);
     location.reload();
   }catch(e){
     if(sync)sync.textContent='Errore svuotamento mese';

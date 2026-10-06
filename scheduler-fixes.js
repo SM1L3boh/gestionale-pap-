@@ -739,7 +739,7 @@ async function generateColumnV1(){
       a=domMonthSchedule(hist,m),
       g=new Set(x.generatedKeys||[]),
       e=new Set(x.extraKeys||[]),
-      opened=new Set((x.openedStructuralKeys||[]).filter(k=>k.startsWith(m+'-')));
+      opened=new Set([...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])].filter(k=>k.startsWith(m+'-')));
 
     document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
       const k=sel.dataset.k;if(!k?.startsWith(m+'-')||sel.value)return;
@@ -855,7 +855,7 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
       e=new Set(x.extraKeys||[]),
       baseline={...(x.savedStates?.[m]||{})};
 
-  for(const k of x.openedStructuralKeys||[])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
+  for(const k of [...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
   for(const k of openedStructuralKeys)delete baseline[k];
   let protectedKeys=new Set(Object.keys(baseline)),

@@ -25,3 +25,12 @@ $('countBtn')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePr
 $('annualLeaveBtn')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();annualLeaveSummary()},true);
 
 $('annualWeekendBtn')?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();annualWeekendSummary()},true);
+
+const printCountBtn=$('printCount');
+if(printCountBtn)printCountBtn.addEventListener('click',()=>{
+  document.body.classList.add('printCountModal');
+  const cleanup=()=>document.body.classList.remove('printCountModal');
+  window.addEventListener('afterprint',cleanup,{once:true});
+  window.print();
+  setTimeout(cleanup,1500);
+});

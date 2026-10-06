@@ -1,15 +1,91 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
-document.head.insertAdjacentHTML('beforeend','<style>#schedule select.manualShift{background:#dff1ff!important}#schedule select.autoShift{background:#e3f6e9!important}#schedule select.extraShift{background:#ffdede!important}.doctorFilter{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin-left:0;width:auto;flex:1 1 auto;min-width:0;border-left:0;padding-left:0;padding-top:4px;white-space:nowrap}.doctorFilterLabel{font-size:12px;font-weight:700;color:#334155}.doctorFilter button{padding:5px 8px;font-size:11px}.doctorFilter button.active{background:#1d5b93;color:#fff;border-color:#1d5b93}.doctorHighlighted{box-shadow:0 0 0 3px #f59e0b!important;border-color:#d97706!important;font-weight:700!important;position:relative;z-index:2}.leaveCell{grid-template-columns:1fr 1fr!important}#openLeave,#leaveModal{display:none!important}.printValue{display:none}.noneValue{background:#fff!important}.leaveValue{background:#fff2b3!important}@media print{.printValue{display:block!important}}.mobileShiftPanel{display:none}.mobileShiftControls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.mobileShiftControls label{font-size:12px;font-weight:700;color:#334155}.mobileShiftControls select{min-width:180px;padding:8px;border:1px solid #94a3b8;border-radius:7px;background:#fff}.mobileShiftList{display:flex;flex-direction:column;gap:10px}.mobileDayCard{background:#fff;border:1px solid #dbe3ec;border-radius:10px;padding:10px 12px;box-shadow:0 1px 2px #0f172a12}.mobileDayCard.mobileHoliday{background:#fee2e2;border-color:#fecaca}.mobileDayCard.mobileAvailability{background:#fff9d9;border-color:#f3e7a2}.mobileShiftRow.mobileAvailabilityRow{background:#fff9d9;border-radius:7px;padding-left:7px;padding-right:7px}.mobileDayCard.mobileHome{background:#e8f7e8;border-color:#bfe3bf}.mobileHomeLabel{padding:10px 0 4px;font-weight:800;color:#2f6b3a;font-size:14px}.mobileDayHead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:7px}.mobileDayHead b{font-size:15px}.mobileDayHead span{font-size:12px;color:#64748b}.mobileShiftRow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,1.25fr);gap:8px;padding:6px 0;border-top:1px solid #eef2f7;font-size:13px}.mobileShiftRow:first-of-type{border-top:0}.mobileShiftSvc{font-weight:700;color:#334155}.mobileShiftWho{color:#0f172a}.mobileShiftEmpty{padding:18px;text-align:center;color:#64748b;background:#fff;border:1px dashed #cbd5e1;border-radius:10px}.mobileViewToggle{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;font-weight:800!important}.mobileShiftsView #gridwrap,.mobileShiftsView .scrollDock,.mobileShiftsView #turni>.notice,.mobileShiftsView #doctorFilter{display:none!important}.mobileShiftsView .mobileShiftPanel{display:block!important}.mobileShiftsView #turni .toolbar>*{display:none!important}.mobileShiftsView #turni .toolbar #prev,.mobileShiftsView #turni .toolbar #month,.mobileShiftsView #turni .toolbar #next,.mobileShiftsView #turni .toolbar #mobileViewBtn{display:inline-flex!important}.mobileShiftsView #turni .toolbar{gap:6px;flex-wrap:wrap}.mobileShiftsView #mobileViewBtn{margin-left:auto}@media(max-width:760px){.mobileShiftRow{grid-template-columns:1fr}.mobileDayCard{padding:10px}.mobileShiftControls{position:sticky;top:0;z-index:4;background:#f8fafc;padding:8px 0;margin-top:4px}.mobileShiftControls select{flex:1;min-width:150px}}</style>');
-let highlightedDoctor='',building=false,doctorNames=[],leaveBusy=false;const manualKeys=new Set();let leaveSaveQueue=Promise.resolve();
+document.head.insertAdjacentHTML('beforeend','<style>#schedule select.manualShift{background:#dff1ff!important}#schedule select.autoShift{background:#e3f6e9!important}#schedule select.extraShift{background:#ffdede!important}.doctorFilter{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin-left:0;width:auto;flex:1 1 auto;min-width:0;border-left:0;padding-left:0;padding-top:4px;white-space:nowrap}.doctorFilterLabel{font-size:12px;font-weight:700;color:#334155}.doctorFilter button{padding:5px 8px;font-size:11px}.doctorFilter button.active{background:var(--doctor-color,#1d5b93)!important;color:#fff!important;border-color:var(--doctor-color,#1d5b93)!important;font-weight:800}.doctorHighlighted{background:var(--doctor-color,#fff3b0)!important;box-shadow:0 0 0 2px var(--doctor-border,#64748b)!important;border-color:var(--doctor-border,#64748b)!important;color:#111!important;font-weight:800!important;position:relative;z-index:2}.leaveCell{grid-template-columns:1fr 1fr!important}#openLeave,#leaveModal{display:none!important}.printValue{display:none}.noneValue{background:#fff!important}.leaveValue{background:#fff2b3!important}@media print{.printValue{display:block!important}}.mobileShiftPanel{display:none}.mobileShiftControls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.mobileShiftControls label{font-size:12px;font-weight:700;color:#334155}.mobileShiftControls select{min-width:180px;padding:8px;border:1px solid #94a3b8;border-radius:7px;background:#fff}.mobileShiftList{display:flex;flex-direction:column;gap:10px}.mobileDayCard{background:#fff;border:1px solid #dbe3ec;border-radius:10px;padding:10px 12px;box-shadow:0 1px 2px #0f172a12}.mobileDayCard.mobileHoliday{background:#fee2e2;border-color:#fecaca}.mobileDayCard.mobileAvailability{background:#fff9d9;border-color:#f3e7a2}.mobileShiftRow.mobileAvailabilityRow{background:#fff9d9;border-radius:7px;padding-left:7px;padding-right:7px}.mobileDayCard.mobileHome{background:#e8f7e8;border-color:#bfe3bf}.mobileHomeLabel{padding:10px 0 4px;font-weight:800;color:#2f6b3a;font-size:14px}.mobileDayHead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:7px}.mobileDayHead b{font-size:15px}.mobileDayHead span{font-size:12px;color:#64748b}.mobileShiftRow{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,1.25fr);gap:8px;padding:6px 0;border-top:1px solid #eef2f7;font-size:13px}.mobileShiftRow:first-of-type{border-top:0}.mobileShiftSvc{font-weight:700;color:#334155}.mobileShiftWho{color:#0f172a}.mobileShiftEmpty{padding:18px;text-align:center;color:#64748b;background:#fff;border:1px dashed #cbd5e1;border-radius:10px}.mobileViewToggle{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;font-weight:800!important}.mobileShiftsView #gridwrap,.mobileShiftsView .scrollDock,.mobileShiftsView #turni>.notice,.mobileShiftsView #doctorFilter{display:none!important}.mobileShiftsView .mobileShiftPanel{display:block!important}.mobileShiftsView #turni .toolbar>*{display:none!important}.mobileShiftsView #turni .toolbar #prev,.mobileShiftsView #turni .toolbar #month,.mobileShiftsView #turni .toolbar #next,.mobileShiftsView #turni .toolbar #mobileViewBtn{display:inline-flex!important}.mobileShiftsView #turni .toolbar{gap:6px;flex-wrap:wrap}.mobileShiftsView #mobileViewBtn{margin-left:auto}@media(max-width:760px){.mobileShiftRow{grid-template-columns:1fr}.mobileDayCard{padding:10px}.mobileShiftControls{position:sticky;top:0;z-index:4;background:#f8fafc;padding:8px 0;margin-top:4px}.mobileShiftControls select{flex:1;min-width:150px}}</style>');
+const highlightedDoctors=new Set();const doctorHighlightColors=['#dbeafe','#dcfce7','#ffedd5','#f3e8ff','#fee2e2','#cffafe','#fce7f3','#fef3c7','#e0e7ff','#ccfbf1','#fae8ff','#e2e8f0','#ecfccb','#ffe4e6'];let building=false,doctorNames=[],leaveBusy=false;const manualKeys=new Set();let leaveSaveQueue=Promise.resolve();
 function mergeWeekendServiceCells(){document.querySelectorAll('#schedule tbody tr.weekend').forEach(row=>{if(row.dataset.weekendMerged)return;let tds=[...row.children];if(tds.length<15)return;let first=tds[6],leave=tds[14];if(!first||!leave)return;first.colSpan=8;first.classList.add('weekendMerged');first.innerHTML='<div class="weekendReperibili"><b>I reperibile 14–20</b><b>II reperibile 14–20</b></div>';for(let i=13;i>=7;i--)tds[i]?.remove();row.dataset.weekendMerged='1'})}
 async function applyValueColors(){let snap=await getDoc(root),x=snap.exists()?snap.data():{},generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]);document.querySelectorAll('#schedule select[data-k]').forEach(s=>{let k=s.dataset.k,none=!s.value||s.value==='NESSUNO',ferie=k?.includes('|ferie|');s.classList.remove('manualShift','autoShift','extraShift','leaveValue','noneValue');s.classList.toggle('noneValue',none);s.classList.toggle('leaveValue',ferie&&!none);if(!none&&!ferie){s.classList.toggle('extraShift',extra.has(k));s.classList.toggle('autoShift',generated.has(k)&&!extra.has(k));s.classList.toggle('manualShift',!generated.has(k)&&!extra.has(k))}})}
-function applyDoctorHighlight(){document.querySelectorAll('#schedule select').forEach(s=>s.classList.toggle('doctorHighlighted',!!highlightedDoctor&&s.value===highlightedDoctor))}
+function doctorColor(name){
+  const i=Math.max(0,doctorNames.indexOf(name));
+  return doctorHighlightColors[i%doctorHighlightColors.length];
+}
+function darkenHex(hex){
+  const n=parseInt(hex.slice(1),16),r=Math.max(0,((n>>16)&255)-70),g=Math.max(0,((n>>8)&255)-70),b=Math.max(0,(n&255)-70);
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function applyDoctorHighlight(){
+  document.querySelectorAll('#schedule select').forEach(s=>{
+    const active=highlightedDoctors.has(s.value);
+    s.classList.toggle('doctorHighlighted',active);
+    if(active){
+      const col=doctorColor(s.value);
+      s.style.setProperty('--doctor-color',col);
+      s.style.setProperty('--doctor-border',darkenHex(col));
+    }else{
+      s.style.removeProperty('--doctor-color');
+      s.style.removeProperty('--doctor-border');
+    }
+  });
+}
 function removeDuplicateFilters(toolbar){toolbar.querySelectorAll('.doctorFilter,#doctorFilter,[data-doctor-filter]').forEach(x=>x.remove());[...toolbar.children].forEach(x=>{let t=(x.textContent||'').trim().toLowerCase();if(t.startsWith('evidenzia medico:')||t.startsWith('evidenzia:'))x.remove()})}
-async function buildDoctorFilter(){if(building)return;let toolbar=document.querySelector('#turni .toolbar');if(!toolbar)return;building=true;try{removeDuplicateFilters(toolbar);let snap=await getDoc(root),x=snap.exists()?snap.data():{};doctorNames=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);if(!doctorNames.length)return;let box=document.createElement('div');box.id='doctorFilter';box.dataset.doctorFilter='1';box.className='doctorFilter';box.innerHTML='<span class="doctorFilterLabel">Evidenzia medico:</span>';let all=document.createElement('button');all.type='button';all.textContent='Tutti';all.className=highlightedDoctor?'':'active';all.onclick=()=>{highlightedDoctor='';applyDoctorHighlight();box.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===all))};box.appendChild(all);for(const n of doctorNames){let b=document.createElement('button');b.type='button';b.textContent=n;b.className=n===highlightedDoctor?'active':'';b.onclick=()=>{highlightedDoctor=n;applyDoctorHighlight();box.querySelectorAll('button').forEach(z=>z.classList.toggle('active',z===b))};box.appendChild(b)}toolbar.appendChild(box);applyDoctorHighlight()}finally{building=false}}
+async function buildDoctorFilter(){
+  if(building)return;
+  let toolbar=document.querySelector('#turni .toolbar');
+  if(!toolbar)return;
+  building=true;
+  try{
+    removeDuplicateFilters(toolbar);
+    let snap=await getDoc(root),x=snap.exists()?snap.data():{};
+    doctorNames=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
+    for(const n of [...highlightedDoctors])if(!doctorNames.includes(n))highlightedDoctors.delete(n);
+    if(!doctorNames.length)return;
+
+    let box=document.createElement('div');
+    box.id='doctorFilter';
+    box.dataset.doctorFilter='1';
+    box.className='doctorFilter';
+    box.innerHTML='<span class="doctorFilterLabel">Evidenzia medico:</span>';
+
+    let all=document.createElement('button');
+    all.type='button';
+    all.textContent='Tutti';
+    const refreshButtons=()=>{
+      all.classList.toggle('active',highlightedDoctors.size===0);
+      all.style.removeProperty('--doctor-color');
+      box.querySelectorAll('button[data-doctor]').forEach(btn=>{
+        const name=btn.dataset.doctor,active=highlightedDoctors.has(name),col=doctorColor(name);
+        btn.classList.toggle('active',active);
+        if(active)btn.style.setProperty('--doctor-color',darkenHex(col));
+        else btn.style.removeProperty('--doctor-color');
+      });
+    };
+    all.onclick=()=>{
+      highlightedDoctors.clear();
+      refreshButtons();
+      applyDoctorHighlight();
+    };
+    box.appendChild(all);
+
+    for(const n of doctorNames){
+      let b=document.createElement('button');
+      b.type='button';
+      b.textContent=n;
+      b.dataset.doctor=n;
+      b.onclick=()=>{
+        if(highlightedDoctors.has(n))highlightedDoctors.delete(n);
+        else highlightedDoctors.add(n);
+        refreshButtons();
+        applyDoctorHighlight();
+      };
+      box.appendChild(b);
+    }
+    toolbar.appendChild(box);
+    refreshButtons();
+    applyDoctorHighlight();
+  }finally{building=false}
+}
 function serviceLabel(s){return({guardia:'GUARDIA NOTT. 20–08',giorno:'GIORNO 14–20',disp1:'1ª DISP. 20–08',disp2:'2ª DISP. 20–08',gessi:'GESSI MAT 08–14',gessirep:'GESSI+REP POM 14–20',reparto:'REPARTO 08–14',amb:'AMBULATORIO 08–14',esami:'AMB ESAMI 08–14',op1:'OP1 MAT 08–14',op2:'OP2 MAT 08–14',oppom:'OP POM 14–20',ferie:'FERIE-VARIE'})[s]||s}
-async function printMyShifts(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');let doctor=highlightedDoctor;if(!doctor){let email=($('loggedUser')?.textContent||'').split('·')[0].trim().toLowerCase(),local=email.split('@')[0].replace(/[._-]+/g,' ');doctor=doctorNames.find(n=>{let q=n.toLowerCase();return local.includes(q)||q.split(' ').every(p=>local.includes(p))})||''}if(!doctor){let choice=prompt('Seleziona prima un medico da “Evidenzia medico”, oppure scrivi il cognome da stampare:','');if(!choice)return;doctor=doctorNames.find(n=>n.toLowerCase()===choice.trim().toLowerCase())||''}if(!doctor)return alert('Medico non riconosciuto.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[];for(const[q,n]of Object.entries(schedule)){if(n!==doctor||!q.startsWith(month+'-'))continue;let[ds,s]=q.split('|');rows.push({ds,s})}rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];let body=rows.length?rows.map(r=>{let d=new Date(r.ds+'T12:00:00');return`<tr><td>${r.ds.split('-').reverse().join('/')}</td><td>${names[d.getDay()]}</td><td>${serviceLabel(r.s)}</td></tr>`}).join(''):'<tr><td colspan="3">Nessun turno assegnato.</td></tr>';let w=window.open('','_blank','width=850,height=900');if(!w)return alert('Consenti i popup e riprova.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>body{font:14px Arial;margin:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #777;padding:8px}th{background:#eaf1f8}@media print{button{display:none}}</style></head><body><h1>TURNI PERSONALI — ${doctor}</h1><h2>${mo}/${y}</h2><table><tr><th>Data</th><th>Giorno</th><th>Turno</th></tr>${body}</table><p>Totale: <b>${rows.length}</b></p><button onclick="window.print()">STAMPA</button></body></html>`);w.document.close();w.focus()}
+async function printMyShifts(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');let doctor=highlightedDoctors.size===1?[...highlightedDoctors][0]:'';if(!doctor){let email=($('loggedUser')?.textContent||'').split('·')[0].trim().toLowerCase(),local=email.split('@')[0].replace(/[._-]+/g,' ');doctor=doctorNames.find(n=>{let q=n.toLowerCase();return local.includes(q)||q.split(' ').every(p=>local.includes(p))})||''}if(!doctor){let choice=prompt('Seleziona prima un medico da “Evidenzia medico”, oppure scrivi il cognome da stampare:','');if(!choice)return;doctor=doctorNames.find(n=>n.toLowerCase()===choice.trim().toLowerCase())||''}if(!doctor)return alert('Medico non riconosciuto.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[];for(const[q,n]of Object.entries(schedule)){if(n!==doctor||!q.startsWith(month+'-'))continue;let[ds,s]=q.split('|');rows.push({ds,s})}rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];let body=rows.length?rows.map(r=>{let d=new Date(r.ds+'T12:00:00');return`<tr><td>${r.ds.split('-').reverse().join('/')}</td><td>${names[d.getDay()]}</td><td>${serviceLabel(r.s)}</td></tr>`}).join(''):'<tr><td colspan="3">Nessun turno assegnato.</td></tr>';let w=window.open('','_blank','width=850,height=900');if(!w)return alert('Consenti i popup e riprova.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>body{font:14px Arial;margin:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #777;padding:8px}th{background:#eaf1f8}@media print{button{display:none}}</style></head><body><h1>TURNI PERSONALI — ${doctor}</h1><h2>${mo}/${y}</h2><table><tr><th>Data</th><th>Giorno</th><th>Turno</th></tr>${body}</table><p>Totale: <b>${rows.length}</b></p><button onclick="window.print()">STAMPA</button></body></html>`);w.document.close();w.focus()}
 function ensureMyShiftsButton(){let p=$('printBtn');if(!p||$('myShiftsBtn'))return;let b=document.createElement('button');b.id='myShiftsBtn';b.type='button';b.textContent='I MIEI TURNI';b.onclick=printMyShifts;p.insertAdjacentElement('afterend',b)}
 async function enhanceLeaveSlots(){if(leaveBusy)return;let cells=[...document.querySelectorAll('#schedule .leaveCell')];if(!cells.length)return;leaveBusy=true;try{let snap=await getDoc(root),x=snap.exists()?snap.data():{},sch=x.schedule||{};for(const cell of cells){let first=cell.querySelector('select[data-k*="|ferie|"]');if(!first)continue;let base=first.dataset.k.replace(/\|ferie\|\d+$/,'|ferie|');for(let i=2;i<4;i++){let k=base+i;if(cell.querySelector(`select[data-k="${k}"]`))continue;let s=document.createElement('select');s.dataset.k=k;s.innerHTML='<option></option>'+doctorNames.map(n=>`<option>${n}</option>`).join('');s.value=sch[k]||'';cell.appendChild(s)}}applyValueColors()}finally{leaveBusy=false}}
 function installLeavePersistence(){/* Gestione assenze è l'unica fonte delle ferie: nessun salvataggio autonomo dalla griglia */}

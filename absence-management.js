@@ -111,6 +111,7 @@ function install(){
     let m=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
     $('absenceManageModal').classList.add('hidden');
     novDirty=false;
+    sessionStorage.setItem('turniRestoreMonthOnce',m);
     await reconcileCurrentMonth(true,m)
   };
   $('absencePrevMonth').onclick=()=>move(-1);

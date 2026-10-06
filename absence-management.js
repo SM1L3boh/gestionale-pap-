@@ -112,6 +112,8 @@ function install(){
     $('absenceManageModal').classList.add('hidden');
     novDirty=false;
     sessionStorage.setItem('turniRestoreMonthOnce',m);
+    localStorage.setItem('turniLastMonth',m);
+    const monthInput=$('month');if(monthInput)monthInput.value=m;
     await reconcileCurrentMonth(true,m)
   };
   $('absencePrevMonth').onclick=()=>move(-1);

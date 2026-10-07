@@ -471,7 +471,7 @@ function fixFullPrint(){
       .off{background:#eee!important;color:#888}
       .pmCol{background:#fff8cc}
       tr{break-inside:avoid}
-      @media print{.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}}
+      @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}.weekend td{background:#fce8e8!important}.off{background:#eee!important;color:#888!important}.pmCol{background:#fff8cc!important}th{background:#d9e2f3!important}}
     </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);
     w.document.close();
     w.focus();

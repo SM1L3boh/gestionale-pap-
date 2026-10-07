@@ -110,20 +110,49 @@ async function printMyShifts(){
   rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));
 
   let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+
   const isWeekdayAvailability=r=>{
     if(!['disp1','disp2'].includes(r.s))return false;
     const w=new Date(r.ds+'T12:00:00').getDay();
     return w>=1&&w<=5;
   };
+  const isWeekendAvailability=r=>{
+    if(!['disp1','disp2'].includes(r.s))return false;
+    const w=new Date(r.ds+'T12:00:00').getDay();
+    return w===0||w===6;
+  };
+  const isMorning=r=>{
+    if(isWeekendAvailability(r))return true;
+    return ['gessi','reparto','amb','esami','op1','op2'].includes(r.s);
+  };
+  const isAfternoon=r=>['giorno','gessirep','oppom'].includes(r.s);
+  const isNight=r=>r.s==='guardia';
+
   const workRows=rows.filter(r=>!isWeekdayAvailability(r));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
-  const makeRows=list=>list.length?list.map(r=>{
-    let d=new Date(r.ds+'T12:00:00');
-    return `<tr><td>${r.ds.split('-').reverse().join('/')}</td><td>${names[d.getDay()]}</td><td>${serviceLabel(r.s)}</td></tr>`;
-  }).join(''):'<tr><td colspan="3">Nessuna voce.</td></tr>';
+  const byDate=new Map();
+  for(const r of workRows){
+    if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
+    const z=byDate.get(r.ds);
+    const label=serviceLabel(r.s);
+    if(isMorning(r))z.mattino.push(label);
+    else if(isAfternoon(r))z.pomeriggio.push(label);
+    else if(isNight(r))z.pomeriggio.push(label);
+    else z.mattino.push(label);
+  }
 
-  let w=window.open('','_blank','width=850,height=900');
+  const workBody=[...byDate.entries()].map(([ds,z])=>{
+    const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
+    return `<tr><td>${dateLabel}</td><td>${z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+  }).join('')||'<tr><td colspan="3">Nessun turno/servizio.</td></tr>';
+
+  const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{
+    const d=new Date(r.ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+r.ds.split('-').reverse().join('/');
+    return `<tr><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
+  }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
+
+  let w=window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
     body{font:14px Arial;margin:24px;color:#111}
@@ -131,21 +160,24 @@ async function printMyShifts(){
     h2{margin-top:0}
     h3{margin:24px 0 8px}
     table{border-collapse:collapse;width:100%;margin-bottom:8px}
-    th,td{border:1px solid #777;padding:8px}
+    th,td{border:1px solid #777;padding:8px;vertical-align:top}
     th{background:#eaf1f8}
     .availability th{background:#fff3cd}
     .summary{margin:4px 0 18px;font-size:13px}
+    .work td:first-child{width:24%;white-space:nowrap}
+    .work td:nth-child(2),.work td:nth-child(3){width:38%}
+    .availability td:first-child{width:32%;white-space:nowrap}
     @media print{button{display:none}h3{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
   </style></head><body>
     <h1>TURNI PERSONALI — ${doctor}</h1>
     <h2>${mo}/${y}</h2>
 
     <h3>TURNI / SERVIZI</h3>
-    <table><tr><th>Data</th><th>Giorno</th><th>Turno</th></tr>${makeRows(workRows)}</table>
-    <div class="summary">Totale turni/servizi: <b>${workRows.length}</b></div>
+    <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
+    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
-    <table class="availability"><tr><th>Data</th><th>Giorno</th><th>Disponibilità</th></tr>${makeRows(availabilityRows)}</table>
+    <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
 
     <button onclick="window.print()">STAMPA</button>

@@ -289,7 +289,11 @@ async function printMyShifts(){
 
       const sums=[...w.document.querySelectorAll('.summary')];
       yy-=12;
-      text(x0,yy,8,clip(sums[0]?.innerText||''),true);
+      const workedCount=workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0);
+      const leaveCount=leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length;
+      text(x0,yy,8,'Giornate con turni/servizi: '+byDate.size,true);
+      text(x0+190,yy,8,'Turni lavorati: '+workedCount,true);
+      text(x0+335,yy,8,'Giorni ferie/assenza: '+leaveCount,true);
 
       // Disponibilità infrasettimanali
       yy-=22;

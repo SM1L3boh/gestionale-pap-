@@ -6,7 +6,7 @@ const AM=['gessi','reparto','amb','esami','op1','op2'],PM=['gessirep','oppom'],D
 const RULES={
 'PINI':{manual:true},
 'VIALE':{freePm:[3]},
-'CALZAVARA':{freePm:[2]},
+'CALZAVARA':{freePm:[2],preferFreePm:[5]},
 'COMELATO':{freePm:[1,4]},
 'FRANCO':{freePm:[3]},
 'CIPRIAN':{days:[1,2,3,4,5],services:['reparto']},
@@ -63,6 +63,7 @@ function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}
 function weekendContinuityRest(a,n,ds){let w=new Date(ds+'T12:00:00').getDay();if(w===1)return a[K(shiftDay(ds,-2),'disp1',0)]===n;if(w===5)return a[K(shiftDay(ds,-6),'disp2',0)]===n;return false}
 function freePm(d,w){return(d?.constraints?.freePm||RULES[d?.name]?.freePm||[]).includes(w)}
+function preferFreePm(d,w){return(d?.constraints?.preferFreePm||RULES[d?.name]?.preferFreePm||[]).includes(w)}
 function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(manualOnly(d))return false;if(r.days&&!r.days.includes(w))return false;if(r.services&&!r.services.includes(s))return false;if(!force&&PM.includes(s)&&freePm(d,w))return false;return d.cat==='Strutturato'||n==='CIPRIAN'}
 function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
@@ -76,7 +77,7 @@ function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='S
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}
 function calzavaraOpPenalty(){return 0}
-function cand(doctors,a,s,ds,m,x=false,force=false){let list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
+function cand(doctors,a,s,ds,m,x=false,force=false){let dt=new Date(ds+'T12:00:00'),list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{softPm:PM.includes(s)&&preferFreePm(d,dt.getDay())?5000:0,cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.softPm-Q.softPm||P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.softPm-Q.softPm||P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
 function structuralDefault(m,ds,s,i){
   if(m<'2026-11')return null;
   const w=new Date(ds+'T12:00:00').getDay();
@@ -188,7 +189,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
         const mon=monthEq(A,d.name,m)+1;
         const wkH=weekHours(A,d.name,ds)+6;
         let z=(s==='oppom'?pom*120:op*90)+op*55+mon*12+wkH*2+triOpCount(A,d.name,m)*3+triServiceRate(A,d.name,m,s)*180+rnd()*8;
-        if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
+        if(s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay()))z+=5000;if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
         return{d,z};
       }).sort((p,q)=>p.z-q.z);
       assign(A,G,E,k,list[0].d.name,false);
@@ -702,7 +703,7 @@ function operatingBalanceScore(a,d,s,ds,m){
   // Priorità principale: uniformità delle sale nella settimana sabato→venerdì.
   // Bilanciamento mensile/trimestrale solo come criterio secondario.
   const weekly=opWeekCount(a,d.name,ds);
-  return weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+  return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
 }
 function balancedOperatingCandidates(a,doctors,s,ds,m){
   const valid=doctors.filter(d=>canOperatingAll(a,d,s,ds,m));

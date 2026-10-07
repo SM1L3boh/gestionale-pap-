@@ -157,6 +157,23 @@ async function printMyShifts(){
   }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
 
   const leaveList=[...leaveDates].sort();
+
+  // Stesso criterio del "Conteggio mese":
+  // guardia = 2 turni-equivalenti (12 h);
+  // disponibilità lun–ven = 0;
+  // disponibilità sab/dom = 1;
+  // altri servizi = 1;
+  // ferie = 1 da lunedì a sabato, 0 la domenica.
+  const monthlyEquivalentFor=r=>{
+    const d=new Date(r.ds+'T12:00:00'),wd=d.getDay();
+    if(r.s==='guardia')return 2;
+    if(['disp1','disp2'].includes(r.s))return(wd===0||wd===6)?1:0;
+    return 1;
+  };
+  const serviceEquivalentTotal=rows.reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);
+  const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+(new Date(ds+'T12:00:00').getDay()===0?0:1),0);
+  const monthlyEquivalentTotal=serviceEquivalentTotal+leaveEquivalentTotal;
+
   const leaveBody=leaveList.length?leaveList.map(ds=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
@@ -187,7 +204,7 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni totali: <b>${workRows.length}</b></div>
+    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni totali (come Conteggio mese): <b>${monthlyEquivalentTotal}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>

@@ -76,7 +76,7 @@ function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='S
 }return true}
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}
-function calzavaraOpPenalty(){return 0}
+function calzavaraOpPenalty(doctors,a,n,m){if(n!=='CALZAVARA')return 0;const q=orCount(a,n,m);return q<8?(q-8)*700:(q-8)*1100}
 function cand(doctors,a,s,ds,m,x=false,force=false){let dt=new Date(ds+'T12:00:00'),list=doctors.filter(d=>can(a,d,s,ds,m,x,force)),score=new Map(list.map(d=>[d.name,{softPm:PM.includes(s)&&preferFreePm(d,dt.getDay())?5000:0,cal:OR.includes(s)?calzavaraOpPenalty(doctors,a,d.name,m):0,calPomNeed:s==='oppom'&&d.name==='CALZAVARA'&&opPomCount(a,d.name,m)<1?-1000:0,opm:OR.includes(s)?orCount(a,d.name,m):0,mat:['op1','op2'].includes(s)?opMatCount(a,d.name,m):0,pom:s==='oppom'?opPomCount(a,d.name,m):0,svc:triServiceRate(a,d.name,m,s),op:OR.includes(s)?triOpCount(a,d.name,m):0,eq:triEqCount(a,d.name,m),mon:monthEq(a,d.name,m),wk:weekHours(a,d.name,ds)}]));return list.sort((p,q)=>{let P=score.get(p.name),Q=score.get(q.name);if(OR.includes(s))return P.softPm-Q.softPm||P.calPomNeed-Q.calPomNeed||P.cal-Q.cal||P.opm-Q.opm||(s==='oppom'?P.pom-Q.pom:P.mat-Q.mat)||P.mon-Q.mon||P.svc-Q.svc||P.op-Q.op||P.eq-Q.eq||P.wk-Q.wk;return P.softPm-Q.softPm||P.mon-Q.mon||P.svc-Q.svc||P.eq-Q.eq||P.wk-Q.wk})}
 function structuralDefault(m,ds,s,i){
   if(m<'2026-11')return null;
@@ -159,7 +159,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
     const pomMean=pomVals.reduce((x,y)=>x+y,0)/(pomVals.length||1);
     const opMean=opVals.reduce((x,y)=>x+y,0)/(opVals.length||1);
     const variance=pomVals.reduce((q,v)=>q+(v-pomMean)*(v-pomMean),0)+opVals.reduce((q,v)=>q+(v-opMean)*(v-opMean),0);
-    return missing*100000+(calPom<1?20000:0)+spread(pomVals)*5000+spread(opVals)*2500+spread(monVals)*300+variance;
+    const calOp=orCount(A,'CALZAVARA',m);return missing*100000+(calPom<1?20000:0)+Math.abs(calOp-8)*2500+spread(pomVals)*5000+spread(opVals)*2500+spread(monVals)*300+variance;
   };
   let best=null,bestScore=Infinity;
   const started=performance.now(),MAX_MS=1800,MAX_TRIALS=48;
@@ -188,7 +188,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
         const op=orCount(A,d.name,m)+1;
         const mon=monthEq(A,d.name,m)+1;
         const wkH=weekHours(A,d.name,ds)+6;
-        let z=(s==='oppom'?pom*120:op*90)+op*55+mon*12+wkH*2+triOpCount(A,d.name,m)*3+triServiceRate(A,d.name,m,s)*180+rnd()*8;
+        let z=(s==='oppom'?pom*120:op*90)+op*55+mon*12+wkH*2+triOpCount(A,d.name,m)*3+triServiceRate(A,d.name,m,s)*180+rnd()*8;if(d.name==='CALZAVARA')z+=op<8?(op-8)*650:(op-8)*1000;
         if(s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay()))z+=5000;if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
         return{d,z};
       }).sort((p,q)=>p.z-q.z);
@@ -703,7 +703,7 @@ function operatingBalanceScore(a,d,s,ds,m){
   // Priorità principale: uniformità delle sale nella settimana sabato→venerdì.
   // Bilanciamento mensile/trimestrale solo come criterio secondario.
   const weekly=opWeekCount(a,d.name,ds);
-  return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+  return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+calzavaraOpPenalty(null,a,d.name,m)+weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
 }
 function balancedOperatingCandidates(a,doctors,s,ds,m){
   const valid=doctors.filter(d=>canOperatingAll(a,d,s,ds,m));

@@ -180,25 +180,34 @@ async function printMyShifts(){
     return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>FERIE / ASSENZA</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessun giorno di ferie/assenza.</td></tr>';
 
+  const safeDoctor=doctor.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');
+  const pdfName=(safeDoctor||'medico')+'-'+month+'.pdf';
   let w=window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
-    body{font:14px Arial;margin:24px;color:#111}
-    h1{margin-bottom:4px}
-    h2{margin-top:0}
-    h3{margin:24px 0 8px}
-    table{border-collapse:collapse;width:100%;margin-bottom:8px}
-    th,td{border:1px solid #777;padding:8px;vertical-align:top}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"><\/script><style>
+    @page{size:A4 portrait;margin:5mm}
+    *{box-sizing:border-box}
+    body{font:11px Arial;margin:0;color:#111;background:#eef2f7;padding:10px}
+    #page{width:200mm;min-height:287mm;margin:0 auto;background:#fff;padding:5mm;overflow:hidden}
+    #content{transform-origin:top left}
+    h1{font-size:18px;margin:0 0 2px}
+    h2{font-size:13px;margin:0 0 8px}
+    h3{font-size:12px;margin:10px 0 4px}
+    table{border-collapse:collapse;width:100%;margin-bottom:4px;font-size:10px}
+    th,td{border:1px solid #777;padding:4px 5px;vertical-align:top}
     th{background:#eaf1f8}
     .availability th{background:#fff3cd}
     .leave th{background:#fde68a}
     .weekendRow td{background:#fee2e2!important}
-    .summary{margin:4px 0 18px;font-size:13px}
+    .summary{margin:2px 0 8px;font-size:10px}
+    .actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
+    .actions button{padding:7px 14px;font-weight:700}
+    #savePdf{background:#166534;color:#fff;border:1px solid #166534;border-radius:5px}
     .work td:first-child{width:24%;white-space:nowrap}
     .work td:nth-child(2),.work td:nth-child(3){width:38%}
     .availability td:first-child{width:32%;white-space:nowrap}
-    @media print{button{display:none}h3{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
-  </style></head><body>
+    @media print{body{background:#fff;padding:0}#page{margin:0;padding:5mm;width:200mm;min-height:287mm}.actions{display:none}h3{break-after:avoid}table{break-inside:avoid}tr{break-inside:avoid}}
+  </style></head><body><div id="page"><div id="content">
     <h1>TURNI PERSONALI — ${doctor}</h1>
     <h2>${mo}/${y}</h2>
 
@@ -214,7 +223,38 @@ async function printMyShifts(){
     <table class="leave"><tr><th>Data</th><th>Stato</th></tr>${leaveBody}</table>
     <div class="summary">Totale giorni ferie/assenza: <b>${leaveList.length}</b></div>
 
-    <button onclick="window.print()">STAMPA</button>
+    </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
+    <script>
+      const pdfName=${'`'}${pdfName}${'`'};
+      function fitOneA4(){
+        const page=document.getElementById('page'),content=document.getElementById('content');
+        content.style.transform='';content.style.width='100%';
+        const maxW=page.clientWidth-1,maxH=page.clientHeight-55;
+        const scale=Math.min(1,maxW/content.scrollWidth,maxH/content.scrollHeight);
+        content.style.transform='scale('+scale+')';
+        content.style.width=(100/scale)+'%';
+      }
+      async function savePdf(){
+        fitOneA4();
+        const btn=document.getElementById('savePdf');btn.disabled=true;btn.textContent='SALVATAGGIO…';
+        try{
+          if(!window.html2canvas||!window.jspdf)throw new Error('Modulo PDF non disponibile');
+          const target=document.getElementById('content');
+          const canvas=await html2canvas(target,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+          const img=canvas.toDataURL('image/jpeg',0.96);
+          const {jsPDF}=window.jspdf;
+          const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+          const maxW=200,maxH=287,ratio=Math.min(maxW/canvas.width,maxH/canvas.height);
+          const w=canvas.width*ratio,h=canvas.height*ratio,x=(210-w)/2,y=(297-h)/2;
+          pdf.addImage(img,'JPEG',x,y,w,h,undefined,'FAST');
+          pdf.save(pdfName);
+        }catch(e){alert('Errore salvataggio PDF: '+e.message)}finally{btn.disabled=false;btn.textContent='SALVA PDF'}
+      }
+      document.getElementById('printPage').onclick=()=>{fitOneA4();setTimeout(()=>window.print(),80)};
+      document.getElementById('savePdf').onclick=savePdf;
+      window.addEventListener('load',()=>setTimeout(fitOneA4,250));
+      window.addEventListener('resize',fitOneA4);
+    <\/script>
   </body></html>`);
   w.document.close();
   w.focus();

@@ -225,7 +225,7 @@ async function printMyShifts(){
     }
   </style></head><body><div id="page"><div id="content">
     <h1>TURNI PERSONALI — ${doctor}</h1>
-    <h2>${mo}/${y}</h2>
+    <h2>${monthNames[Number(mo)]} ${y}</h2>
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
@@ -269,7 +269,7 @@ async function printMyShifts(){
 
       // Titolo
       text(margin,pageH-34,15,'TURNI PERSONALI - '+doctor,true);
-      text(margin,pageH-50,10,'MESE '+mo+'/'+y,true);
+      text(margin,pageH-50,10,'MESE '+monthNames[Number(mo)]+' '+y,true);
 
       // Tabella principale
       const x0=margin,x1=140,x2=365,x3=pageW-margin;

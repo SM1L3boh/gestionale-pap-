@@ -213,7 +213,16 @@ async function printMyShifts(){
     .work td:first-child{width:24%;white-space:nowrap}
     .work td:nth-child(2),.work td:nth-child(3){width:38%}
     .availability td:first-child{width:32%;white-space:nowrap}
-    @media print{body{background:#fff;padding:0}#page{margin:0;padding:5mm;width:200mm;min-height:287mm}.actions{display:none}h3{break-after:avoid}table{break-inside:avoid}tr{break-inside:avoid}}
+    @media print{
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      body{background:#fff;padding:0}
+      #page{margin:0;padding:5mm;width:200mm;min-height:287mm}
+      .actions{display:none}
+      .weekendRow td{background:#fee2e2!important}
+      .leaveRow td{background:#fff7cc!important}
+      .weekendRow.leaveRow td{background:#fbd5d5!important}
+      h3{break-after:avoid}table{break-inside:avoid}tr{break-inside:avoid}
+    }
   </style></head><body><div id="page"><div id="content">
     <h1>TURNI PERSONALI — ${doctor}</h1>
     <h2>${mo}/${y}</h2>

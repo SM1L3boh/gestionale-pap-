@@ -220,7 +220,7 @@ function assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys){
   const pending=[];
   for(const {ds} of dates)for(const s of order)for(const i of slots(s)){
     const k=K(ds,s,i);
-    if(!protectedKeys.has(k)&&(!a[k]||a[k]==='NESSUNO'))pending.push(k);
+    if(!protectedKeys.has(k)&&!a[k])pending.push(k);
   }
 
   // Calcola la difficoltà UNA SOLA VOLTA. Prima, per ogni assegnazione,
@@ -640,7 +640,8 @@ function domMonthSchedule(base,m){
   document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
     const k=sel.dataset.k;if(!k?.startsWith(m+'-'))return;
     const v=sel.value;
-    if(v&&v!=='NESSUNO')a[k]=v; else delete a[k];
+    if(v)a[k]=v;
+    else delete a[k];
   });
   return a;
 }
@@ -651,7 +652,8 @@ function columnCandidateKeys(m,s,a,opened){
     if(s!=='guardia'&&(w===0||w===6||holiday(dt)))continue;
     for(let i=0;i<columnSlotCount(s);i++){
       const k=K(ds,s,i);
-      if(a[k]&&a[k]!=='NESSUNO')continue;
+      if(a[k]==='NESSUNO')continue;
+      if(a[k])continue;
       const def=structuralDefault(m,ds,s,i);
       if(def==='NESSUNO'&&!opened.has(k))continue;
       out.push(k);

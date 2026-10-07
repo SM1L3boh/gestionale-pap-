@@ -174,7 +174,7 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b></div>
+    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni totali: <b>${workRows.length}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>

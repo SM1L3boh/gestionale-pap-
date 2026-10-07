@@ -184,8 +184,9 @@ async function printMyShifts(){
     return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>FERIE / ASSENZA</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessun giorno di ferie/assenza.</td></tr>';
 
-  const safeDoctor=doctor.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');
-  const pdfName=(safeDoctor||'medico')+'-'+month+'.pdf';
+  const monthNames=['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const doctorFileName=doctor.toLowerCase().replace(/\b\w/g,ch=>ch.toUpperCase()).replace(/[^A-Za-zÀ-ÿ0-9 _-]+/g,'').trim()||'Medico';
+  const pdfName=doctorFileName+' '+monthNames[Number(mo)]+' '+y+'.pdf';
   let w=window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>

@@ -146,18 +146,21 @@ async function printMyShifts(){
 
   const workBody=[...byDate.entries()].map(([ds,z])=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
-    return `<tr><td>${dateLabel}</td><td>${z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+    const weekend=d.getDay()===0||d.getDay()===6;
+    return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>${z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
   }).join('')||'<tr><td colspan="3">Nessun turno/servizio.</td></tr>';
 
   const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{
     const d=new Date(r.ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+r.ds.split('-').reverse().join('/');
-    return `<tr><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
+    const weekend=d.getDay()===0||d.getDay()===6;
+    return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
 
   const leaveList=[...leaveDates].sort();
   const leaveBody=leaveList.length?leaveList.map(ds=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
-    return `<tr><td>${dateLabel}</td><td>FERIE / ASSENZA</td></tr>`;
+    const weekend=d.getDay()===0||d.getDay()===6;
+    return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>FERIE / ASSENZA</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessun giorno di ferie/assenza.</td></tr>';
 
   let w=window.open('','_blank','width=900,height=900');
@@ -172,6 +175,7 @@ async function printMyShifts(){
     th{background:#eaf1f8}
     .availability th{background:#fff3cd}
     .leave th{background:#fde68a}
+    .weekendRow td{background:#fee2e2!important}
     .summary{margin:4px 0 18px;font-size:13px}
     .work td:first-child{width:24%;white-space:nowrap}
     .work td:nth-child(2),.work td:nth-child(3){width:38%}

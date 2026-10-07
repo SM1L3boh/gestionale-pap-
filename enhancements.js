@@ -248,49 +248,88 @@ async function printMyShifts(){
     const btn=w.document.getElementById('savePdf');
     if(btn){btn.disabled=true;btn.textContent='SALVATAGGIO…'}
     try{
-      const lines=[];
-      lines.push('TURNI PERSONALI - '+pdfText(doctor));
-      lines.push('MESE '+pdfText(mo+'/'+y));
-      lines.push('');
-      lines.push('DATA | MATTINO | POMERIGGIO / NOTTE');
-      w.document.querySelectorAll('table.work tr').forEach((tr,i)=>{
-        if(i===0)return;
-        const cc=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
-        lines.push(cc.map(pdfText).join(' | '));
-      });
-      lines.push('');
-      const sums=[...w.document.querySelectorAll('.summary')];
-      if(sums[0])lines.push(pdfText(sums[0].innerText||''));
-      lines.push('');
-      lines.push('DISPONIBILITA INFRASETTIMANALI');
-      w.document.querySelectorAll('table.availability tr').forEach((tr,i)=>{
-        if(i===0)return;
-        const cc=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
-        lines.push(cc.map(pdfText).join(' | '));
-      });
-      if(sums[1])lines.push(pdfText(sums[1].innerText||''));
+      const pageW=595,pageH=842,margin=24;
+      const ops=[];
+      const escPdf=s=>pdfText(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+      const text=(x,y,size,str,bold=false)=>ops.push('BT /'+(bold?'F2':'F1')+' '+size+' Tf 1 0 0 1 '+x+' '+y+' Tm ('+escPdf(str)+') Tj ET');
+      const line=(x1,y1,x2,y2)=>ops.push(x1+' '+y1+' m '+x2+' '+y2+' l S');
+      const fill=(x,y,wid,hei,r,g,b)=>ops.push(r+' '+g+' '+b+' rg '+x+' '+y+' '+wid+' '+hei+' re f 0 0 0 rg');
+      const box=(x,y,wid,hei)=>ops.push(x+' '+y+' '+wid+' '+hei+' re S');
+      const clip=s=>{s=String(s||'').replace(/\s+/g,' ').trim();return s.length>42?s.slice(0,39)+'...':s};
 
-      const pageW=595,pageH=842,margin=28,fontSize=7.4,lineH=10.2;
-      let yy=pageH-margin,ops=['BT','/F1 '+fontSize+' Tf'];
-      for(const line of lines){
-        if(yy<margin)break;
-        ops.push('1 0 0 1 '+margin+' '+yy.toFixed(1)+' Tm ('+line.slice(0,140)+') Tj');
-        yy-=lineH;
+      // Titolo
+      text(margin,pageH-34,15,'TURNI PERSONALI - '+doctor,true);
+      text(margin,pageH-50,10,'MESE '+mo+'/'+y,true);
+
+      // Tabella principale
+      const x0=margin,x1=140,x2=365,x3=pageW-margin;
+      const headH=18,rowH=14;
+      let top=pageH-70;
+      fill(x0,top-headH,x3-x0,headH,0.90,0.94,0.98);
+      box(x0,top-headH,x3-x0,headH);
+      line(x1,top-headH,x1,top);line(x2,top-headH,x2,top);
+      text(x0+5,top-13,8,'DATA',true);
+      text(x1+5,top-13,8,'MATTINO',true);
+      text(x2+5,top-13,8,'POMERIGGIO / NOTTE',true);
+      let yy=top-headH;
+
+      const mainRows=[...w.document.querySelectorAll('table.work tr')].slice(1);
+      for(const tr of mainRows){
+        yy-=rowH;
+        const cells=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
+        if(tr.classList.contains('leaveRow'))fill(x0,yy,x3-x0,rowH,1.00,0.97,0.80);
+        if(tr.classList.contains('weekendRow'))fill(x0,yy,x3-x0,rowH,1.00,0.89,0.89);
+        box(x0,yy,x3-x0,rowH);
+        line(x1,yy,x1,yy+rowH);line(x2,yy,x2,yy+rowH);
+        text(x0+4,yy+4.2,7.2,clip(cells[0]||''));
+        text(x1+4,yy+4.2,7.0,clip(cells[1]||''));
+        text(x2+4,yy+4.2,7.0,clip(cells[2]||''));
       }
-      ops.push('ET');
+
+      const sums=[...w.document.querySelectorAll('.summary')];
+      yy-=12;
+      text(x0,yy,8,clip(sums[0]?.innerText||''),true);
+
+      // Disponibilità infrasettimanali
+      yy-=22;
+      text(x0,yy,10,'DISPONIBILITA INFRASETTIMANALI',true);
+      yy-=8;
+      const ax0=x0,ax1=220,ax2=x3;
+      fill(ax0,yy-headH,ax2-ax0,headH,1.00,0.95,0.78);
+      box(ax0,yy-headH,ax2-ax0,headH);
+      line(ax1,yy-headH,ax1,yy);
+      text(ax0+5,yy-13,8,'DATA',true);
+      text(ax1+5,yy-13,8,'DISPONIBILITA',true);
+      yy-=headH;
+
+      const avRows=[...w.document.querySelectorAll('table.availability tr')].slice(1);
+      for(const tr of avRows){
+        yy-=rowH;
+        const cells=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
+        box(ax0,yy,ax2-ax0,rowH);
+        line(ax1,yy,ax1,yy+rowH);
+        text(ax0+4,yy+4.2,7.2,clip(cells[0]||''));
+        text(ax1+4,yy+4.2,7.0,clip(cells[1]||''));
+      }
+      yy-=11;
+      text(ax0,yy,8,clip(sums[1]?.innerText||''),true);
+
       const stream=ops.join('\n');
       const objs=[];
       objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
       objs[2]='<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
-      objs[3]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+pageW+' '+pageH+'] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>';
+      objs[3]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+pageW+' '+pageH+'] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>';
       objs[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
-      objs[5]='<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream';
+      objs[5]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+      objs[6]='<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream';
+
       let pdf='%PDF-1.4\n',offs=[0];
-      for(let i=1;i<=5;i++){offs[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+      for(let i=1;i<=6;i++){offs[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
       const xref=pdf.length;
-      pdf+='xref\n0 6\n0000000000 65535 f \n';
-      for(let i=1;i<=5;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
-      pdf+='trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+      pdf+='xref\n0 7\n0000000000 65535 f \n';
+      for(let i=1;i<=6;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+      pdf+='trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+
       const bytes=new Uint8Array(pdf.length);
       for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
       const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));

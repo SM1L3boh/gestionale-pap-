@@ -144,11 +144,15 @@ async function printMyShifts(){
     else z.mattino.push(label);
   }
 
-  const workBody=[...byDate.entries()].map(([ds,z])=>{
-    const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
+  const daysInMonth=new Date(Number(y),Number(mo),0).getDate();
+  const workBody=Array.from({length:daysInMonth},(_,i)=>{
+    const day=i+1,ds=month+'-'+String(day).padStart(2,'0'),d=new Date(ds+'T12:00:00');
+    const dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
-    return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>${z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
-  }).join('')||'<tr><td colspan="3">Nessun turno/servizio.</td></tr>';
+    const z=byDate.get(ds)||{mattino:[],pomeriggio:[]};
+    const isLeave=leaveDates.has(ds);
+    return `<tr class="${weekend?'weekendRow':''}${isLeave?' leaveRow':''}"><td>${dateLabel}</td><td>${isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+  }).join('');
 
   const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{
     const d=new Date(r.ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+r.ds.split('-').reverse().join('/');
@@ -184,7 +188,7 @@ async function printMyShifts(){
   const pdfName=(safeDoctor||'medico')+'-'+month+'.pdf';
   let w=window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"><\/script><style>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
     @page{size:A4 portrait;margin:5mm}
     *{box-sizing:border-box}
     body{font:11px Arial;margin:0;color:#111;background:#eef2f7;padding:10px}
@@ -198,7 +202,9 @@ async function printMyShifts(){
     th{background:#eaf1f8}
     .availability th{background:#fff3cd}
     .leave th{background:#fde68a}
+    .leaveRow td{background:#fff7cc}
     .weekendRow td{background:#fee2e2!important}
+    .weekendRow.leaveRow td{background:#fbd5d5!important}
     .summary{margin:2px 0 8px;font-size:10px}
     .actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
     .actions button{padding:7px 14px;font-weight:700}
@@ -213,15 +219,11 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni lavorati: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b></div>
+    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni lavorati: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.length}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
-
-    <h3>FERIE / ASSENZE</h3>
-    <table class="leave"><tr><th>Data</th><th>Stato</th></tr>${leaveBody}</table>
-    <div class="summary">Totale giorni ferie/assenza: <b>${leaveList.length}</b></div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
     <script>
@@ -234,21 +236,65 @@ async function printMyShifts(){
         content.style.transform='scale('+scale+')';
         content.style.width=(100/scale)+'%';
       }
-      async function savePdf(){
+      function pdfText(s){
+        return String(s||'').replace(/–/g,'-').replace(/—/g,'-').replace(/ª/g,'a').replace(/°/g,'o')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\\()]/g,m=>'\\'+m);
+      }
+      function savePdf(){
         fitOneA4();
         const btn=document.getElementById('savePdf');btn.disabled=true;btn.textContent='SALVATAGGIO…';
         try{
-          if(!window.html2canvas||!window.jspdf)throw new Error('Modulo PDF non disponibile');
-          const target=document.getElementById('content');
-          const canvas=await html2canvas(target,{scale:2,backgroundColor:'#ffffff',useCORS:true});
-          const img=canvas.toDataURL('image/jpeg',0.96);
-          const {jsPDF}=window.jspdf;
-          const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-          const maxW=200,maxH=287,ratio=Math.min(maxW/canvas.width,maxH/canvas.height);
-          const w=canvas.width*ratio,h=canvas.height*ratio,x=(210-w)/2,y=(297-h)/2;
-          pdf.addImage(img,'JPEG',x,y,w,h,undefined,'FAST');
-          pdf.save(pdfName);
-        }catch(e){alert('Errore salvataggio PDF: '+e.message)}finally{btn.disabled=false;btn.textContent='SALVA PDF'}
+          const lines=[];
+          lines.push('TURNI PERSONALI - '+pdfText("${doctor}"));
+          lines.push('MESE '+pdfText("${mo}/${y}"));
+          lines.push('');
+          lines.push('DATA | MATTINO | POMERIGGIO / NOTTE');
+          document.querySelectorAll('table.work tr').forEach((tr,i)=>{
+            if(i===0)return;
+            const c=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
+            lines.push(c.map(pdfText).join(' | '));
+          });
+          lines.push('');
+          const s=document.querySelector('.summary')?.innerText||'';
+          if(s)lines.push(pdfText(s));
+          lines.push('');
+          lines.push('DISPONIBILITA INFRASETTIMANALI');
+          document.querySelectorAll('table.availability tr').forEach((tr,i)=>{
+            if(i===0)return;
+            const c=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
+            lines.push(c.map(pdfText).join(' | '));
+          });
+          const sums=[...document.querySelectorAll('.summary')];
+          if(sums[1])lines.push(pdfText(sums[1].innerText||''));
+
+          const pageW=595,pageH=842,margin=28,fontSize=7.4,lineH=10.2;
+          let y=pageH-margin,ops=['BT','/F1 '+fontSize+' Tf'];
+          for(const line of lines){
+            if(y<margin)break;
+            ops.push('1 0 0 1 '+margin+' '+y.toFixed(1)+' Tm ('+line.slice(0,140)+') Tj');
+            y-=lineH;
+          }
+          ops.push('ET');
+          const stream=ops.join('\n');
+          const objs=[];
+          objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+          objs[2]='<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+          objs[3]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+pageW+' '+pageH+'] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>';
+          objs[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+          objs[5]='<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream';
+          let pdf='%PDF-1.4\n',offs=[0];
+          for(let i=1;i<=5;i++){offs[i]=pdf.length;pdf+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+          const xref=pdf.length;
+          pdf+='xref\n0 6\n0000000000 65535 f \n';
+          for(let i=1;i<=5;i++)pdf+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+          pdf+='trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+          const bytes=new Uint8Array(pdf.length);
+          for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
+          const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+          const a=document.createElement('a');a.href=url;a.download=pdfName;document.body.appendChild(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1500);
+        }catch(e){alert('Errore salvataggio PDF: '+e.message)}
+        finally{btn.disabled=false;btn.textContent='SALVA PDF'}
       }
       document.getElementById('printPage').onclick=()=>{fitOneA4();setTimeout(()=>window.print(),80)};
       document.getElementById('savePdf').onclick=savePdf;

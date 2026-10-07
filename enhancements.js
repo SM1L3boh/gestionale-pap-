@@ -85,8 +85,74 @@ async function buildDoctorFilter(){
   }finally{building=false}
 }
 function serviceLabel(s){return({guardia:'GUARDIA NOTT. 20–08',giorno:'GIORNO 14–20',disp1:'1ª DISP. 20–08',disp2:'2ª DISP. 20–08',gessi:'GESSI MAT 08–14',gessirep:'GESSI+REP POM 14–20',reparto:'REPARTO 08–14',amb:'AMBULATORIO 08–14',esami:'AMB ESAMI 08–14',op1:'OP1 MAT 08–14',op2:'OP2 MAT 08–14',oppom:'OP POM 14–20',ferie:'FERIE-VARIE'})[s]||s}
-async function printMyShifts(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');let doctor=highlightedDoctors.size===1?[...highlightedDoctors][0]:'';if(!doctor){let email=($('loggedUser')?.textContent||'').split('·')[0].trim().toLowerCase(),local=email.split('@')[0].replace(/[._-]+/g,' ');doctor=doctorNames.find(n=>{let q=n.toLowerCase();return local.includes(q)||q.split(' ').every(p=>local.includes(p))})||''}if(!doctor){let choice=prompt('Seleziona prima un medico da “Evidenzia medico”, oppure scrivi il cognome da stampare:','');if(!choice)return;doctor=doctorNames.find(n=>n.toLowerCase()===choice.trim().toLowerCase())||''}if(!doctor)return alert('Medico non riconosciuto.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[];for(const[q,n]of Object.entries(schedule)){if(n!==doctor||!q.startsWith(month+'-'))continue;let[ds,s]=q.split('|');rows.push({ds,s})}rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];let body=rows.length?rows.map(r=>{let d=new Date(r.ds+'T12:00:00');return`<tr><td>${r.ds.split('-').reverse().join('/')}</td><td>${names[d.getDay()]}</td><td>${serviceLabel(r.s)}</td></tr>`}).join(''):'<tr><td colspan="3">Nessun turno assegnato.</td></tr>';let w=window.open('','_blank','width=850,height=900');if(!w)return alert('Consenti i popup e riprova.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>body{font:14px Arial;margin:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #777;padding:8px}th{background:#eaf1f8}@media print{button{display:none}}</style></head><body><h1>TURNI PERSONALI — ${doctor}</h1><h2>${mo}/${y}</h2><table><tr><th>Data</th><th>Giorno</th><th>Turno</th></tr>${body}</table><p>Totale: <b>${rows.length}</b></p><button onclick="window.print()">STAMPA</button></body></html>`);w.document.close();w.focus()}
-function ensureMyShiftsButton(){let p=$('printBtn');if(!p||$('myShiftsBtn'))return;let b=document.createElement('button');b.id='myShiftsBtn';b.type='button';b.textContent='I MIEI TURNI';b.onclick=printMyShifts;p.insertAdjacentElement('afterend',b)}
+async function printMyShifts(){
+  let month=$('month')?.value;
+  if(!month)return alert('Seleziona un mese.');
+  let doctor=highlightedDoctors.size===1?[...highlightedDoctors][0]:'';
+  if(!doctor){
+    let email=($('loggedUser')?.textContent||'').split('·')[0].trim().toLowerCase(),local=email.split('@')[0].replace(/[._-]+/g,' ');
+    doctor=doctorNames.find(n=>{let q=n.toLowerCase();return local.includes(q)||q.split(' ').every(p=>local.includes(p))})||'';
+  }
+  if(!doctor){
+    let choice=prompt('Seleziona prima un medico da “Evidenzia medico”, oppure scrivi il cognome da stampare:','');
+    if(!choice)return;
+    doctor=doctorNames.find(n=>n.toLowerCase()===choice.trim().toLowerCase())||'';
+  }
+  if(!doctor)return alert('Medico non riconosciuto.');
+
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[];
+  for(const[q,n]of Object.entries(schedule)){
+    if(n!==doctor||!q.startsWith(month+'-'))continue;
+    let[ds,s]=q.split('|');
+    if(s==='ferie')continue;
+    rows.push({ds,s});
+  }
+  rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));
+
+  let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  const isWeekdayAvailability=r=>{
+    if(!['disp1','disp2'].includes(r.s))return false;
+    const w=new Date(r.ds+'T12:00:00').getDay();
+    return w>=1&&w<=5;
+  };
+  const workRows=rows.filter(r=>!isWeekdayAvailability(r));
+  const availabilityRows=rows.filter(isWeekdayAvailability);
+
+  const makeRows=list=>list.length?list.map(r=>{
+    let d=new Date(r.ds+'T12:00:00');
+    return `<tr><td>${r.ds.split('-').reverse().join('/')}</td><td>${names[d.getDay()]}</td><td>${serviceLabel(r.s)}</td></tr>`;
+  }).join(''):'<tr><td colspan="3">Nessuna voce.</td></tr>';
+
+  let w=window.open('','_blank','width=850,height=900');
+  if(!w)return alert('Consenti i popup e riprova.');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
+    body{font:14px Arial;margin:24px;color:#111}
+    h1{margin-bottom:4px}
+    h2{margin-top:0}
+    h3{margin:24px 0 8px}
+    table{border-collapse:collapse;width:100%;margin-bottom:8px}
+    th,td{border:1px solid #777;padding:8px}
+    th{background:#eaf1f8}
+    .availability th{background:#fff3cd}
+    .summary{margin:4px 0 18px;font-size:13px}
+    @media print{button{display:none}h3{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}
+  </style></head><body>
+    <h1>TURNI PERSONALI — ${doctor}</h1>
+    <h2>${mo}/${y}</h2>
+
+    <h3>TURNI / SERVIZI</h3>
+    <table><tr><th>Data</th><th>Giorno</th><th>Turno</th></tr>${makeRows(workRows)}</table>
+    <div class="summary">Totale turni/servizi: <b>${workRows.length}</b></div>
+
+    <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
+    <table class="availability"><tr><th>Data</th><th>Giorno</th><th>Disponibilità</th></tr>${makeRows(availabilityRows)}</table>
+    <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
+
+    <button onclick="window.print()">STAMPA</button>
+  </body></html>`);
+  w.document.close();
+  w.focus();
+}function ensureMyShiftsButton(){let p=$('printBtn');if(!p||$('myShiftsBtn'))return;let b=document.createElement('button');b.id='myShiftsBtn';b.type='button';b.textContent='I MIEI TURNI';b.onclick=printMyShifts;p.insertAdjacentElement('afterend',b)}
 async function enhanceLeaveSlots(){if(leaveBusy)return;let cells=[...document.querySelectorAll('#schedule .leaveCell')];if(!cells.length)return;leaveBusy=true;try{let snap=await getDoc(root),x=snap.exists()?snap.data():{},sch=x.schedule||{};for(const cell of cells){let first=cell.querySelector('select[data-k*="|ferie|"]');if(!first)continue;let base=first.dataset.k.replace(/\|ferie\|\d+$/,'|ferie|');for(let i=2;i<4;i++){let k=base+i;if(cell.querySelector(`select[data-k="${k}"]`))continue;let s=document.createElement('select');s.dataset.k=k;s.innerHTML='<option></option>'+doctorNames.map(n=>`<option>${n}</option>`).join('');s.value=sch[k]||'';cell.appendChild(s)}}applyValueColors()}finally{leaveBusy=false}}
 function installLeavePersistence(){/* Gestione assenze è l'unica fonte delle ferie: nessun salvataggio autonomo dalla griglia */}
 function dayLeaves(ds){return new Set([...document.querySelectorAll(`#schedule select[data-k^="${ds}|ferie|"]`)].map(s=>s.value).filter(v=>v&&v!=='NESSUNO'))}

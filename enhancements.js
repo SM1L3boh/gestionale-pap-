@@ -104,7 +104,7 @@ async function printMyShifts(){
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
-    if(s==='ferie'){continue;}
+    if(s==='ferie'){leaveDates.add(ds);continue;}
     rows.push({ds,s});
   }
   const officialAbsence=x.absenceManagement?.[doctor]||[];
@@ -150,9 +150,7 @@ async function printMyShifts(){
     const dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
     const z=byDate.get(ds)||{mattino:[],pomeriggio:[]};
-    // Le ferie arrivano solo da Gestione assenze. Un servizio assegnato ha sempre precedenza in stampa.
-    const hasService=z.mattino.length>0||z.pomeriggio.length>0;
-    const isLeave=leaveDates.has(ds)&&!hasService;
+    const isLeave=leaveDates.has(ds);
     return `<tr class="${weekend?'weekendRow':''}${isLeave?' leaveRow':''}"><td>${dateLabel}</td><td>${isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
   }).join('');
 

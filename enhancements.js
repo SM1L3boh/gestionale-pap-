@@ -294,17 +294,38 @@ async function printMyShifts(){
       const bytes=new Uint8Array(pdf.length);
       for(let i=0;i<pdf.length;i++)bytes[i]=pdf.charCodeAt(i)&255;
       const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
-      const a=w.document.createElement('a');a.href=url;a.download=pdfName;w.document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      const a=document.createElement('a');a.href=url;a.download=pdfName;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
     }catch(err){alert('Errore salvataggio PDF: '+err.message)}
     finally{if(btn){btn.disabled=false;btn.textContent='SALVA PDF'}}
   };
 
-  const printBtn=w.document.getElementById('printPage');
-  const saveBtn=w.document.getElementById('savePdf');
-  if(printBtn)printBtn.onclick=()=>{fitOneA4();setTimeout(()=>w.print(),100)};
-  if(saveBtn)saveBtn.onclick=savePdf;
-  setTimeout(fitOneA4,200);
+  const bindPersonalActions=()=>{
+    if(!w||w.closed)return;
+    const printBtn=w.document.getElementById('printPage');
+    const saveBtn=w.document.getElementById('savePdf');
+    if(printBtn&&!printBtn.dataset.bound){
+      printBtn.dataset.bound='1';
+      printBtn.addEventListener('click',ev=>{
+        ev.preventDefault();
+        fitOneA4();
+        setTimeout(()=>{w.focus();w.print()},120);
+      });
+    }
+    if(saveBtn&&!saveBtn.dataset.bound){
+      saveBtn.dataset.bound='1';
+      saveBtn.addEventListener('click',ev=>{
+        ev.preventDefault();
+        savePdf();
+      });
+    }
+    fitOneA4();
+  };
+  bindPersonalActions();
+  w.addEventListener('load',bindPersonalActions,{once:true});
+  setTimeout(bindPersonalActions,100);
+  setTimeout(bindPersonalActions,500);
+  setTimeout(bindPersonalActions,1200);
 }function ensureMyShiftsButton(){let p=$('printBtn');if(!p||$('myShiftsBtn'))return;let b=document.createElement('button');b.id='myShiftsBtn';b.type='button';b.textContent='I MIEI TURNI';b.onclick=printMyShifts;p.insertAdjacentElement('afterend',b)}
 async function enhanceLeaveSlots(){if(leaveBusy)return;let cells=[...document.querySelectorAll('#schedule .leaveCell')];if(!cells.length)return;leaveBusy=true;try{let snap=await getDoc(root),x=snap.exists()?snap.data():{},sch=x.schedule||{};for(const cell of cells){let first=cell.querySelector('select[data-k*="|ferie|"]');if(!first)continue;let base=first.dataset.k.replace(/\|ferie\|\d+$/,'|ferie|');for(let i=2;i<4;i++){let k=base+i;if(cell.querySelector(`select[data-k="${k}"]`))continue;let s=document.createElement('select');s.dataset.k=k;s.innerHTML='<option></option>'+doctorNames.map(n=>`<option>${n}</option>`).join('');s.value=sch[k]||'';cell.appendChild(s)}}applyValueColors()}finally{leaveBusy=false}}
 function installLeavePersistence(){/* Gestione assenze è l'unica fonte delle ferie: nessun salvataggio autonomo dalla griglia */}

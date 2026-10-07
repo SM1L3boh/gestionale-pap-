@@ -100,13 +100,15 @@ async function printMyShifts(){
   }
   if(!doctor)return alert('Medico non riconosciuto.');
 
-  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[];
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
-    if(s==='ferie')continue;
+    if(s==='ferie'){leaveDates.add(ds);continue;}
     rows.push({ds,s});
   }
+  const officialAbsence=x.absenceManagement?.[doctor]||[];
+  for(const ds of officialAbsence)if(ds.startsWith(month+'-'))leaveDates.add(ds);
   rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));
 
   let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
@@ -152,6 +154,12 @@ async function printMyShifts(){
     return `<tr><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
 
+  const leaveList=[...leaveDates].sort();
+  const leaveBody=leaveList.length?leaveList.map(ds=>{
+    const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
+    return `<tr><td>${dateLabel}</td><td>FERIE / ASSENZA</td></tr>`;
+  }).join(''):'<tr><td colspan="2">Nessun giorno di ferie/assenza.</td></tr>';
+
   let w=window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
@@ -163,6 +171,7 @@ async function printMyShifts(){
     th,td{border:1px solid #777;padding:8px;vertical-align:top}
     th{background:#eaf1f8}
     .availability th{background:#fff3cd}
+    .leave th{background:#fde68a}
     .summary{margin:4px 0 18px;font-size:13px}
     .work td:first-child{width:24%;white-space:nowrap}
     .work td:nth-child(2),.work td:nth-child(3){width:38%}
@@ -179,6 +188,10 @@ async function printMyShifts(){
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
+
+    <h3>FERIE / ASSENZE</h3>
+    <table class="leave"><tr><th>Data</th><th>Stato</th></tr>${leaveBody}</table>
+    <div class="summary">Totale giorni ferie/assenza: <b>${leaveList.length}</b></div>
 
     <button onclick="window.print()">STAMPA</button>
   </body></html>`);

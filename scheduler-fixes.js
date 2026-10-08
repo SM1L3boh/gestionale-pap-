@@ -843,6 +843,7 @@ function ensureColumnGeneratorUI(){
   wrap.insertBefore(btn,anchor);
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
+  const esamiNessunoKeys=new Set([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')&&sel.value==='NESSUNO').map(sel=>sel.dataset.k));
   const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
     const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
     const [ds,s,i]=k.split('|');
@@ -861,8 +862,9 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of [...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
   for(const k of openedStructuralKeys)delete baseline[k];
-  let protectedKeys=new Set(Object.keys(baseline)),
-      [y,mo]=m.split('-').map(Number),
+  let protectedKeys=new Set(Object.keys(baseline));
+  for(const k of esamiNessunoKeys)if(!openedStructuralKeys.has(k))protectedKeys.add(k);
+  let [y,mo]=m.split('-').map(Number),
       days=new Date(y,mo,0).getDate(),
       dates=monthDays(m,days,y,mo);
 

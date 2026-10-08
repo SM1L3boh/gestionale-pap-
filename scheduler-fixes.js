@@ -872,7 +872,10 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of Object.keys(a))if(k.startsWith(m+'-')&&k.includes('|ferie|'))delete a[k];
   for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;
   applyStructuralDefaults(a,m,days,y,mo,protectedKeys);
-  for(const k of openedStructuralKeys){delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)}
+  for(const k of openedStructuralKeys){
+    if(esamiNessunoKeys.has(k)){a[k]='NESSUNO';protectedKeys.add(k);g.delete(k);e.delete(k);continue}
+    delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)
+  }
 
   let absence=x.absenceManagement||{},byDate={};
   for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){

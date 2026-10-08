@@ -68,7 +68,7 @@ function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(ma
 function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}
-function slots(s){return['gessi','amb','gessirep'].includes(s)?[0]:[0,1]}
+function slots(s){return['gessi','amb','gessirep','esami'].includes(s)?[0]:[0,1]}
 function dispCount(a,n,m,s){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;return q}
 function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;const add=hrs(s,dt),weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+add>weeklyCap)return false;if(s==='disp1'){
   const h=o=>a[K(shiftDay(ds,o),'disp1',0)]===n;
@@ -852,7 +852,12 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   await new Promise(r=>setTimeout(r,30));
   let x=await cloud(),
       doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
-      fullSchedule={...(x.schedule||{})},
+      fullSchedule={...(x.schedule||{})};
+  // AMB ESAMI ha un solo slot visibile (0): elimina eventuali vecchi slot nascosti 1-3.
+  for(const k of Object.keys(fullSchedule)){
+    if(k.startsWith(m+'-')&&/\|esami\|[1-3]$/.test(k))delete fullSchedule[k];
+  }
+  let
       keepMonths=new Set(triMonths(m)),
       a=Object.fromEntries(Object.entries(fullSchedule).filter(([k])=>keepMonths.has(k.slice(0,7)))),
       g=new Set(x.generatedKeys||[]),

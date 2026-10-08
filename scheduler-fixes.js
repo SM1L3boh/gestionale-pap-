@@ -843,7 +843,7 @@ function ensureColumnGeneratorUI(){
   wrap.insertBefore(btn,anchor);
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
-  const esamiNessunoKeys=new Set([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')&&sel.value==='NESSUNO').map(sel=>sel.dataset.k));
+  const esamiOpenKeys=new Set([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')&&!sel.value).map(sel=>sel.dataset.k));
   const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
     const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
     const [ds,s,i]=k.split('|');
@@ -862,9 +862,8 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of [...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
   for(const k of openedStructuralKeys)delete baseline[k];
-  let protectedKeys=new Set(Object.keys(baseline));
-  for(const k of esamiNessunoKeys)if(!openedStructuralKeys.has(k))protectedKeys.add(k);
-  let [y,mo]=m.split('-').map(Number),
+  let protectedKeys=new Set(Object.keys(baseline)),
+      [y,mo]=m.split('-').map(Number),
       days=new Date(y,mo,0).getDate(),
       dates=monthDays(m,days,y,mo);
 
@@ -873,8 +872,21 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;
   applyStructuralDefaults(a,m,days,y,mo,protectedKeys);
   for(const k of openedStructuralKeys){
-    if(esamiNessunoKeys.has(k)){a[k]='NESSUNO';protectedKeys.add(k);g.delete(k);e.delete(k);continue}
     delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)
+  }
+  // AMB ESAMI: solo le celle visibilmente VUOTE al click su GENERA BOZZA sono generabili.
+  // Tutte le altre (NESSUNO o già compilate) vengono protette.
+  for(const {ds} of dates){
+    const k=K(ds,'esami',0);
+    if(esamiOpenKeys.has(k)){
+      delete a[k];
+      protectedKeys.delete(k);
+      g.delete(k);e.delete(k);
+    }else{
+      if(!a[k])a[k]='NESSUNO';
+      protectedKeys.add(k);
+      g.delete(k);e.delete(k);
+    }
   }
 
   let absence=x.absenceManagement||{},byDate={};

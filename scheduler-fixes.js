@@ -843,7 +843,7 @@ function ensureColumnGeneratorUI(){
   wrap.insertBefore(btn,anchor);
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
-  const esamiOpenKeys=new Set([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')&&!sel.value).map(sel=>sel.dataset.k));
+  const esamiSnapshot=new Map([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')).map(sel=>[sel.dataset.k,sel.value||'']));
   const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
     const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
     const [ds,s,i]=k.split('|');
@@ -874,19 +874,13 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of openedStructuralKeys){
     delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)
   }
-  // AMB ESAMI: solo le celle visibilmente VUOTE al click su GENERA BOZZA sono generabili.
-  // Tutte le altre (NESSUNO o già compilate) vengono protette.
-  for(const {ds} of dates){
-    const k=K(ds,'esami',0);
-    if(esamiOpenKeys.has(k)){
-      delete a[k];
-      protectedKeys.delete(k);
-      g.delete(k);e.delete(k);
-    }else{
-      if(!a[k])a[k]='NESSUNO';
-      protectedKeys.add(k);
-      g.delete(k);e.delete(k);
-    }
+  // GENERA BOZZA non deve mai modificare AMB ESAMI:
+  // conserva esattamente il valore visibile al momento del click (vuoto, NESSUNO o medico).
+  for(const [k,v] of esamiSnapshot){
+    if(v)a[k]=v;else delete a[k];
+    protectedKeys.add(k);
+    g.delete(k);e.delete(k);
+    openedStructuralKeys.delete(k);
   }
 
   let absence=x.absenceManagement||{},byDate={};

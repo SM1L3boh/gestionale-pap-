@@ -276,6 +276,8 @@ async function resetCurrentColumn(){
       updatedAt:new Date().toISOString()
     });
     if(sync){sync.textContent='● '+label+' svuotata';sync.className='status online'}
+    localStorage.setItem('turniLastMonth',month);
+    sessionStorage.setItem('turniRestoreMonthOnce',month);
     location.reload();
   }catch(e){
     if(sync)sync.textContent='Errore svuotamento colonna';

@@ -214,6 +214,77 @@ async function emptyCurrentMonth(){
     if(btn)btn.disabled=false;
   }
 }
+const RESETTABLE_COLUMNS=[
+  ['guardia','GUARDIA NOTTURNA',1],['giorno','INTERD',1],['disp1','1ª DISP.',1],['disp2','2ª DISP.',1],
+  ['gessi','GESSI MAT',2],['gessirep','GESSI+REP POM',1],['reparto','REPARTO',2],['amb','AMBULATORIO',2],
+  ['esami','AMB ESAMI',1],['op1','OP1 MAT',2],['op2','OP2 MAT',2],['oppom','OP POM',2]
+];
+function chooseColumnToReset(){
+  return new Promise(resolve=>{
+    document.getElementById('resetColumnModal')?.remove();
+    const back=document.createElement('div');
+    back.id='resetColumnModal';
+    back.className='modalBack';
+    back.innerHTML='<div class="modal smallModal" style="max-width:520px"><h2>SVUOTA COLONNA</h2><p class="small">Scegli la colonna del mese attivo da riportare completamente a vuoto. Le altre colonne non verranno modificate.</p><label style="display:block;margin:14px 0 18px">Colonna<select id="resetColumnSelect" style="width:100%;margin-top:6px;padding:8px">'+RESETTABLE_COLUMNS.map(([svc,label])=>'<option value="'+svc+'">'+label+'</option>').join('')+'</select></label><div class="modalActions"><button type="button" id="resetColumnCancel">Annulla</button><button type="button" class="danger" id="resetColumnConfirm">SVUOTA COLONNA</button></div></div>';
+    document.body.appendChild(back);
+    const close=v=>{back.remove();resolve(v)};
+    back.querySelector('#resetColumnCancel').onclick=()=>close('');
+    back.addEventListener('click',e=>{if(e.target===back)close('')});
+    back.querySelector('#resetColumnConfirm').onclick=()=>close(back.querySelector('#resetColumnSelect').value);
+  });
+}
+async function resetCurrentColumn(){
+  if(busy)return;
+  const month=document.getElementById('month')?.value;
+  if(!month)return;
+  const svc=await chooseColumnToReset();
+  if(!svc)return;
+  const def=RESETTABLE_COLUMNS.find(x=>x[0]===svc);
+  if(!def)return;
+  const label=def[1],slots=def[2];
+  if(!confirm('Svuotare tutta la colonna '+label+' di '+monthLabel(month)+'?\n\nTutte le celle compilabili di questa colonna torneranno VUOTE, pronte da riempire. Le altre colonne resteranno invariate.'))return;
+
+  busy=true;
+  const btn=document.getElementById('resetColumnBtn'),sync=document.getElementById('sync');
+  try{
+    if(btn)btn.disabled=true;
+    if(sync)sync.textContent='Svuotamento colonna '+label+'…';
+    const snap=await getDoc(root),x=snap.exists()?snap.data():{};
+    const schedule={...(x.schedule||{})};
+    const generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]),manual=new Set(x.manualKeys||[]),unresolved=new Set(x.unresolvedKeys||[]),opened=new Set(x.openedStructuralKeys||[]);
+    const [y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate();
+    let cleared=0;
+    for(let d=1;d<=days;d++){
+      const ds=month+'-'+String(d).padStart(2,'0'),wd=new Date(y,mo-1,d).getDay();
+      const allowed=![0,6].includes(wd)||['guardia','giorno','disp1','disp2'].includes(svc);
+      if(!allowed)continue;
+      for(let i=0;i<slots;i++){
+        const k=ds+'|'+svc+'|'+i;
+        if(Object.prototype.hasOwnProperty.call(schedule,k))cleared++;
+        delete schedule[k];
+        generated.delete(k);extra.delete(k);manual.delete(k);unresolved.delete(k);
+        opened.add(k);
+      }
+    }
+    await updateDoc(root,{
+      schedule,
+      generatedKeys:[...generated],
+      extraKeys:[...extra],
+      manualKeys:[...manual],
+      unresolvedKeys:[...unresolved],
+      openedStructuralKeys:[...opened],
+      updatedAt:new Date().toISOString()
+    });
+    if(sync){sync.textContent='● '+label+' svuotata';sync.className='status online'}
+    location.reload();
+  }catch(e){
+    if(sync)sync.textContent='Errore svuotamento colonna';
+    alert('Errore durante SVUOTA COLONNA: '+e.message);
+  }finally{
+    busy=false;
+    if(btn)btn.disabled=false;
+  }
+}
 async function cleanNovemberBaseline(){
   const month=document.getElementById('month')?.value;
   if(month!=='2026-11')return alert('La pulizia mirata è disponibile solo per novembre 2026.');
@@ -296,6 +367,21 @@ function install(){
       eBtn.addEventListener('click',emptyCurrentMonth);
     }
     if(gen.classList.contains('hidden'))eBtn.classList.add('hidden');else eBtn.classList.remove('hidden');
+    let cBtn=document.getElementById('resetColumnBtn');
+    if(!cBtn){
+      cBtn=document.createElement('button');
+      cBtn.id='resetColumnBtn';
+      cBtn.type='button';
+      cBtn.textContent='SVUOTA COLONNA';
+      cBtn.className='adminOnly';
+      cBtn.style.cssText='background:#fde68a!important;border-color:#f59e0b!important;color:#78350f!important;font-weight:800!important;box-shadow:0 2px 5px #92400e33!important';
+      eBtn.insertAdjacentElement('afterend',cBtn);
+    }
+    if(cBtn.dataset.bound!=='1'){
+      cBtn.dataset.bound='1';
+      cBtn.addEventListener('click',resetCurrentColumn);
+    }
+    if(gen.classList.contains('hidden'))cBtn.classList.add('hidden');else cBtn.classList.remove('hidden');
     let b=document.getElementById('exportDataBackupBtn');
     if(!b){
       b=document.createElement('button');

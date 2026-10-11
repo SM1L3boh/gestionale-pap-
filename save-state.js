@@ -36,6 +36,7 @@ async function saveVisibleState(){
     const snap=await getDoc(root),x=snap.exists()?snap.data():{};
     const manual=new Set(x.manualKeys||[]),
       generated=new Set(x.generatedKeys||[]),
+      generatedBefore=new Set(x.generatedKeys||[]),
       extra=new Set(x.extraKeys||[]),
       unresolved=new Set(x.unresolvedKeys||[]),
       opened=new Set(x.openedStructuralKeys||[]),
@@ -63,11 +64,18 @@ async function saveVisibleState(){
       manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
     }
 
-    // SALVA STATO congela tutto ciò che è visibile in quel momento:
-    // non deve più risultare "generato", "extra" o "irrisolto".
+    // SALVA STATO congela lo stato visibile, ma mantiene come automatiche
+    // le SALE OP già create dal generatore: resteranno riequilibrabili in GENERA BOZZA.
+    // Una OP modificata manualmente non è più in generatedBefore e resta protetta.
     for(const k of Object.keys(baseline)){
-      manual.add(k);
-      generated.delete(k);
+      const svc=k.split('|')[1],autoOp=['op1','op2','oppom'].includes(svc)&&generatedBefore.has(k);
+      if(autoOp){
+        manual.delete(k);
+        generated.add(k);
+      }else{
+        manual.add(k);
+        generated.delete(k);
+      }
       extra.delete(k);
       unresolved.delete(k);
     }

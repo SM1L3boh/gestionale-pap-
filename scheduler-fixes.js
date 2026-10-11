@@ -526,11 +526,11 @@ function rebalanceOpTotals(a,g,e,doctors,m,protectedKeys){
         if(op(high.name)-op(low.name)<=3)continue;
         const opKeys=[...g].filter(k=>k.startsWith(m+'-')&&opMovable(k,high.name));
         for(const ok of opKeys){
-          const [ods,os]=ok.split('|'),oval=a[ok],og=g.has(ok),oe=e.has(ok),before=opSpread();
+          const [ods,os]=ok.split('|'),oval=a[ok],og=g.has(ok),oe=e.has(ok),before=opSpread(),beforeTotalSpread=totalSpread();
           delete a[ok];g.delete(ok);e.delete(ok);
-          if(can(a,low,os,ods,m,true,false)){
+          if(canOperatingAll(a,low,os,ods,m)){
             assign(a,g,e,ok,low.name,oe);
-            if(opSpread()<before&&totalSpread()<=1){changed=true;break}
+            if(opSpread()<before&&totalSpread()<=beforeTotalSpread+1){changed=true;break}
             delete a[ok];g.delete(ok);e.delete(ok);
           }
           restore(ok,oval,og,oe);
@@ -541,10 +541,10 @@ function rebalanceOpTotals(a,g,e,doctors,m,protectedKeys){
             const oval2=a[ok],og2=g.has(ok),oe2=e.has(ok);
             delete a[ok];g.delete(ok);e.delete(ok);
             delete a[nk];g.delete(nk);e.delete(nk);
-            if(can(a,low,os,ods,m,true,false)&&can(a,high,ns,nds,m,true,false)){
+            if(canOperatingAll(a,low,os,ods,m)&&can(a,high,ns,nds,m,true,false)){
               assign(a,g,e,ok,low.name,oe2);
               assign(a,g,e,nk,high.name,ne);
-              if(opSpread()<before&&totalSpread()<=1){
+              if(opSpread()<before&&totalSpread()<=beforeTotalSpread+1){
                 if(opPomCount(a,'CALZAVARA',m)>=1){changed=true;break}
               }
               delete a[ok];g.delete(ok);e.delete(ok);
@@ -1006,6 +1006,14 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
 
   // Ultimo controllo dedicato alle sale: una OP vuota non può restare tale
   // se nello stato finale esiste ancora un candidato compatibile.
+  finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+
+  // Dopo la copertura, riequilibra le sale tra gli strutturati automatici.
+  // Le assegnazioni manuali/protette non vengono toccate.
+  rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);
+  rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);
+
+  // Un ultimo fill garantisce che il riequilibrio non lasci celle OP copribili vuote.
   finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
 
   normalizeExtras(a,g,e,doctors,m);

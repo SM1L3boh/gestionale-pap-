@@ -63,7 +63,12 @@ function consecutiveRuleBlocked(a,d,s,ds){
 function hasBand(a,n,ds,band){let set=band==='am'?AM:PM;return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&set.includes(k.split('|')[1]))}
 function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W&&DAY.includes(s)){d[x]??={am:false,pm:false};if(AM.includes(s))d[x].am=true;if(PM.includes(s))d[x].pm=true}}return Object.values(d).filter(x=>x.am&&x.pm).length}
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}
-function weekendContinuityRest(a,n,ds){let w=new Date(ds+'T12:00:00').getDay();if(w===1)return a[K(shiftDay(ds,-2),'disp1',0)]===n;if(w===5)return a[K(shiftDay(ds,-6),'disp2',0)]===n;return false}
+function weekendContinuityRest(a,n,ds){
+  const w=new Date(ds+'T12:00:00').getDay();
+  // Recupero del 1° disponibile del sabato: venerdì-sabato-domenica successivi a casa.
+  const off=w===5?-6:w===6?-7:w===0?-8:null;
+  return off!==null&&a[K(shiftDay(ds,off),'disp1',0)]===n;
+}
 function freePm(d,w){return(d?.constraints?.freePm||RULES[d?.name]?.freePm||[]).includes(w)}
 function preferFreePm(d,w){return(d?.constraints?.preferFreePm||RULES[d?.name]?.preferFreePm||[]).includes(w)}
 function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(manualOnly(d))return false;if(r.days&&!r.days.includes(w))return false;if(r.services&&!r.services.includes(s))return false;if(!force&&PM.includes(s)&&freePm(d,w))return false;return d.cat==='Strutturato'||n==='CIPRIAN'}
@@ -114,31 +119,58 @@ function applyStructuralDefaults(a,m,days,y,mo,protectedKeys){
   }
 }
 function monthDays(m,days,y,mo){let out=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay();if(w===0||w===6||holiday(dt))continue;out.push({dt,ds:`${m}-${String(day).padStart(2,'0')}`})}return out}
-function doctorBusyAnyService(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&k.split('|')[1]!=='ferie'&&v!=='NESSUNO')}
+function doctorBusyDayService(a,n,ds){
+  return Object.entries(a).some(([k,v])=>{
+    if(v!==n||!k.startsWith(ds+'|')||v==='NESSUNO')return false;
+    const s=k.split('|')[1];
+    return !['ferie','disp1','disp2'].includes(s);
+  })
+}
 function ensureRepartoForContinuity(a,g,e,doctors,m,ds,n,protectedKeys){
   if(!n||n==='NESSUNO'||!ds.startsWith(m+'-')||leave(a,ds,n))return false;
+  if(guard(a,ds,n)||guard(a,prev(ds),n))return false;
   const d=doctors.find(x=>x.name===n);if(!d)return false;
   const k0=K(ds,'reparto',0),k1=K(ds,'reparto',1);
   if(a[k0]===n){protectedKeys.add(k0);return true}
   if(a[k1]===n){protectedKeys.add(k1);return true}
-  if(doctorBusyAnyService(a,n,ds))return false;
+  if(doctorBusyDayService(a,n,ds))return false;
   const free=[k0,k1].find(k=>!protectedKeys.has(k)&&(!a[k]||a[k]==='NESSUNO'));
   if(!free)return false;
   assign(a,g,e,free,n,false);protectedKeys.add(free);return true
 }
+function setWeekendInversion(a,g,e,sat,first,second,protectedKeys){
+  const sun=shiftDay(sat,1);
+  const pairs=[[K(sun,'disp1',0),second],[K(sun,'disp2',0),first]];
+  for(const [k,n] of pairs){
+    if(!n||n==='NESSUNO'||protectedKeys.has(k))continue;
+    // Le assegnazioni manuali restano prioritarie; una precedente bozza può essere riallineata.
+    if(a[k]&&a[k]!=='NESSUNO'&&!g.has(k))continue;
+    a[k]=n;g.add(k);e.delete(k);protectedKeys.add(k);
+  }
+}
 function applySaturdayContinuity(a,g,e,doctors,m,protectedKeys){
   const [y,mo]=m.split('-').map(Number);
   const monthStart=new Date(y,mo-1,1,12),monthEnd=new Date(y,mo,0,12);
-  const scanStart=new Date(monthStart);scanStart.setDate(scanStart.getDate()-7);
-  for(let dt=new Date(scanStart);dt<=monthEnd;dt.setDate(dt.getDate()+1)){
+  // Serve leggere anche il sabato della settimana precedente e quello a fine mese,
+  // perché reparto/recupero possono cadere nel mese corrente.
+  const scanStart=new Date(monthStart);scanStart.setDate(scanStart.getDate()-8);
+  const scanEnd=new Date(monthEnd);scanEnd.setDate(scanEnd.getDate()+1);
+  for(let dt=new Date(scanStart);dt<=scanEnd;dt.setDate(dt.getDate()+1)){
     if(dt.getDay()!==6)continue;
     const sat=dt.toISOString().slice(0,10);
     const first=a[K(sat,'disp1',0)],second=a[K(sat,'disp2',0)];
-    if(first&&first!=='NESSUNO'){
-      for(const off of[-3,-2,-1])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),first,protectedKeys);
-    }
+
+    // Domenica: disponibilità invertite rispetto al sabato.
+    setWeekendInversion(a,g,e,sat,first,second,protectedKeys);
+
+    // 2° disponibile del sabato -> REPARTO il venerdì precedente.
     if(second&&second!=='NESSUNO'){
-      for(const off of[2,3])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),second,protectedKeys);
+      ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,-1),second,protectedKeys);
+    }
+
+    // 1° disponibile del sabato -> REPARTO lunedì-giovedì successivi.
+    if(first&&first!=='NESSUNO'){
+      for(const off of[2,3,4,5])ensureRepartoForContinuity(a,g,e,doctors,m,shiftDay(sat,off),first,protectedKeys);
     }
   }
 }
@@ -704,7 +736,7 @@ function opWeekCount(a,n,ds){
   return q;
 }
 function operatingBalanceScore(a,d,s,ds,m){
-  // Priorità principale: uniformità delle sale nella settimana sabato→venerdì.
+  // Priorità principale: uniformità delle sale nella settimana lunedì→domenica.
   // Bilanciamento mensile/trimestrale solo come criterio secondario.
   const weekly=opWeekCount(a,d.name,ds);
   return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+calzavaraOpPenalty(null,a,d.name,m)+weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;

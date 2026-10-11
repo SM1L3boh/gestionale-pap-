@@ -293,12 +293,15 @@ function twelveHourCandidates(a,absence,docs,k){
     return true;
   }).map(d=>d.name);
 }
-function visibleEmptyRequiredCells(month){
+function visibleEmptyRequiredCells(month,opened=new Set()){
   const out=[];
   document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
     const k=sel.dataset.k,{ds,s,i}=parts(k);
     if(!ds.startsWith(month+'-')||!REQUIRED.has(s))return;
     if(sel.value!=='')return;
+    // Guardia: segnala solo una notte realmente aperta dall'utente.
+    // Le normali notti senza guardia (default NESSUNO) non sono "buchi".
+    if(s==='guardia'&&!opened.has(k))return;
     out.push({k,ds,s,i});
   });
   return out;
@@ -380,7 +383,8 @@ async function runEmptyDiagnostics(){
   $('emptyDiagnosticTable').innerHTML='';
   const snap=await getDoc(root),x=snap.exists()?snap.data():{},a=scheduleFromDom(x.schedule||{});
   const docs=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&!['PINI','ARMATO','LONDEI'].includes(d.name));
-  const holes=visibleEmptyRequiredCells(m);
+  const opened=new Set([...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])]);
+  const holes=visibleEmptyRequiredCells(m,opened);
   if(!holes.length){
     $('emptyDiagnosticInfo').textContent='Nessuna cella vuota da riempire nel mese selezionato.';
     $('emptyDiagnosticTable').innerHTML='<tr><td style="padding:18px"><b>✓ Tutte le celle generabili risultano coperte.</b></td></tr>';

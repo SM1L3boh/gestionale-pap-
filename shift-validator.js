@@ -9,7 +9,7 @@ const root=doc(db,'gestionale','dati');
 
 const AM=new Set(['gessi','reparto','amb','esami','op1','op2']);
 const PM=new Set(['giorno','gessirep','oppom']);
-const REQUIRED=new Set(['gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);
+const REQUIRED=new Set(['guardia','gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);
 const LABELS={
   guardia:'GUARDIA NOTT.',giorno:'INTERD',disp1:'1ª DISP.',disp2:'2ª DISP.',
   gessi:'GESSI MAT',gessirep:'GESSI+REP POM',reparto:'REPARTO',amb:'AMBULATORIO',
@@ -223,6 +223,21 @@ function opWeekCountValidator(a,name,ds){
 }
 function generatorBlockReasons(a,absence,doc,k){
   const {ds,s}=parts(k),name=doc?.name,out=[];
+  if(s==='guardia'){
+    if(!doc?.active)out.push('non attivo');
+    if(doc?.cat!=='Strutturato'||['PINI','ARMATO','LONDEI'].includes(name))out.push('escluso dal generatore notti');
+    if(out.length)return out;
+    if((absence?.[name]||[]).includes(ds)||hasService(a,name,ds,x=>x==='ferie'))out.push('ferie/assenza');
+    if(hasService(a,name,ds,x=>x==='disp1'||x==='disp2'))out.push('disponibilità nello stesso giorno');
+    if(hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))out.push('guardia la notte precedente');
+    if(hasService(a,name,shiftDay(ds,1),x=>x==='guardia'))out.push('guardia la notte successiva');
+    const next=shiftDay(ds,1);
+    if(assignments(a,name,p=>p.ds===next&&p.s!=='ferie'&&p.s!=='guardia').length)out.push('servizio il giorno successivo');
+    const wh=weekHours(a,name,weekKey(ds)),add=12;
+    if(wh+add>Math.min(Number(doc.hours)||36,36))out.push('36 h settimanali ('+wh+'+'+add+' h)');
+    return [...new Set(out)];
+  }
+
   if(!doc?.active)out.push('non attivo');
   if(doc?.cat==='Contratto'||['PINI','ARMATO','LONDEI'].includes(name))out.push('escluso dal generatore');
   if(out.length)return out;

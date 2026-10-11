@@ -125,6 +125,7 @@ function assignmentIssues(a,absence,docs,name,k){
   if(doc?.cat==='Contratto'||name==='PINI')return issues;
   if((absence?.[name]||[]).includes(ds))issues.push('medico segnato in ferie/assenza in questa data');
   if(s!=='ferie'&&hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))issues.push('servizio il giorno successivo a una guardia notturna');
+  const wr=generatorWeekendRest(a,name,ds);if(wr)issues.push(wr);
   if(s==='guardia'){
     const next=shiftDay(ds,1);
     const nextWork=assignments(a,name,p=>p.ds===next&&p.s!=='ferie'&&p.s!=='guardia');
@@ -157,6 +158,7 @@ function audit(a,absence,docs,month){
     for(const p of monthAsg){
       if((absence?.[name]||[]).includes(p.ds))add('Ferie',name,p.ds,'turno assegnato durante ferie/assenza',[p.k]);
       if(hasService(a,name,shiftDay(p.ds,-1),x=>x==='guardia'))add('Post-guardia',name,p.ds,'turno il giorno successivo alla guardia',[p.k]);
+      const wr=generatorWeekendRest(a,name,p.ds);if(wr)add('Recupero weekend',name,p.ds,wr,[p.k]);
       if((p.s==='disp1'&&hasService(a,name,p.ds,x=>x==='disp2'))||(p.s==='disp2'&&hasService(a,name,p.ds,x=>x==='disp1')))
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);
       const auditDoc=doctorMap(docs).get(name);
@@ -189,8 +191,7 @@ function markAnomalies(items){
 
 function generatorWeekendRest(a,name,ds){
   const w=dayObj(ds).getDay();
-  if(w===1&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp1'))return 'riposo lunedì dopo 1ª DISP del sabato';
-  if(w===5&&hasService(a,name,shiftDay(ds,-6),x=>x==='disp2'))return 'riposo venerdì dopo 2ª DISP del sabato';
+  if(w===5&&hasService(a,name,shiftDay(ds,-6),x=>x==='disp1'))return 'recupero: venerdì non utilizzabile dopo 1ª DISP del sabato precedente';
   return '';
 }
 function generatorConsecutiveViolation(a,doc,s,ds){

@@ -124,6 +124,8 @@ function assignmentIssues(a,absence,docs,name,k){
   if(!name||name==='NESSUNO'||!ds||!s)return issues;
   if(doc?.cat==='Contratto'||name==='PINI')return issues;
   if((absence?.[name]||[]).includes(ds))issues.push('medico segnato in ferie/assenza in questa data');
+  if(s!=='ferie'&&s!=='guardia'&&hasService(a,name,ds,x=>x==='guardia'))issues.push('guardia notturna e servizio diurno nella stessa giornata');
+  if(s==='guardia'&&assignments(a,name,p=>p.ds===ds&&p.s!=='ferie'&&p.s!=='guardia').length)issues.push('guardia notturna e servizio diurno nella stessa giornata');
   if(s!=='ferie'&&hasService(a,name,shiftDay(ds,-1),x=>x==='guardia'))issues.push('servizio il giorno successivo a una guardia notturna');
   const wr=generatorWeekendRest(a,name,ds);if(wr)issues.push(wr);
   if(s==='guardia'){
@@ -157,6 +159,11 @@ function audit(a,absence,docs,month){
     const monthAsg=assignments(a,name,p=>p.ds.startsWith(month+'-')&&p.s!=='ferie');
     for(const p of monthAsg){
       if((absence?.[name]||[]).includes(p.ds))add('Ferie',name,p.ds,'turno assegnato durante ferie/assenza',[p.k]);
+      if(p.s!=='guardia'&&hasService(a,name,p.ds,x=>x==='guardia'))add('Guardia + servizio',name,p.ds,'guardia notturna e servizio diurno nella stessa giornata',[p.k,...assignments(a,name,q=>q.ds===p.ds&&q.s==='guardia').map(q=>q.k)]);
+      if(p.s==='guardia'){
+        const sameDay=assignments(a,name,q=>q.ds===p.ds&&q.s!=='ferie'&&q.s!=='guardia');
+        if(sameDay.length)add('Guardia + servizio',name,p.ds,'guardia notturna e servizio diurno nella stessa giornata',[p.k,...sameDay.map(q=>q.k)]);
+      }
       if(hasService(a,name,shiftDay(p.ds,-1),x=>x==='guardia'))add('Post-guardia',name,p.ds,'turno il giorno successivo alla guardia',[p.k]);
       const wr=generatorWeekendRest(a,name,p.ds);if(wr)add('Recupero weekend',name,p.ds,wr,[p.k]);
       if((p.s==='disp1'&&hasService(a,name,p.ds,x=>x==='disp2'))||(p.s==='disp2'&&hasService(a,name,p.ds,x=>x==='disp1')))

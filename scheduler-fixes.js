@@ -446,7 +446,7 @@ function ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys){
     if(!curDoc||manualOnly(curDoc))continue;
     const wasExtra=e.has(k),wasGen=g.has(k);
     delete a[k];g.delete(k);e.delete(k);
-    if(can(a,cal,'oppom',ds,m,true,false)){
+    if(canOperatingAll(a,cal,'oppom',ds,m)){
       assign(a,g,e,k,'CALZAVARA',true);
       return true;
     }
@@ -590,8 +590,8 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
             delete a[pk];g.delete(pk);e.delete(pk);
             delete a[mk];g.delete(mk);e.delete(mk);
             const highDoc=byName.get(high.name),lowDoc=byName.get(low.name);
-            const okLow=can(a,lowDoc,ps,pds,m,true,false);
-            const okHigh=can(a,highDoc,ms,mds,m,true,false);
+            const okLow=canOperatingAll(a,lowDoc,ps,pds,m);
+            const okHigh=OR.includes(ms)?canOperatingAll(a,highDoc,ms,mds,m):can(a,highDoc,ms,mds,m,true,false);
             if(okLow&&okHigh){
               assign(a,g,e,pk,low.name,pe);
               assign(a,g,e,mk,high.name,me);

@@ -820,23 +820,31 @@ async function generateColumnV1(){
     }
 
     if(s==='opall'){
-      // Rigenera da zero SOLO le sale create automaticamente in precedenza.
-      // Inserimenti manuali e NESSUNO restano intoccabili.
+      // SALE OPERATORIE · TUTTE = vera rigenerazione del blocco OP.
+      // Conserva solo NESSUNO strutturali e medici esclusi dall'automatismo (es. PINI).
       const protectedOpKeys=new Set();
+      const doctorByName=new Map((x.doctors||[]).map(d=>[d.name,d]));
       for(const [k,v] of Object.entries(a)){
         if(!k.startsWith(m+'-'))continue;
         const svc=k.split('|')[1];
         if(!OR.includes(svc))continue;
-        if(v==='NESSUNO'||(v&& !g.has(k)))protectedOpKeys.add(k);
+        const d=doctorByName.get(v);
+        if(v==='NESSUNO'||(v&&manualOnly(d)))protectedOpKeys.add(k);
       }
-      for(const k of [...g]){
+
+      // Tutte le altre assegnazioni OP vengono eliminate e ricostruite da zero.
+      for(const k of Object.keys(a)){
         if(!k.startsWith(m+'-'))continue;
         const svc=k.split('|')[1];
         if(!OR.includes(svc)||protectedOpKeys.has(k))continue;
         delete a[k];g.delete(k);e.delete(k);
       }
+      for(const k of [...g])if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedOpKeys.has(k))g.delete(k);
+      for(const k of [...e])if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedOpKeys.has(k))e.delete(k);
 
       const [yy,mm]=m.split('-').map(Number),dd=new Date(yy,mm,0).getDate(),opDates=monthDays(m,dd,yy,mm);
+
+      // 1) ottimizzazione globale; 2) riempimento; 3) riequilibrio; 4) ultimo riempimento.
       await optimizeOperatingBlock(a,g,e,doctors,m,opDates,protectedOpKeys);
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);

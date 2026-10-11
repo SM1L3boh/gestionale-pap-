@@ -573,12 +573,12 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
     return services.includes(k.split('|')[1]);
   };
   let guard=0;
-  while(spread()>3&&guard++<500){
+  while(spread()>2&&guard++<500){
     const ordered=[...cohort].sort((p,q)=>pom(p.name)-pom(q.name)||orCount(a,p.name,m)-orCount(a,q.name,m));
     let changed=false;
     for(const low of ordered){
       for(const high of [...ordered].reverse()){
-        if(pom(high.name)-pom(low.name)<=3)continue;
+        if(pom(high.name)-pom(low.name)<=2)continue;
         if(high.name==='CALZAVARA'&&pom(high.name)<=1)continue;
         const pomKeys=[...g].filter(k=>k.startsWith(m+'-')&&movable(k,high.name,['oppom']));
         const swapKeys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===low.name&&REQ.includes(k.split('|')[1])&&k.split('|')[1]!=='oppom'&&!protectedKeys.has(k));
@@ -754,18 +754,27 @@ function opWeekCount(a,n,ds){
   return q;
 }
 function operatingBalanceScore(a,d,s,ds,m){
-  // Priorità principale: uniformità delle sale nella settimana lunedì→domenica.
-  // Bilanciamento mensile/trimestrale solo come criterio secondario.
+  // Priorità principale: uniformità settimanale e mensile delle sale.
+  // I pomeriggi hanno un peso più forte per evitare concentrazioni su un singolo medico.
   const weekly=opWeekCount(a,d.name,ds);
-  return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+calzavaraOpPenalty(null,a,d.name,m)+weekly*10000+orCount(a,d.name,m)*500+(s==='oppom'?opPomCount(a,d.name,m):opMatCount(a,d.name,m))*150+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
+  const typeLoad=s==='oppom'?opPomCount(a,d.name,m)*1200:opMatCount(a,d.name,m)*220;
+  return (s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay())?50000:0)+calzavaraOpPenalty(null,a,d.name,m)+weekly*10000+orCount(a,d.name,m)*500+typeLoad+triOpCount(a,d.name,m)*10+monthEq(a,d.name,m)*3+weekHours(a,d.name,ds)/6;
 }
 function balancedOperatingCandidates(a,doctors,s,ds,m){
   const valid=doctors.filter(d=>canOperatingAll(a,d,s,ds,m));
   if(!valid.length)return valid;
   const minWeekly=Math.min(...valid.map(d=>opWeekCount(a,d.name,ds)));
-  // Tolleranza operativa: privilegia chi è entro 1 sala dal minimo settimanale
-  // tra i medici realmente eleggibili per quella cella.
-  const balanced=valid.filter(d=>opWeekCount(a,d.name,ds)<=minWeekly+1);
+  let balanced=valid.filter(d=>opWeekCount(a,d.name,ds)<=minWeekly+1);
+
+  // OP POM: evita che un medico, in particolare Calzavara, accumuli troppi pomeriggi.
+  // Tra i candidati realmente disponibili privilegia chi è entro 1 dal minimo mensile OP POM.
+  if(s==='oppom'){
+    const pool=balanced.length?balanced:valid;
+    const minPom=Math.min(...pool.map(d=>opPomCount(a,d.name,m)));
+    const pomBalanced=pool.filter(d=>opPomCount(a,d.name,m)<=minPom+1);
+    if(pomBalanced.length)balanced=pomBalanced;
+  }
+
   return (balanced.length?balanced:valid).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
 }
 function generateOperatingRoomsAll(a,g,e,doctors,m,opened){

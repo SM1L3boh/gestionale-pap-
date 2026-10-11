@@ -669,6 +669,8 @@ function finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
     if(w===0||w===6||holiday(dt))continue;
     for(const s of ['op1','op2','oppom'])for(const i of slots(s)){
       const k=K(ds,s,i);
+      // Se la cella è realmente vuota, un vecchio flag "protected" non deve impedirne la copertura.
+      if(protectedKeys.has(k)&&!a[k])protectedKeys.delete(k);
       if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
       let list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&can(a,d,s,ds,m,false,false));
       if(!list.length)list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&canEmergencyCoverage(a,d,s,ds,m));

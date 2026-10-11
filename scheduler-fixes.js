@@ -898,6 +898,10 @@ function ensureColumnGeneratorUI(){
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
   const esamiSnapshot=new Map([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')).map(sel=>[sel.dataset.k,sel.value||'']));
+  const visibleBlankOpKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
+    const k=sel.dataset.k;if(!k?.startsWith(m+'-')||sel.value!=='')return false;
+    const s=k.split('|')[1];return ['op1','op2','oppom'].includes(s);
+  }).map(sel=>sel.dataset.k));
   const openedStructuralKeys=new Set([...document.querySelectorAll('#schedule select[data-k]')].filter(sel=>{
     const k=sel.dataset.k;if(!k||!k.startsWith(m+'-')||sel.value)return false;
     const [ds,s,i]=k.split('|');
@@ -921,6 +925,8 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const k of [...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
   for(const k of openedStructuralKeys)delete baseline[k];
+  // Le sale OP visibilmente vuote prevalgono su vecchi NESSUNO/baseline.
+  for(const k of visibleBlankOpKeys)delete baseline[k];
   let protectedKeys=new Set(Object.keys(baseline)),
       [y,mo]=m.split('-').map(Number),
       days=new Date(y,mo,0).getDate(),
@@ -931,6 +937,9 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;
   applyStructuralDefaults(a,m,days,y,mo,protectedKeys);
   for(const k of openedStructuralKeys){
+    delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)
+  }
+  for(const k of visibleBlankOpKeys){
     delete a[k];protectedKeys.delete(k);g.delete(k);e.delete(k)
   }
   // GENERA BOZZA non deve mai modificare AMB ESAMI:

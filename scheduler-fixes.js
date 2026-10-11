@@ -934,13 +934,6 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
       days=new Date(y,mo,0).getDate(),
       dates=monthDays(m,days,y,mo);
 
-  // Le sale OP che risultano ancora automatiche possono essere riequilibrate
-  // anche se erano presenti nell'ultimo SALVA STATO.
-  for(const k of [...protectedKeys]){
-    const s=k.split('|')[1];
-    if(['op1','op2','oppom'].includes(s)&&g.has(k))protectedKeys.delete(k);
-  }
-
   clear(a,g,e,m,doctors,protectedKeys);
   for(const k of Object.keys(a))if(k.startsWith(m+'-')&&k.includes('|ferie|'))delete a[k];
   for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))a[k]=v;

@@ -256,6 +256,75 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
   window.__lastOpOptimization={...(bestMetrics||{}),trials:trialsDone,elapsedMs:Math.round(performance.now()-started)};
 }
+function repairOperatingHoles(a,g,e,doctors,m,dates,protectedKeys){
+  const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
+  const holes=()=>{
+    const out=[];
+    for(const {ds} of dates)for(const s of ['oppom','op1','op2'])for(const i of slots(s)){
+      const k=K(ds,s,i);
+      if(protectedKeys.has(k))continue;
+      if(!a[k]||a[k]==='NESSUNO')out.push(k);
+    }
+    return out;
+  };
+  const movableOwned=(name)=>[...g].filter(k=>
+    k.startsWith(m+'-')&&!protectedKeys.has(k)&&OR.includes(k.split('|')[1])&&a[k]===name
+  );
+  const snapshot=()=>({A:{...a},G:new Set(g),E:new Set(e)});
+  const restore=st=>{
+    for(const k of Object.keys(a))delete a[k];
+    Object.assign(a,st.A);
+    g.clear();for(const k of st.G)g.add(k);
+    e.clear();for(const k of st.E)e.add(k);
+  };
+  const directCandidates=(k)=>{
+    const [ds,s]=k.split('|');
+    return cohort.filter(d=>canOperatingAll(a,d,s,ds,m))
+      .sort((p,q)=>orCount(a,p.name,m)-orCount(a,q.name,m)
+        ||opWeekCount(a,p.name,ds)-opWeekCount(a,q.name,ds)
+        ||monthEq(a,p.name,m)-monthEq(a,q.name,m)
+        ||p.name.localeCompare(q.name));
+  };
+  const place=(k,depth,seen)=>{
+    if(a[k]&&a[k]!=='NESSUNO')return true;
+    const direct=directCandidates(k);
+    if(direct.length){assign(a,g,e,k,direct[0].name,false);return true}
+    if(depth<=0)return false;
+    const [ds,s]=k.split('|');
+    const docs=[...cohort].sort((p,q)=>orCount(a,p.name,m)-orCount(a,q.name,m));
+    for(const d of docs){
+      // Prova a liberare questo medico spostando una sua OP già automatica.
+      const owned=movableOwned(d.name)
+        .sort((ka,kb)=>{
+          const [da]=ka.split('|'),[db]=kb.split('|');
+          return (wk(da)===wk(ds)?-1:0)-(wk(db)===wk(ds)?-1:0);
+        });
+      for(const oldK of owned){
+        if(oldK===k||seen.has(oldK))continue;
+        const st=snapshot(),oldExtra=e.has(oldK);
+        delete a[oldK];g.delete(oldK);e.delete(oldK);
+        if(!canOperatingAll(a,d,s,ds,m)){restore(st);continue}
+        assign(a,g,e,k,d.name,false);
+        const nextSeen=new Set(seen);nextSeen.add(k);nextSeen.add(oldK);
+        if(place(oldK,depth-1,nextSeen))return true;
+        restore(st);
+        if(oldExtra)e.add(oldK);
+      }
+    }
+    return false;
+  };
+
+  let repaired=0,passes=0;
+  while(passes++<4){
+    let changed=false;
+    const list=holes().sort((ka,kb)=>directCandidates(ka).length-directCandidates(kb).length);
+    for(const k of list){
+      if(place(k,3,new Set())){repaired++;changed=true}
+    }
+    if(!changed)break;
+  }
+  return{repaired,remaining:holes().length};
+}
 function fillManuallyOpenedCells(a,g,e,doctors,m,openedKeys){
   let filled=0;
   for(const k of openedKeys){
@@ -864,9 +933,12 @@ async function generateColumnV1(){
       await optimizeOperatingBlock(a,g,e,doctors,m,opDates,protectedOpKeys);
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
+      const repair1=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
       rebalanceOpTotals(a,g,e,doctors,m,protectedOpKeys);
       rebalanceOpPomTotals(a,g,e,doctors,m,protectedOpKeys);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
+      const repair2=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
+      window.__lastOpOptimization={...(window.__lastOpOptimization||{}),repaired:(repair1.repaired||0)+(repair2.repaired||0),remainingHoles:repair2.remaining};
     }else{
     const keys=columnCandidateKeys(m,s,a,opened);
     if(s==='guardia'){

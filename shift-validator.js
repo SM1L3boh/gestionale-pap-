@@ -298,7 +298,8 @@ function visibleEmptyRequiredCells(month){
   document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
     const k=sel.dataset.k,{ds,s,i}=parts(k);
     if(!ds.startsWith(month+'-')||!REQUIRED.has(s))return;
-    if(sel.value!=='')return;
+    const unassigned=sel.value===''||(s==='guardia'&&sel.value==='NESSUNO');
+    if(!unassigned)return;
     out.push({k,ds,s,i});
   });
   return out;

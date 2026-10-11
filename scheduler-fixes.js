@@ -820,7 +820,29 @@ async function generateColumnV1(){
     }
 
     if(s==='opall'){
+      // Rigenera da zero SOLO le sale create automaticamente in precedenza.
+      // Inserimenti manuali e NESSUNO restano intoccabili.
+      const protectedOpKeys=new Set();
+      for(const [k,v] of Object.entries(a)){
+        if(!k.startsWith(m+'-'))continue;
+        const svc=k.split('|')[1];
+        if(!OR.includes(svc))continue;
+        if(v==='NESSUNO'||(v&& !g.has(k)))protectedOpKeys.add(k);
+      }
+      for(const k of [...g]){
+        if(!k.startsWith(m+'-'))continue;
+        const svc=k.split('|')[1];
+        if(!OR.includes(svc)||protectedOpKeys.has(k))continue;
+        delete a[k];g.delete(k);e.delete(k);
+      }
+
+      const [yy,mm]=m.split('-').map(Number),dd=new Date(yy,mm,0).getDate(),opDates=monthDays(m,dd,yy,mm);
+      await optimizeOperatingBlock(a,g,e,doctors,m,opDates,protectedOpKeys);
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
+      finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
+      rebalanceOpTotals(a,g,e,doctors,m,protectedOpKeys);
+      rebalanceOpPomTotals(a,g,e,doctors,m,protectedOpKeys);
+      finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
     }else{
     const keys=columnCandidateKeys(m,s,a,opened);
     if(s==='guardia'){

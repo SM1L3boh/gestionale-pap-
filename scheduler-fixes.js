@@ -213,8 +213,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
     for(const k of order){
       if(A[k]&&A[k]!=='NESSUNO')continue;
       const [ds,s]=k.split('|');
-      let list=cohort.filter(d=>can(A,d,s,ds,m,false,false));
-      if(!list.length)list=cohort.filter(d=>can(A,d,s,ds,m,true,false));
+      let list=cohort.filter(d=>canOperatingAll(A,d,s,ds,m));
       if(!list.length)continue;
       const beforePom=opPomCount(A,'CALZAVARA',m);
       list=list.map(d=>{
@@ -673,8 +672,7 @@ function finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
       // Se la cella è realmente vuota, un vecchio flag "protected" non deve impedirne la copertura.
       if(protectedKeys.has(k)&&!a[k])protectedKeys.delete(k);
       if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
-      let list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&can(a,d,s,ds,m,false,false));
-      if(!list.length)list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&canEmergencyCoverage(a,d,s,ds,m));
+      let list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&canOperatingAll(a,d,s,ds,m));
       list.sort((p,q)=>opWeekCount(a,p.name,ds)-opWeekCount(a,q.name,ds)||orCount(a,p.name,m)-orCount(a,q.name,m)||monthEq(a,p.name,m)-monthEq(a,q.name,m)||p.name.localeCompare(q.name));
       if(list[0]){assign(a,g,e,k,list[0].name,!can(a,list[0],s,ds,m,false,false));filled++}
     }

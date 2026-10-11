@@ -190,24 +190,16 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
     const monVals=cohort.map(d=>monthEq(A,d.name,m));
     const missing=opKeys.filter(k=>!A[k]||A[k]==='NESSUNO').length;
     const calPom=opPomCount(A,'CALZAVARA',m);
-    const matVals=cohort.map(d=>opMatCount(A,d.name,m));
     const pomMean=pomVals.reduce((x,y)=>x+y,0)/(pomVals.length||1);
     const opMean=opVals.reduce((x,y)=>x+y,0)/(opVals.length||1);
     const variance=pomVals.reduce((q,v)=>q+(v-pomMean)*(v-pomMean),0)+opVals.reduce((q,v)=>q+(v-opMean)*(v-opMean),0);
-    const autoDoubles=cohort.reduce((q,d)=>{
-      const days=new Set();
-      for(const[k,v]of Object.entries(A))if(v===d.name&&k.startsWith(m+'-'))days.add(k.split('|')[0]);
-      return q+[...days].filter(ds=>hasOpMorning(A,d.name,ds)&&hasOpAfternoon(A,d.name,ds)).length;
-    },0);
-    const calOp=orCount(A,'CALZAVARA',m);
-    return missing*1000000+autoDoubles*500000+(calPom<1?20000:0)+spread(opVals)*10000+spread(matVals)*5000+spread(pomVals)*5000+Math.abs(calOp-8)*1200+spread(monVals)*250+variance;
+    const calOp=orCount(A,'CALZAVARA',m);return missing*100000+(calPom<1?20000:0)+Math.abs(calOp-8)*2500+spread(pomVals)*5000+spread(opVals)*2500+spread(monVals)*300+variance;
   };
-  let best=null,bestScore=Infinity,bestMetrics=null,trialsDone=0;
-  const started=performance.now(),MAX_MS=5500,MAX_TRIALS=300;
+  let best=null,bestScore=Infinity;
+  const started=performance.now(),MAX_MS=1800,MAX_TRIALS=48;
   for(let trial=0;trial<MAX_TRIALS;trial++){
     if(performance.now()-started>MAX_MS)break;
-    if(trial&&trial%10===0)await new Promise(r=>setTimeout(r,0));
-    trialsDone=trial+1;
+    if(trial&&trial%6===0)await new Promise(r=>setTimeout(r,0));
     const A={...baseA},G=new Set(baseG),E=new Set(baseE),rnd=rng(trial+17);
     let order=[...opKeys];
     order.sort((ka,kb)=>{
@@ -233,19 +225,10 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
         if(s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay()))z+=5000;if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
         return{d,z};
       }).sort((p,q)=>p.z-q.z);
-      // Diversifica i tentativi scegliendo talvolta il 2°/3° candidato migliore.
-      const top=Math.min(3,list.length),r=rnd(),pick=r<0.68?0:r<0.90?Math.min(1,top-1):Math.min(2,top-1);
-      assign(A,G,E,k,list[pick].d.name,false);
+      assign(A,G,E,k,list[0].d.name,false);
     }
     const sc=scoreState(A);
-    if(sc<bestScore){
-      bestScore=sc;best={A,G,E};
-      const opVals=cohort.map(d=>orCount(A,d.name,m)),matVals=cohort.map(d=>opMatCount(A,d.name,m)),pomVals=cohort.map(d=>opPomCount(A,d.name,m));
-      const missing=opKeys.filter(k=>!A[k]||A[k]==='NESSUNO').length;
-      const autoDoubles=cohort.reduce((q,d)=>{const days=new Set();for(const[k,v]of Object.entries(A))if(v===d.name&&k.startsWith(m+'-'))days.add(k.split('|')[0]);return q+[...days].filter(ds=>hasOpMorning(A,d.name,ds)&&hasOpAfternoon(A,d.name,ds)).length},0);
-      bestMetrics={trials:trialsDone,score:Math.round(sc),missing,autoDoubles,opSpread:spread(opVals),matSpread:spread(matVals),pomSpread:spread(pomVals)};
-      if(!missing&&!autoDoubles&&spread(opVals)<=2&&spread(matVals)<=2&&spread(pomVals)<=2)break;
-    }
+    if(sc<bestScore){bestScore=sc;best={A,G,E};if(sc<1500)break}
   }
   if(!best)return;
   for(const k of Object.keys(a))if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))delete a[k];
@@ -254,191 +237,6 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const [k,v] of Object.entries(best.A))if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k)&&v)a[k]=v;
   for(const k of best.G)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))g.add(k);
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
-  window.__lastOpOptimization={...(bestMetrics||{}),trials:trialsDone,elapsedMs:Math.round(performance.now()-started)};
-}
-function exactOperatingCoverage(a,g,e,doctors,m,dates,protectedKeys){
-  const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
-  const weeks=new Map();
-  for(const {ds} of dates){
-    const W=wk(ds);
-    if(!weeks.has(W))weeks.set(W,[]);
-    for(const s of ['oppom','op1','op2'])for(const i of slots(s)){
-      const k=K(ds,s,i);
-      if(!protectedKeys.has(k))weeks.get(W).push(k);
-    }
-  }
-
-  const globalSnap={A:{...a},G:new Set(g),E:new Set(e)};
-  const countHoles=A=>{
-    let q=0;
-    for(const keys of weeks.values())for(const k of keys)if(!A[k]||A[k]==='NESSUNO')q++;
-    return q;
-  };
-  const before=countHoles(a);
-
-  // Riparti da zero per tutte le OP automatiche del mese; le OP protette restano.
-  for(const keys of weeks.values())for(const k of keys){
-    delete a[k];g.delete(k);e.delete(k);
-  }
-
-  let totalNodes=0,solvedWeeks=0;
-  const started=performance.now(),MAX_MS=5000,MAX_NODES=120000;
-
-  for(const [W,keys] of [...weeks.entries()].sort((x,y)=>x[0].localeCompare(y[0]))){
-    if(performance.now()-started>MAX_MS||totalNodes>=MAX_NODES)break;
-
-    const baseA={...a};
-    let bestA={...a},bestFilled=0,bestBalance=Infinity,foundFull=false;
-    const open=[...keys];
-
-    const balanceScore=A=>{
-      const op=cohort.map(d=>orCount(A,d.name,m));
-      const mat=cohort.map(d=>opMatCount(A,d.name,m));
-      const pom=cohort.map(d=>opPomCount(A,d.name,m));
-      const spread=v=>v.length?Math.max(...v)-Math.min(...v):0;
-      return spread(op)*10000+spread(mat)*3000+spread(pom)*3000;
-    };
-
-    const dfs=(A,remaining,filled)=>{
-      totalNodes++;
-      if(totalNodes>=MAX_NODES||performance.now()-started>MAX_MS)return;
-      if(filled+remaining.length<bestFilled)return;
-
-      if(!remaining.length){
-        const b=balanceScore(A);
-        if(filled>bestFilled||(filled===bestFilled&&b<bestBalance)){
-          bestFilled=filled;bestBalance=b;bestA={...A};
-        }
-        foundFull=true;
-        return;
-      }
-
-      let bestIdx=-1,bestCand=null;
-      for(let i=0;i<remaining.length;i++){
-        const k=remaining[i],[ds,s]=k.split('|');
-        const cand=cohort.filter(d=>canOperatingAll(A,d,s,ds,m));
-        if(bestIdx<0||cand.length<bestCand.length){
-          bestIdx=i;bestCand=cand;
-          if(!cand.length)break;
-        }
-      }
-
-      if(bestIdx<0)return;
-      const k=remaining[bestIdx],[ds,s]=k.split('|');
-      const rest=remaining.slice(0,bestIdx).concat(remaining.slice(bestIdx+1));
-
-      if(bestCand.length){
-        bestCand.sort((p,q)=>
-          opWeekCount(A,p.name,ds)-opWeekCount(A,q.name,ds)
-          ||orCount(A,p.name,m)-orCount(A,q.name,m)
-          ||(s==='oppom'?opPomCount(A,p.name,m)-opPomCount(A,q.name,m):opMatCount(A,p.name,m)-opMatCount(A,q.name,m))
-          ||monthEq(A,p.name,m)-monthEq(A,q.name,m)
-          ||p.name.localeCompare(q.name)
-        );
-        for(const d of bestCand){
-          const B={...A};B[k]=d.name;
-          dfs(B,rest,filled+1);
-          if(foundFull)return;
-        }
-      }
-
-      // Solo se nessuna soluzione completa passa da qui, consenti il buco
-      // per misurare la migliore copertura possibile entro il limite di ricerca.
-      dfs(A,rest,filled);
-    };
-
-    dfs(baseA,open,0);
-
-    for(const k of open){
-      delete a[k];g.delete(k);e.delete(k);
-      if(bestA[k]&&bestA[k]!=='NESSUNO'){
-        a[k]=bestA[k];g.add(k);
-      }
-    }
-    if(bestFilled===open.length)solvedWeeks++;
-  }
-
-  const after=countHoles(a);
-
-  // Se il solver non migliora la copertura rispetto alla soluzione precedente, ripristina.
-  if(after>before){
-    for(const k of Object.keys(a))delete a[k];
-    Object.assign(a,globalSnap.A);
-    g.clear();for(const k of globalSnap.G)g.add(k);
-    e.clear();for(const k of globalSnap.E)e.add(k);
-    return{before,after:before,solvedWeeks:0,totalWeeks:weeks.size,nodes:totalNodes,improved:false};
-  }
-
-  return{before,after,solvedWeeks,totalWeeks:weeks.size,nodes:totalNodes,improved:after<before};
-}
-function repairOperatingHoles(a,g,e,doctors,m,dates,protectedKeys){
-  const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
-  const holes=()=>{
-    const out=[];
-    for(const {ds} of dates)for(const s of ['oppom','op1','op2'])for(const i of slots(s)){
-      const k=K(ds,s,i);
-      if(protectedKeys.has(k))continue;
-      if(!a[k]||a[k]==='NESSUNO')out.push(k);
-    }
-    return out;
-  };
-  const movableOwned=(name)=>[...g].filter(k=>
-    k.startsWith(m+'-')&&!protectedKeys.has(k)&&OR.includes(k.split('|')[1])&&a[k]===name
-  );
-  const snapshot=()=>({A:{...a},G:new Set(g),E:new Set(e)});
-  const restore=st=>{
-    for(const k of Object.keys(a))delete a[k];
-    Object.assign(a,st.A);
-    g.clear();for(const k of st.G)g.add(k);
-    e.clear();for(const k of st.E)e.add(k);
-  };
-  const directCandidates=(k)=>{
-    const [ds,s]=k.split('|');
-    return cohort.filter(d=>canOperatingAll(a,d,s,ds,m))
-      .sort((p,q)=>orCount(a,p.name,m)-orCount(a,q.name,m)
-        ||opWeekCount(a,p.name,ds)-opWeekCount(a,q.name,ds)
-        ||monthEq(a,p.name,m)-monthEq(a,q.name,m)
-        ||p.name.localeCompare(q.name));
-  };
-  const place=(k,depth,seen)=>{
-    if(a[k]&&a[k]!=='NESSUNO')return true;
-    const direct=directCandidates(k);
-    if(direct.length){assign(a,g,e,k,direct[0].name,false);return true}
-    if(depth<=0)return false;
-    const [ds,s]=k.split('|');
-    const docs=[...cohort].sort((p,q)=>orCount(a,p.name,m)-orCount(a,q.name,m));
-    for(const d of docs){
-      // Prova a liberare questo medico spostando una sua OP già automatica.
-      const owned=movableOwned(d.name)
-        .sort((ka,kb)=>{
-          const [da]=ka.split('|'),[db]=kb.split('|');
-          return (wk(da)===wk(ds)?-1:0)-(wk(db)===wk(ds)?-1:0);
-        });
-      for(const oldK of owned){
-        if(oldK===k||seen.has(oldK))continue;
-        const st=snapshot(),oldExtra=e.has(oldK);
-        delete a[oldK];g.delete(oldK);e.delete(oldK);
-        if(!canOperatingAll(a,d,s,ds,m)){restore(st);continue}
-        assign(a,g,e,k,d.name,false);
-        const nextSeen=new Set(seen);nextSeen.add(k);nextSeen.add(oldK);
-        if(place(oldK,depth-1,nextSeen))return true;
-        restore(st);
-        if(oldExtra)e.add(oldK);
-      }
-    }
-    return false;
-  };
-
-  let repaired=0,passes=0;
-  while(passes++<4){
-    let changed=false;
-    const list=holes().sort((ka,kb)=>directCandidates(ka).length-directCandidates(kb).length);
-    for(const k of list){
-      if(place(k,3,new Set())){repaired++;changed=true}
-    }
-    if(!changed)break;
-  }
-  return{repaired,remaining:holes().length};
 }
 function fillManuallyOpenedCells(a,g,e,doctors,m,openedKeys){
   let filled=0;
@@ -1048,17 +846,9 @@ async function generateColumnV1(){
       await optimizeOperatingBlock(a,g,e,doctors,m,opDates,protectedOpKeys);
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
-
-      const repair1=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
       rebalanceOpTotals(a,g,e,doctors,m,protectedOpKeys);
       rebalanceOpPomTotals(a,g,e,doctors,m,protectedOpKeys);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
-      const repair2=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
-      window.__lastOpOptimization={
-        ...(window.__lastOpOptimization||{}),
-        repaired:(repair1.repaired||0)+(repair2.repaired||0),
-        remainingHoles:repair2.remaining
-      };
     }else{
     const keys=columnCandidateKeys(m,s,a,opened);
     if(s==='guardia'){
@@ -1113,84 +903,12 @@ async function generateColumnV1(){
       generatedKeys:[...g],
       extraKeys:[...e],
       openedStructuralKeys:[...new Set([...(x.openedStructuralKeys||[]),...opened])],
-      lastOpOptimization:s==='opall'?{month:m,...(window.__lastOpOptimization||{})}:(x.lastOpOptimization||null),
       updatedAt:new Date().toISOString()
     },{merge:true});
     location.reload();
   }finally{
     if(b){b.disabled=false;b.textContent='GENERA COLONNA'}
   }
-}
-function opQualityMetrics(a,doctors,m,generatedKeys){
-  const cohort=(doctors||[]).filter(d=>d.active&&d.cat==='Strutturato'&&!manualOnly(d));
-  const vals=fn=>cohort.map(d=>fn(a,d.name,m));
-  const spread=v=>v.length?Math.max(...v)-Math.min(...v):0;
-  const opVals=vals(orCount),matVals=vals(opMatCount),pomVals=vals(opPomCount);
-  let holes=0;
-  const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
-  for(let day=1;day<=days;day++){
-    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
-    if(w===0||w===6||holiday(dt))continue;
-    for(const s of ['op1','op2','oppom'])for(const i of slots(s)){
-      const k=K(ds,s,i),def=structuralDefault(m,ds,s,i);
-      if(def==='NESSUNO'||a[k]==='NESSUNO')continue;
-      if(!a[k])holes++;
-    }
-  }
-  const gen=new Set(generatedKeys||[]);
-  let doubles=0;
-  for(const d of cohort){
-    for(let day=1;day<=days;day++){
-      const ds=`${m}-${String(day).padStart(2,'0')}`;
-      const am=['op1','op2'].some(s=>slots(s).some(i=>a[K(ds,s,i)]===d.name&&gen.has(K(ds,s,i))));
-      const pm=slots('oppom').some(i=>a[K(ds,'oppom',i)]===d.name&&gen.has(K(ds,'oppom',i)));
-      if(am&&pm)doubles++;
-    }
-  }
-  let calzViol=0;
-  const weeks=new Set();
-  for(let day=1;day<=days;day++)weeks.add(wk(`${m}-${String(day).padStart(2,'0')}`));
-  for(const W of weeks){
-    let q=0;
-    for(const[k,v]of Object.entries(a))if(v==='CALZAVARA'&&OR.includes(k.split('|')[1])&&wk(k.split('|')[0])===W)q++;
-    if(q>2)calzViol++;
-  }
-  const opSpread=spread(opVals),matSpread=spread(matVals),pomSpread=spread(pomVals);
-  let grade='MIGLIORABILE';
-  if(holes||doubles||calzViol)grade='NON VALIDA';
-  else if(opSpread<=2&&matSpread<=2&&pomSpread<=2)grade='OTTIMA';
-  else if(opSpread<=3&&matSpread<=3&&pomSpread<=3)grade='BUONA';
-  return{grade,holes,doubles,calzViol,opSpread,matSpread,pomSpread,cohort,opVals,matVals,pomVals};
-}
-function ensureOpQualityModal(){
-  if($('opQualityModal'))return;
-  document.body.insertAdjacentHTML('beforeend',`
-    <div id="opQualityModal" class="modalBack hidden">
-      <div class="modal" style="width:min(900px,96vw)">
-        <h2>Controllo ottimalità sale</h2>
-        <p id="opQualityInfo" class="small"></p>
-        <div class="countWrap"><table id="opQualityTable"></table></div>
-        <div class="modalActions"><button id="opQualityClose" type="button">Chiudi</button></div>
-      </div>
-    </div>`);
-  $('opQualityClose').onclick=()=>$('opQualityModal').classList.add('hidden');
-}
-async function showOpQuality(){
-  const m=$('month')?.value;if(!m)return;
-  ensureOpQualityModal();
-  $('opQualityModal').classList.remove('hidden');
-  $('opQualityInfo').textContent='Analisi in corso…';
-  const x=await cloud(),a=domMonthSchedule(x.schedule||{},m),q=opQualityMetrics(a,x.doctors||[],m,x.generatedKeys||[]);
-  const last=x.lastOpOptimization||{};
-  const tried=last.month===m&&last.trials?last.trials:'—';
-  const elapsed=last.month===m&&last.elapsedMs?last.elapsedMs+' ms':'—';
-  $('opQualityInfo').innerHTML='<b>'+q.grade+'</b> · soluzione corrente. Tentativi ultima generazione: <b>'+tried+'</b> · tempo: <b>'+elapsed+'</b>. "OTTIMA" significa ottima secondo le soglie del gestionale, non ottimo matematico dimostrato.';
-  let rows=q.cohort.map((d,i)=>'<tr><td><b>'+d.name+'</b></td><td>'+q.opVals[i]+'</td><td>'+q.matVals[i]+'</td><td>'+q.pomVals[i]+'</td></tr>').join('');
-  rows+='<tr><td><b>DIFFERENZA MAX−MIN</b></td><td><b>'+q.opSpread+'</b></td><td><b>'+q.matSpread+'</b></td><td><b>'+q.pomSpread+'</b></td></tr>';
-  $('opQualityTable').innerHTML='<tr><th>Medico</th><th>OP totali</th><th>OP MAT</th><th>OP POM</th></tr>'+rows+
-    '<tr><td colspan="4" style="text-align:left;padding:12px"><b>Buchi OP:</b> '+q.holes+
-    ' &nbsp;·&nbsp; <b>OP MAT+POM automatiche:</b> '+q.doubles+
-    ' &nbsp;·&nbsp; <b>Settimane Calzavara >2 OP:</b> '+q.calzViol+'</td></tr>';
 }
 function ensureColumnGeneratorUI(){
   if($('generateColumnSelect')&&$('generateColumnBtn'))return;
@@ -1207,14 +925,6 @@ function ensureColumnGeneratorUI(){
   btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();generateColumnV1().catch(err=>alert('Errore generazione colonna: '+err.message))});
   wrap.insertBefore(sel,anchor);
   wrap.insertBefore(btn,anchor);
-  let q=$('opQualityBtn');
-  if(!q){
-    q=document.createElement('button');
-    q.id='opQualityBtn';q.type='button';q.className='adminOnly';q.textContent='CONTROLLO OTTIMALITÀ SALE';
-    q.style.cssText='background:#4338ca!important;border-color:#4338ca!important;color:#fff!important;font-weight:800!important';
-    q.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();showOpQuality().catch(err=>alert('Errore controllo ottimalità: '+err.message))});
-    wrap.insertBefore(q,anchor);
-  }
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
   const esamiSnapshot=new Map([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')).map(sel=>[sel.dataset.k,sel.value||'']));

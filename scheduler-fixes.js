@@ -662,6 +662,22 @@ function finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
   }
   return{filled,remaining:unresolved(a,m,days,y,mo,protectedKeys).length};
 }
+function finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
+  let filled=0;
+  for(let day=1;day<=days;day++){
+    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
+    if(w===0||w===6||holiday(dt))continue;
+    for(const s of ['op1','op2','oppom'])for(const i of slots(s)){
+      const k=K(ds,s,i);
+      if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
+      let list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&can(a,d,s,ds,m,false,false));
+      if(!list.length)list=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)&&canEmergencyCoverage(a,d,s,ds,m));
+      list.sort((p,q)=>opWeekCount(a,p.name,ds)-opWeekCount(a,q.name,ds)||orCount(a,p.name,m)-orCount(a,q.name,m)||monthEq(a,p.name,m)-monthEq(a,q.name,m)||p.name.localeCompare(q.name));
+      if(list[0]){assign(a,g,e,k,list[0].name,!can(a,list[0],s,ds,m,false,false));filled++}
+    }
+  }
+  return filled;
+}
 function normalizeExtras(a,g,e,doctors,m){for(const k of [...e])if(k.startsWith(m+'-'))e.delete(k);for(const d of doctors){if(manualOnly(d))continue;let over=Math.max(0,monthEq(a,d.name,m)-target(d.name,m));if(!over)continue;let keys=[...g].filter(k=>k.startsWith(m+'-')&&a[k]===d.name&&REQ.includes(k.split('|')[1])).sort().reverse();for(const k of keys){if(over<=0)break;e.add(k);over-=1}}}
 function unresolved(a,m,days,y,mo,protectedKeys){let u=[];for(let day=1;day<=days;day++){let dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;if(w===0||w===6||holiday(dt))continue;for(const s of REQ)for(const i of slots(s)){let k=K(ds,s,i);if(protectedKeys.has(k))continue;if(!a[k]||a[k]==='NESSUNO')u.push(k)}}return u}
 
@@ -962,6 +978,10 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   if(!unresolved(a,m,days,y,mo,protectedKeys).length){
     ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);
   }
+
+  // Ultimo controllo dedicato alle sale: una OP vuota non può restare tale
+  // se nello stato finale esiste ancora un candidato compatibile.
+  finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
 
   normalizeExtras(a,g,e,doctors,m);
   let u=unresolved(a,m,days,y,mo,protectedKeys),allU=new Set(x.unresolvedKeys||[]);

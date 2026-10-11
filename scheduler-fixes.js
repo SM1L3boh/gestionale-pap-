@@ -1049,9 +1049,6 @@ async function generateColumnV1(){
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
 
-      // Solver settimanale a vincoli: prova una copertura completa prima dei repair locali.
-      const exact=exactOperatingCoverage(a,g,e,doctors,m,opDates,protectedOpKeys);
-
       const repair1=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
       rebalanceOpTotals(a,g,e,doctors,m,protectedOpKeys);
       rebalanceOpPomTotals(a,g,e,doctors,m,protectedOpKeys);
@@ -1060,10 +1057,7 @@ async function generateColumnV1(){
       window.__lastOpOptimization={
         ...(window.__lastOpOptimization||{}),
         repaired:(repair1.repaired||0)+(repair2.repaired||0),
-        remainingHoles:repair2.remaining,
-        exactBefore:exact.before,exactAfter:exact.after,
-        exactWeeks:exact.solvedWeeks+'/'+exact.totalWeeks,
-        exactNodes:exact.nodes
+        remainingHoles:repair2.remaining
       };
     }else{
     const keys=columnCandidateKeys(m,s,a,opened);

@@ -190,16 +190,24 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
     const monVals=cohort.map(d=>monthEq(A,d.name,m));
     const missing=opKeys.filter(k=>!A[k]||A[k]==='NESSUNO').length;
     const calPom=opPomCount(A,'CALZAVARA',m);
+    const matVals=cohort.map(d=>opMatCount(A,d.name,m));
     const pomMean=pomVals.reduce((x,y)=>x+y,0)/(pomVals.length||1);
     const opMean=opVals.reduce((x,y)=>x+y,0)/(opVals.length||1);
     const variance=pomVals.reduce((q,v)=>q+(v-pomMean)*(v-pomMean),0)+opVals.reduce((q,v)=>q+(v-opMean)*(v-opMean),0);
-    const calOp=orCount(A,'CALZAVARA',m);return missing*100000+(calPom<1?20000:0)+Math.abs(calOp-8)*2500+spread(pomVals)*5000+spread(opVals)*2500+spread(monVals)*300+variance;
+    const autoDoubles=cohort.reduce((q,d)=>{
+      const days=new Set();
+      for(const[k,v]of Object.entries(A))if(v===d.name&&k.startsWith(m+'-'))days.add(k.split('|')[0]);
+      return q+[...days].filter(ds=>hasOpMorning(A,d.name,ds)&&hasOpAfternoon(A,d.name,ds)).length;
+    },0);
+    const calOp=orCount(A,'CALZAVARA',m);
+    return missing*1000000+autoDoubles*500000+(calPom<1?20000:0)+spread(opVals)*10000+spread(matVals)*5000+spread(pomVals)*5000+Math.abs(calOp-8)*1200+spread(monVals)*250+variance;
   };
-  let best=null,bestScore=Infinity;
-  const started=performance.now(),MAX_MS=1800,MAX_TRIALS=48;
+  let best=null,bestScore=Infinity,bestMetrics=null,trialsDone=0;
+  const started=performance.now(),MAX_MS=5500,MAX_TRIALS=300;
   for(let trial=0;trial<MAX_TRIALS;trial++){
     if(performance.now()-started>MAX_MS)break;
-    if(trial&&trial%6===0)await new Promise(r=>setTimeout(r,0));
+    if(trial&&trial%10===0)await new Promise(r=>setTimeout(r,0));
+    trialsDone=trial+1;
     const A={...baseA},G=new Set(baseG),E=new Set(baseE),rnd=rng(trial+17);
     let order=[...opKeys];
     order.sort((ka,kb)=>{
@@ -225,10 +233,19 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
         if(s==='oppom'&&preferFreePm(d,new Date(ds+'T12:00:00').getDay()))z+=5000;if(s==='oppom'&&d.name==='CALZAVARA'&&beforePom<1)z-=350;
         return{d,z};
       }).sort((p,q)=>p.z-q.z);
-      assign(A,G,E,k,list[0].d.name,false);
+      // Diversifica i tentativi scegliendo talvolta il 2°/3° candidato migliore.
+      const top=Math.min(3,list.length),r=rnd(),pick=r<0.68?0:r<0.90?Math.min(1,top-1):Math.min(2,top-1);
+      assign(A,G,E,k,list[pick].d.name,false);
     }
     const sc=scoreState(A);
-    if(sc<bestScore){bestScore=sc;best={A,G,E};if(sc<1500)break}
+    if(sc<bestScore){
+      bestScore=sc;best={A,G,E};
+      const opVals=cohort.map(d=>orCount(A,d.name,m)),matVals=cohort.map(d=>opMatCount(A,d.name,m)),pomVals=cohort.map(d=>opPomCount(A,d.name,m));
+      const missing=opKeys.filter(k=>!A[k]||A[k]==='NESSUNO').length;
+      const autoDoubles=cohort.reduce((q,d)=>{const days=new Set();for(const[k,v]of Object.entries(A))if(v===d.name&&k.startsWith(m+'-'))days.add(k.split('|')[0]);return q+[...days].filter(ds=>hasOpMorning(A,d.name,ds)&&hasOpAfternoon(A,d.name,ds)).length},0);
+      bestMetrics={trials:trialsDone,score:Math.round(sc),missing,autoDoubles,opSpread:spread(opVals),matSpread:spread(matVals),pomSpread:spread(pomVals)};
+      if(!missing&&!autoDoubles&&spread(opVals)<=2&&spread(matVals)<=2&&spread(pomVals)<=2)break;
+    }
   }
   if(!best)return;
   for(const k of Object.keys(a))if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))delete a[k];
@@ -237,6 +254,7 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const [k,v] of Object.entries(best.A))if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k)&&v)a[k]=v;
   for(const k of best.G)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))g.add(k);
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
+  window.__lastOpOptimization={...(bestMetrics||{}),trials:trialsDone,elapsedMs:Math.round(performance.now()-started)};
 }
 function fillManuallyOpenedCells(a,g,e,doctors,m,openedKeys){
   let filled=0;

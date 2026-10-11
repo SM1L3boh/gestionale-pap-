@@ -17,7 +17,25 @@ let doctors=[],data={},generatedKeys=new Set(),extraKeys=new Set(),openedStructu
 function mergeInterdivisionalDefaults(){let c=false;for(const month of ['2026-12','2027-01','2027-02','2027-03','2027-04']){let[y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate();for(let d=1;d<=days;d++){let ds=month+'-'+String(d).padStart(2,'0');for(const svc of ['guardia','giorno']){let k=key(ds,svc,0),wanted=INTERDIVISIONAL_ARMATO_KEYS.has(k)?'ARMATO':'NESSUNO';if(data[k]!==wanted){data[k]=wanted;generatedKeys.delete(k);extraKeys.delete(k);c=true}}}}return c}
 function newDefaults(){return defaults.map(x=>({id:crypto.randomUUID(),name:x[0],cat:x[1],hours:x[2],active:true,notes:x[3]}))}function mergeDefaults(){let c=false;for(const x of defaults){let d=doctors.find(z=>z.name.toUpperCase()===x[0]);if(!d){doctors.push({id:crypto.randomUUID(),name:x[0],cat:x[1],hours:x[2],active:true,notes:x[3]});c=true}else if(['PINI','CIPRIAN','ARMATO','RIVA','FREGUIA','LONDEI'].includes(x[0])){if(d.cat!==x[1]||d.hours!==x[2]||d.notes!==x[3]){d.cat=x[1];d.hours=x[2];d.notes=x[3];c=true}}}return c}
 async function ensureProfile(u){let r=doc(db,'users',u.uid),s=await getDoc(r);if(MAIN_ADMINS.includes(u.uid)){await setDoc(r,{email:u.email||'',role:'admin',approved:true},{merge:true});return{email:u.email||'',role:'admin',approved:true}}if(!s.exists()){await setDoc(r,{email:u.email||'',role:'user',approved:false});return{email:u.email||'',role:'user',approved:false}}return s.data()}
-async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=s.data();doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
+async function purgeComelatoNov19(x){
+  if(x?.fixComelatoNov19V1)return x;
+  const target='2026-11-19',name='COMELATO';
+  const schedule={...(x.schedule||{})};
+  for(let i=0;i<4;i++){const k=target+'|ferie|'+i;if(schedule[k]===name)delete schedule[k]}
+  const absenceManagement=structuredClone(x.absenceManagement||{});
+  absenceManagement[name]=(absenceManagement[name]||[]).filter(d=>d!==target);
+  const savedStates=structuredClone(x.savedStates||{});
+  for(const state of Object.values(savedStates))if(state&&typeof state==='object'){
+    for(let i=0;i<4;i++){const k=target+'|ferie|'+i;if(state[k]===name)delete state[k]}
+  }
+  const savedAbsenceStates=structuredClone(x.savedAbsenceStates||{});
+  for(const state of Object.values(savedAbsenceStates))if(state&&typeof state==='object'){
+    if(Array.isArray(state[name]))state[name]=state[name].filter(d=>d!==target);
+  }
+  await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixComelatoNov19V1:true,updatedAt:new Date().toISOString()},{merge:true});
+  return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixComelatoNov19V1:true};
+}
+async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await purgeComelatoNov19(s.data());doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
 async function saveCloud(now=false){if(!auth.currentUser)return;clearTimeout(saveTimer);let run=async()=>{try{$('sync').textContent='Salvataggio…';await setDoc(root,{doctors,schedule:data,generatedKeys:[...generatedKeys],extraKeys:[...extraKeys],updatedAt:new Date().toISOString()},{merge:true});$('sync').textContent='● Salvato online';$('sync').className='status online'}catch(e){$('sync').textContent='Errore salvataggio'}};if(now)await run();else saveTimer=setTimeout(run,300)}
 function applyRoleUI(){let a=isAdmin();document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));$('tabUtenti').classList.toggle('hidden',!a);if($('loggedUser'))$('loggedUser').textContent=(auth.currentUser?.email||'Utente')+(a?' · Amministratore':' · Utente')}
 function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorno','disp1','disp2','ferie'].includes(s);return true}function defaultCellValue(m,dt,s,i){

@@ -256,6 +256,121 @@ async function optimizeOperatingBlock(a,g,e,doctors,m,dates,protectedKeys){
   for(const k of best.E)if(k.startsWith(m+'-')&&OR.includes(k.split('|')[1])&&!protectedKeys.has(k))e.add(k);
   window.__lastOpOptimization={...(bestMetrics||{}),trials:trialsDone,elapsedMs:Math.round(performance.now()-started)};
 }
+function exactOperatingCoverage(a,g,e,doctors,m,dates,protectedKeys){
+  const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
+  const weeks=new Map();
+  for(const {ds} of dates){
+    const W=wk(ds);
+    if(!weeks.has(W))weeks.set(W,[]);
+    for(const s of ['oppom','op1','op2'])for(const i of slots(s)){
+      const k=K(ds,s,i);
+      if(!protectedKeys.has(k))weeks.get(W).push(k);
+    }
+  }
+
+  const globalSnap={A:{...a},G:new Set(g),E:new Set(e)};
+  const countHoles=A=>{
+    let q=0;
+    for(const keys of weeks.values())for(const k of keys)if(!A[k]||A[k]==='NESSUNO')q++;
+    return q;
+  };
+  const before=countHoles(a);
+
+  // Riparti da zero per tutte le OP automatiche del mese; le OP protette restano.
+  for(const keys of weeks.values())for(const k of keys){
+    delete a[k];g.delete(k);e.delete(k);
+  }
+
+  let totalNodes=0,solvedWeeks=0;
+  const started=performance.now(),MAX_MS=5000,MAX_NODES=120000;
+
+  for(const [W,keys] of [...weeks.entries()].sort((x,y)=>x[0].localeCompare(y[0]))){
+    if(performance.now()-started>MAX_MS||totalNodes>=MAX_NODES)break;
+
+    const baseA={...a};
+    let bestA={...a},bestFilled=0,bestBalance=Infinity,foundFull=false;
+    const open=[...keys];
+
+    const balanceScore=A=>{
+      const op=cohort.map(d=>orCount(A,d.name,m));
+      const mat=cohort.map(d=>opMatCount(A,d.name,m));
+      const pom=cohort.map(d=>opPomCount(A,d.name,m));
+      const spread=v=>v.length?Math.max(...v)-Math.min(...v):0;
+      return spread(op)*10000+spread(mat)*3000+spread(pom)*3000;
+    };
+
+    const dfs=(A,remaining,filled)=>{
+      totalNodes++;
+      if(totalNodes>=MAX_NODES||performance.now()-started>MAX_MS)return;
+      if(filled+remaining.length<bestFilled)return;
+
+      if(!remaining.length){
+        const b=balanceScore(A);
+        if(filled>bestFilled||(filled===bestFilled&&b<bestBalance)){
+          bestFilled=filled;bestBalance=b;bestA={...A};
+        }
+        foundFull=true;
+        return;
+      }
+
+      let bestIdx=-1,bestCand=null;
+      for(let i=0;i<remaining.length;i++){
+        const k=remaining[i],[ds,s]=k.split('|');
+        const cand=cohort.filter(d=>canOperatingAll(A,d,s,ds,m));
+        if(bestIdx<0||cand.length<bestCand.length){
+          bestIdx=i;bestCand=cand;
+          if(!cand.length)break;
+        }
+      }
+
+      if(bestIdx<0)return;
+      const k=remaining[bestIdx],[ds,s]=k.split('|');
+      const rest=remaining.slice(0,bestIdx).concat(remaining.slice(bestIdx+1));
+
+      if(bestCand.length){
+        bestCand.sort((p,q)=>
+          opWeekCount(A,p.name,ds)-opWeekCount(A,q.name,ds)
+          ||orCount(A,p.name,m)-orCount(A,q.name,m)
+          ||(s==='oppom'?opPomCount(A,p.name,m)-opPomCount(A,q.name,m):opMatCount(A,p.name,m)-opMatCount(A,q.name,m))
+          ||monthEq(A,p.name,m)-monthEq(A,q.name,m)
+          ||p.name.localeCompare(q.name)
+        );
+        for(const d of bestCand){
+          const B={...A};B[k]=d.name;
+          dfs(B,rest,filled+1);
+          if(foundFull)return;
+        }
+      }
+
+      // Solo se nessuna soluzione completa passa da qui, consenti il buco
+      // per misurare la migliore copertura possibile entro il limite di ricerca.
+      dfs(A,rest,filled);
+    };
+
+    dfs(baseA,open,0);
+
+    for(const k of open){
+      delete a[k];g.delete(k);e.delete(k);
+      if(bestA[k]&&bestA[k]!=='NESSUNO'){
+        a[k]=bestA[k];g.add(k);
+      }
+    }
+    if(bestFilled===open.length)solvedWeeks++;
+  }
+
+  const after=countHoles(a);
+
+  // Se il solver non migliora la copertura rispetto alla soluzione precedente, ripristina.
+  if(after>before){
+    for(const k of Object.keys(a))delete a[k];
+    Object.assign(a,globalSnap.A);
+    g.clear();for(const k of globalSnap.G)g.add(k);
+    e.clear();for(const k of globalSnap.E)e.add(k);
+    return{before,after:before,solvedWeeks:0,totalWeeks:weeks.size,nodes:totalNodes,improved:false};
+  }
+
+  return{before,after,solvedWeeks,totalWeeks:weeks.size,nodes:totalNodes,improved:after<before};
+}
 function repairOperatingHoles(a,g,e,doctors,m,dates,protectedKeys){
   const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
   const holes=()=>{
@@ -933,12 +1048,23 @@ async function generateColumnV1(){
       await optimizeOperatingBlock(a,g,e,doctors,m,opDates,protectedOpKeys);
       generateOperatingRoomsAll(a,g,e,doctors,m,opened);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
+
+      // Solver settimanale a vincoli: prova una copertura completa prima dei repair locali.
+      const exact=exactOperatingCoverage(a,g,e,doctors,m,opDates,protectedOpKeys);
+
       const repair1=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
       rebalanceOpTotals(a,g,e,doctors,m,protectedOpKeys);
       rebalanceOpPomTotals(a,g,e,doctors,m,protectedOpKeys);
       finalOperatingRoomFill(a,g,e,doctors,m,dd,yy,mm,protectedOpKeys);
       const repair2=repairOperatingHoles(a,g,e,doctors,m,opDates,protectedOpKeys);
-      window.__lastOpOptimization={...(window.__lastOpOptimization||{}),repaired:(repair1.repaired||0)+(repair2.repaired||0),remainingHoles:repair2.remaining};
+      window.__lastOpOptimization={
+        ...(window.__lastOpOptimization||{}),
+        repaired:(repair1.repaired||0)+(repair2.repaired||0),
+        remainingHoles:repair2.remaining,
+        exactBefore:exact.before,exactAfter:exact.after,
+        exactWeeks:exact.solvedWeeks+'/'+exact.totalWeeks,
+        exactNodes:exact.nodes
+      };
     }else{
     const keys=columnCandidateKeys(m,s,a,opened);
     if(s==='guardia'){

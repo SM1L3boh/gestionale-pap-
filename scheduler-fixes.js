@@ -962,6 +962,17 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   applySaturdayContinuity(a,g,e,doctors,m,protectedKeys);
   assignCiprian(a,g,e,m,days,y,mo,protectedKeys);
 
+  // A2. GENERA BOZZA completa anche le guardie notturne realmente vuote.
+  // NESSUNO e notti già assegnate restano invariati.
+  for(let day=1;day<=days;day++){
+    const ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
+    if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
+    if(a[k]==='NESSUNO')continue;
+    const list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))
+      .sort((p,q)=>serviceCountMonth(a,p.name,m,'guardia')-serviceCountMonth(a,q.name,m,'guardia')||monthEq(a,p.name,m)-monthEq(a,q.name,m)||weekHours(a,p.name,ds)-weekHours(a,q.name,ds)||p.name.localeCompare(q.name));
+    if(list[0])assign(a,g,e,k,list[0].name,false);
+  }
+
   // B. Unica generazione di tutti i servizi richiesti.
   assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys);
 

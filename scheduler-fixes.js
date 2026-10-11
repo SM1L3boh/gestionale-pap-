@@ -618,6 +618,7 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
   return spread();
 }
 function canEmergencyCoverage(a,d,s,ds,m){
+  // Copertura finale: può creare al massimo UNA giornata AM+PM per medico/settimana.
   const dt=new Date(ds+'T12:00:00'),n=d.name;
   if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,false)||consecutiveRuleBlocked(a,d,s,ds))return false;
   if(n==='CALZAVARA'&&OR.includes(s)&&calzavaraOpWeekCount(a,ds)>=2)return false;
@@ -740,8 +741,9 @@ function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.
 function canOperatingAll(a,d,s,ds,m){
   const n=d.name;
   if(n==='CALZAVARA'&&calzavaraOpWeekCount(a,ds)>=2)return false;
-  if(s==='oppom'&&hasOpMorning(a,n,ds))return false;
-  if((s==='op1'||s==='op2')&&hasOpAfternoon(a,n,ds))return false;
+  // Fase SALE OPERATORIE: mai creare automaticamente 12 ore diurne.
+  if(s==='oppom'&&hasBand(a,n,ds,'am'))return false;
+  if((s==='op1'||s==='op2')&&hasBand(a,n,ds,'pm'))return false;
   return can(a,d,s,ds,m,false,false);
 }
 function opWeekCount(a,n,ds){
@@ -965,7 +967,8 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   // A2. GENERA BOZZA completa anche le guardie notturne realmente vuote.
   // NESSUNO e notti già assegnate restano invariati.
   for(let day=1;day<=days;day++){
-    const ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
+    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
+    if(w===0||w===6||holiday(dt))continue;
     if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
     if(a[k]==='NESSUNO')continue;
     const list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))

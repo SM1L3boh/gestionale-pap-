@@ -246,7 +246,7 @@ function twelveHourCandidates(a,absence,docs,k){
 
     if(AM.has(s)&&sameBandCount(a,name,ds,s)>0)return false;
     if(PM.has(s)&&sameBandCount(a,name,ds,s)>0)return false;
-    if(generatorThreeConsecutive(a,name,s,ds))return false;
+    if(generatorConsecutiveViolation(a,doc,s,ds))return false;
 
     // Qui ignoriamo volutamente il tetto settimanale e il limite di un solo doppio turno/settimana:
     // serve solo a mostrare chi potrebbe coprire la cella facendo 12 ore nella giornata.

@@ -921,12 +921,84 @@ async function generateColumnV1(){
       generatedKeys:[...g],
       extraKeys:[...e],
       openedStructuralKeys:[...new Set([...(x.openedStructuralKeys||[]),...opened])],
+      lastOpOptimization:s==='opall'?{month:m,...(window.__lastOpOptimization||{})}:(x.lastOpOptimization||null),
       updatedAt:new Date().toISOString()
     },{merge:true});
     location.reload();
   }finally{
     if(b){b.disabled=false;b.textContent='GENERA COLONNA'}
   }
+}
+function opQualityMetrics(a,doctors,m,generatedKeys){
+  const cohort=(doctors||[]).filter(d=>d.active&&d.cat==='Strutturato'&&!manualOnly(d));
+  const vals=fn=>cohort.map(d=>fn(a,d.name,m));
+  const spread=v=>v.length?Math.max(...v)-Math.min(...v):0;
+  const opVals=vals(orCount),matVals=vals(opMatCount),pomVals=vals(opPomCount);
+  let holes=0;
+  const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
+  for(let day=1;day<=days;day++){
+    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
+    if(w===0||w===6||holiday(dt))continue;
+    for(const s of ['op1','op2','oppom'])for(const i of slots(s)){
+      const k=K(ds,s,i),def=structuralDefault(m,ds,s,i);
+      if(def==='NESSUNO'||a[k]==='NESSUNO')continue;
+      if(!a[k])holes++;
+    }
+  }
+  const gen=new Set(generatedKeys||[]);
+  let doubles=0;
+  for(const d of cohort){
+    for(let day=1;day<=days;day++){
+      const ds=`${m}-${String(day).padStart(2,'0')}`;
+      const am=['op1','op2'].some(s=>slots(s).some(i=>a[K(ds,s,i)]===d.name&&gen.has(K(ds,s,i))));
+      const pm=slots('oppom').some(i=>a[K(ds,'oppom',i)]===d.name&&gen.has(K(ds,'oppom',i)));
+      if(am&&pm)doubles++;
+    }
+  }
+  let calzViol=0;
+  const weeks=new Set();
+  for(let day=1;day<=days;day++)weeks.add(wk(`${m}-${String(day).padStart(2,'0')}`));
+  for(const W of weeks){
+    let q=0;
+    for(const[k,v]of Object.entries(a))if(v==='CALZAVARA'&&OR.includes(k.split('|')[1])&&wk(k.split('|')[0])===W)q++;
+    if(q>2)calzViol++;
+  }
+  const opSpread=spread(opVals),matSpread=spread(matVals),pomSpread=spread(pomVals);
+  let grade='MIGLIORABILE';
+  if(holes||doubles||calzViol)grade='NON VALIDA';
+  else if(opSpread<=2&&matSpread<=2&&pomSpread<=2)grade='OTTIMA';
+  else if(opSpread<=3&&matSpread<=3&&pomSpread<=3)grade='BUONA';
+  return{grade,holes,doubles,calzViol,opSpread,matSpread,pomSpread,cohort,opVals,matVals,pomVals};
+}
+function ensureOpQualityModal(){
+  if($('opQualityModal'))return;
+  document.body.insertAdjacentHTML('beforeend',`
+    <div id="opQualityModal" class="modalBack hidden">
+      <div class="modal" style="width:min(900px,96vw)">
+        <h2>Controllo ottimalità sale</h2>
+        <p id="opQualityInfo" class="small"></p>
+        <div class="countWrap"><table id="opQualityTable"></table></div>
+        <div class="modalActions"><button id="opQualityClose" type="button">Chiudi</button></div>
+      </div>
+    </div>`);
+  $('opQualityClose').onclick=()=>$('opQualityModal').classList.add('hidden');
+}
+async function showOpQuality(){
+  const m=$('month')?.value;if(!m)return;
+  ensureOpQualityModal();
+  $('opQualityModal').classList.remove('hidden');
+  $('opQualityInfo').textContent='Analisi in corso…';
+  const x=await cloud(),a=domMonthSchedule(x.schedule||{},m),q=opQualityMetrics(a,x.doctors||[],m,x.generatedKeys||[]);
+  const last=x.lastOpOptimization||{};
+  const tried=last.month===m&&last.trials?last.trials:'—';
+  const elapsed=last.month===m&&last.elapsedMs?last.elapsedMs+' ms':'—';
+  $('opQualityInfo').innerHTML='<b>'+q.grade+'</b> · soluzione corrente. Tentativi ultima generazione: <b>'+tried+'</b> · tempo: <b>'+elapsed+'</b>. "OTTIMA" significa ottima secondo le soglie del gestionale, non ottimo matematico dimostrato.';
+  let rows=q.cohort.map((d,i)=>'<tr><td><b>'+d.name+'</b></td><td>'+q.opVals[i]+'</td><td>'+q.matVals[i]+'</td><td>'+q.pomVals[i]+'</td></tr>').join('');
+  rows+='<tr><td><b>DIFFERENZA MAX−MIN</b></td><td><b>'+q.opSpread+'</b></td><td><b>'+q.matSpread+'</b></td><td><b>'+q.pomSpread+'</b></td></tr>';
+  $('opQualityTable').innerHTML='<tr><th>Medico</th><th>OP totali</th><th>OP MAT</th><th>OP POM</th></tr>'+rows+
+    '<tr><td colspan="4" style="text-align:left;padding:12px"><b>Buchi OP:</b> '+q.holes+
+    ' &nbsp;·&nbsp; <b>OP MAT+POM automatiche:</b> '+q.doubles+
+    ' &nbsp;·&nbsp; <b>Settimane Calzavara >2 OP:</b> '+q.calzViol+'</td></tr>';
 }
 function ensureColumnGeneratorUI(){
   if($('generateColumnSelect')&&$('generateColumnBtn'))return;
@@ -943,6 +1015,14 @@ function ensureColumnGeneratorUI(){
   btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();generateColumnV1().catch(err=>alert('Errore generazione colonna: '+err.message))});
   wrap.insertBefore(sel,anchor);
   wrap.insertBefore(btn,anchor);
+  let q=$('opQualityBtn');
+  if(!q){
+    q=document.createElement('button');
+    q.id='opQualityBtn';q.type='button';q.className='adminOnly';q.textContent='CONTROLLO OTTIMALITÀ SALE';
+    q.style.cssText='background:#4338ca!important;border-color:#4338ca!important;color:#fff!important;font-weight:800!important';
+    q.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();showOpQuality().catch(err=>alert('Errore controllo ottimalità: '+err.message))});
+    wrap.insertBefore(q,anchor);
+  }
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
   const esamiSnapshot=new Map([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')).map(sel=>[sel.dataset.k,sel.value||'']));

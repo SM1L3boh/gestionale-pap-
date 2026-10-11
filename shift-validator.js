@@ -157,6 +157,18 @@ function audit(a,absence,docs,month){
   const names=(docs||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI').map(d=>d.name);
   for(const name of names){
     const monthAsg=assignments(a,name,p=>p.ds.startsWith(month+'-')&&p.s!=='ferie');
+
+    // Controllo giornaliero robusto: guardia + qualunque altra assegnazione nello stesso giorno.
+    const days=[...new Set(monthAsg.map(p=>p.ds))];
+    for(const ds of days){
+      const same=monthAsg.filter(p=>p.ds===ds);
+      const guards=same.filter(p=>p.s==='guardia');
+      const others=same.filter(p=>p.s!=='guardia');
+      if(guards.length&&others.length){
+        add('Guardia + servizio',name,ds,'guardia notturna e altra assegnazione nella stessa giornata',[...guards,...others].map(p=>p.k));
+      }
+    }
+
     for(const p of monthAsg){
       if((absence?.[name]||[]).includes(p.ds))add('Ferie',name,p.ds,'turno assegnato durante ferie/assenza',[p.k]);
       if(p.s!=='guardia'&&hasService(a,name,p.ds,x=>x==='guardia'))add('Guardia + servizio',name,p.ds,'guardia notturna e servizio diurno nella stessa giornata',[p.k,...assignments(a,name,q=>q.ds===p.ds&&q.s==='guardia').map(q=>q.k)]);

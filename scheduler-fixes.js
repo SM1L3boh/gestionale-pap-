@@ -881,16 +881,16 @@ async function generateColumnV1(){
     }
 
     if(s==='opall'){
-      // SALE OPERATORIE · TUTTE = vera rigenerazione del blocco OP.
-      // Conserva solo NESSUNO strutturali e medici esclusi dall'automatismo (es. PINI).
+      // SALE OPERATORIE · TUTTE rigenera solo le OP automatiche.
+      // Qualunque OP valorizzata che NON risulta generata automaticamente
+      // è manuale e deve restare intatta (anche OP POM del mercoledì).
       const protectedOpKeys=new Set();
-      const doctorByName=new Map((x.doctors||[]).map(d=>[d.name,d]));
+      const manualKeys=new Set(x.manualKeys||[]);
       for(const [k,v] of Object.entries(a)){
         if(!k.startsWith(m+'-'))continue;
         const svc=k.split('|')[1];
         if(!OR.includes(svc))continue;
-        const d=doctorByName.get(v);
-        if(v==='NESSUNO'||(v&&manualOnly(d)))protectedOpKeys.add(k);
+        if(v==='NESSUNO'||manualKeys.has(k)||(v&&!g.has(k)))protectedOpKeys.add(k);
       }
 
       // Tutte le altre assegnazioni OP vengono eliminate e ricostruite da zero.

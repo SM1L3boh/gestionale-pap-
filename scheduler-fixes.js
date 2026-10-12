@@ -721,8 +721,14 @@ function nextDayHasWork(a,n,ds){
 function hasAvailability(a,n,ds){return ['disp1','disp2'].some(s=>a[K(ds,s,0)]===n)}
 function canGuardiaColumn(a,d,ds,m,allowExtra=false){
   const dt=new Date(ds+'T12:00:00'),n=d.name;
-  // Regola notti: mai due guardie consecutive e mai guardia insieme a disponibilità.
-  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||hasAvailability(a,n,ds)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
+  // Regola notti: mai guardia con un servizio nello stesso giorno,
+  // mai due guardie consecutive e mai guardia insieme a disponibilità.
+  const sameDayWork=Object.entries(a).some(([k,v])=>{
+    if(v!==n||!k.startsWith(ds+'|'))return false;
+    const s=k.split('|')[1];
+    return s!=='guardia'&&s!=='ferie'&&s!=='disp1'&&s!=='disp2';
+  });
+  if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||sameDayWork||hasAvailability(a,n,ds)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
   if(!allowExtra){
     const weeklyCap=Math.min(Number(d.hours)||36,36);
     if(weekHours(a,n,ds)+12>weeklyCap)return false;

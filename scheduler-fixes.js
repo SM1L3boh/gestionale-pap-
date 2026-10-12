@@ -655,8 +655,10 @@ function finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys){
     const [ds,s]=k.split('|');
     const cand=cohort.filter(d=>canEmergencyCoverage(a,d,s,ds,m)).sort((p,q)=>{
       const pe=monthEq(a,p.name,m),qe=monthEq(a,q.name,m);
+      const pd=Math.max(0,target(p.name,m)-pe),qd=Math.max(0,target(q.name,m)-qe);
       const pw=weekHours(a,p.name,ds),qw=weekHours(a,q.name,ds);
-      return pe-qe||pw-qw||p.name.localeCompare(q.name);
+      // Prima chi è più lontano dal proprio target mensile; poi minor carico.
+      return qd-pd||pe-qe||pw-qw||p.name.localeCompare(q.name);
     });
     if(cand[0]){assign(a,g,e,k,cand[0].name,true);filled++}
   }

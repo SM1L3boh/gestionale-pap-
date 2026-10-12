@@ -1037,12 +1037,19 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);
   if(m<'2026-11')for(const{ds}of dates){let k=K(ds,'esami',0);if(!protectedKeys.has(k)&&!a[k])a[k]='NESSUNO'}
 
-  // A. Regole fisse.
+  // 1. REPARTO
+  // Prima applica le continuità del weekend e il reparto fisso di Ciprian,
+  // poi completa tutti gli altri slot di reparto.
   applySaturdayContinuity(a,g,e,doctors,m,protectedKeys);
   assignCiprian(a,g,e,m,days,y,mo,protectedKeys);
+  assignServiceMonth(a,g,e,doctors,m,dates,'reparto',protectedKeys);
 
-  // A2. GENERA BOZZA completa anche le guardie notturne realmente vuote.
-  // NESSUNO e notti già assegnate restano invariati.
+  // 2. SALE OPERATORIE
+  // Le sale vengono costruite con il reparto già definito.
+  generateOperatingRoomsAll(a,g,e,doctors,m,openedStructuralKeys);
+
+  // 3. GUARDIE NOTTURNE
+  // Solo notti feriali realmente aperte/vuote. Weekend e festivi restano manuali.
   for(let day=1;day<=days;day++){
     const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
     if(w===0||w===6||holiday(dt))continue;
@@ -1053,44 +1060,40 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
     if(list[0])assign(a,g,e,k,list[0].name,false);
   }
 
-  // B. Unica generazione di tutti i servizi richiesti.
-  assignUnifiedRequired(a,g,e,doctors,m,dates,protectedKeys);
+  // 4. ALTRI SERVIZI
+  // AMB ESAMI resta escluso da GENERA BOZZA.
+  for(const svc of ['gessi','gessirep','amb'])
+    assignServiceMonth(a,g,e,doctors,m,dates,svc,protectedKeys);
 
-  // Celle strutturalmente NESSUNO che l'utente ha liberato manualmente:
-  // diventano celle generabili per questa bozza, incluse le seconde celle opzionali.
-  fillManuallyOpenedCells(a,g,e,doctors,m,openedStructuralKeys);
+  // Celle strutturali aperte manualmente per gli altri servizi diventano generabili.
+  for(const k of openedStructuralKeys){
+    const [ds,s]=k.split('|');
+    if(!['gessi','gessirep','amb'].includes(s)||a[k]&&a[k]!=='NESSUNO')continue;
+    const list=cand(doctors,a,s,ds,m,false,false);
+    if(list[0])assign(a,g,e,k,list[0].name,false);
+  }
 
-  // Disponibilità dopo i servizi.
+  // 5. DISPONIBILITÀ
   for(const{ds}of dates){
     assignDisp(a,g,e,doctors,ds,m,'disp1',protectedKeys);
     assignDisp(a,g,e,doctors,ds,m,'disp2',protectedKeys);
   }
 
-  // C. Secondo passaggio: extra consentiti, target e 36h non bloccano.
+  // 6. COPERTURA FINALE
   emergencyCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
   finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
-
-  // D. Backtracking piccolo solo sui buchi residui.
   if(unresolved(a,m,days,y,mo,protectedKeys).length){
     finalHoleRepair(a,g,e,doctors,m,days,y,mo,protectedKeys);
     finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
   }
-
-  // E. Solo a copertura completata: riequilibrio leggero OP (tolleranza gestita dalla funzione corrente).
-  if(!unresolved(a,m,days,y,mo,protectedKeys).length){
-    ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);
-  }
-
-  // Ultimo controllo dedicato alle sale: una OP vuota non può restare tale
-  // se nello stato finale esiste ancora un candidato compatibile.
   finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
 
-  // Dopo la copertura, riequilibra le sale tra gli strutturati automatici.
-  // Le assegnazioni manuali/protette non vengono toccate.
+  // 7. RIEQUILIBRIO
+  ensureCalzavaraPom(a,g,e,doctors,m,dates,protectedKeys);
   rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);
   rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);
 
-  // Un ultimo fill garantisce che il riequilibrio non lasci celle OP copribili vuote.
+  // Ultimo controllo: il riequilibrio non deve lasciare OP copribili vuote.
   finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
 
   normalizeExtras(a,g,e,doctors,m);

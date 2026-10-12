@@ -736,7 +736,7 @@ function serviceCountMonth(a,n,m,s){
 }
 function hasOpMorning(a,n,ds){return ['op1','op2'].some(s=>Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|')))}
 function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|oppom|'))}
-const OP_LONG_DAY=new Set(['CATALDI','CIPRIAN','FRANCO']);
+const OP_LONG_DAY=new Set(['CATALDI','FRANCO']);
 function opLongDayCount(a,n,m){
   const days=new Set();
   for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))days.add(k.split('|')[0]);
@@ -748,19 +748,9 @@ function canOperatingAll(a,d,s,ds,m){
   if(n==='CALZAVARA'&&calzavaraOpWeekCount(a,ds)>=2)return false;
   const createsLong=(s==='oppom'&&hasBand(a,n,ds,'am'))||((s==='op1'||s==='op2')&&hasBand(a,n,ds,'pm'));
 
-  // Solo CATALDI, CIPRIAN e FRANCO possono avere una giornata OP 08-20,
+  // Solo CATALDI e FRANCO possono avere una giornata OP 08-20,
   // massimo una volta al mese. Per tutti gli altri la doppia OP resta vietata.
   if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=1))return false;
-
-  // CIPRIAN resta normalmente dedicato al reparto: l'eccezione OP vale solo
-  // come completamento della sua unica giornata lunga già iniziata.
-  if(n==='CIPRIAN'){
-    if(!createsLong)return false;
-    const dt=new Date(ds+'T12:00:00');
-    if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;
-    if(hasBand(a,n,ds,s==='oppom'?'pm':'am'))return false;
-    return true;
-  }
   return can(a,d,s,ds,m,false,false);
 }
 function opWeekCount(a,n,ds){
@@ -809,16 +799,10 @@ function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
       const pmKeys=slots('oppom').map(i=>K(ds,'oppom',i)).filter(k=>!a[k]||a[k]==='NESSUNO');
       if(!amKeys.length||!pmKeys.length)continue;
 
-      // Per Ciprian l'08-20 sostituisce l'eventuale reparto dello stesso giorno.
-      let repKey=null;
-      if(name==='CIPRIAN')repKey=Object.keys(a).find(k=>k.startsWith(ds+'|reparto|')&&a[k]===name)||null;
-
+      const repKey=null;
       const A={...a};
-      if(repKey)delete A[repKey];
-      // Prima metà: per Cataldi/Franco usa i vincoli normali; per Ciprian è l'eccezione.
-      let amOk=false;
-      if(name==='CIPRIAN')amOk=true;
-      else amOk=can(A,d,amKeys[0].split('|')[1],ds,m,false,false);
+      // Prima metà: Cataldi/Franco rispettano i normali vincoli di sala.
+      const amOk=can(A,d,amKeys[0].split('|')[1],ds,m,false,false);
       if(!amOk)continue;
       A[amKeys[0]]=name;
       if(!canOperatingAll(A,d,'oppom',ds,m))continue;
@@ -832,7 +816,7 @@ function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
   }
 }
 function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
-  // Prima assegna, se possibile, una singola giornata 08-20 a Cataldi/Ciprian/Franco.
+  // Prima assegna, se possibile, una singola giornata 08-20 a Cataldi/Franco.
   assignMonthlyLongOpDays(a,g,e,doctors,m,opened);
   const keys=['oppom','op1','op2'].flatMap(s=>columnCandidateKeys(m,s,a,opened));
   const ranked=keys.map(k=>{

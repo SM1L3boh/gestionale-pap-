@@ -973,7 +973,107 @@ async function generateColumnV1(){
     if(b){b.disabled=false;b.textContent='GENERA COLONNA'}
   }
 }
+function draftQualityScore(a,doctors,m,days,y,mo,protectedKeys){
+  const cohort=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d));
+  const holes=unresolved(a,m,days,y,mo,protectedKeys).length;
+  const deficits=cohort.reduce((q,d)=>q+Math.abs(monthEq(a,d.name,m)-target(d.name,m)),0);
+  const opVals=cohort.map(d=>orCount(a,d.name,m));
+  const pomVals=cohort.map(d=>opPomCount(a,d.name,m));
+  const spread=v=>v.length?Math.max(...v)-Math.min(...v):0;
+  return {
+    holes,deficits,opSpread:spread(opVals),pomSpread:spread(pomVals),
+    score:holes*1000000+deficits*1000+spread(opVals)*100+spread(pomVals)*50
+  };
+}
+async function optimizeDraftV1(){
+  const m=$('month')?.value,b=$('optimizeDraftBtn');
+  if(!m)return;
+  if(b){b.disabled=true;b.textContent='OTTIMIZZAZIONE…'}
+  try{
+    await new Promise(r=>setTimeout(r,20));
+    const x=await cloud(),
+      doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
+      fullSchedule={...(x.schedule||{})},
+      a=domMonthSchedule(fullSchedule,m),
+      g=new Set(x.generatedKeys||[]),
+      e=new Set(x.extraKeys||[]),
+      manual=new Set(x.manualKeys||[]),
+      [y,mo]=m.split('-').map(Number),
+      days=new Date(y,mo,0).getDate(),
+      dates=monthDays(m,days,y,mo);
+
+    // Protegge tutto ciò che non è chiaramente automatico, oltre alle celle manuali.
+    const protectedKeys=new Set();
+    for(const [k,v] of Object.entries(a)){
+      if(!k.startsWith(m+'-'))continue;
+      const s=k.split('|')[1];
+      if(s==='ferie'||s==='esami'||manual.has(k)||(v&&v!=='NESSUNO'&&!g.has(k)))protectedKeys.add(k);
+      if(v==='NESSUNO')protectedKeys.add(k);
+    }
+
+    const before=draftQualityScore(a,doctors,m,days,y,mo,protectedKeys);
+    const snapA={...a},snapG=new Set(g),snapE=new Set(e);
+
+    // 1) copertura diretta; 2) ricerca locale più profonda; 3) riequilibrio globale leggero.
+    finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    globalHoleOptimize(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    finalDirectCoverageFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    rebalanceStructuredTotals(a,g,e,doctors,m,protectedKeys);
+    rebalanceOpTotals(a,g,e,doctors,m,protectedKeys);
+    rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys);
+    finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+    normalizeExtras(a,g,e,doctors,m);
+
+    const after=draftQualityScore(a,doctors,m,days,y,mo,protectedKeys);
+    if(after.score>before.score){
+      for(const k of Object.keys(a))delete a[k];
+      Object.assign(a,snapA);
+      g.clear();for(const k of snapG)g.add(k);
+      e.clear();for(const k of snapE)e.add(k);
+    }
+
+    const chosen=after.score<=before.score?after:before;
+    const finalSchedule={...fullSchedule};
+    for(const k of Object.keys(finalSchedule))if(k.startsWith(m+'-'))delete finalSchedule[k];
+    for(const[k,v]of Object.entries(a))if(k.startsWith(m+'-')&&v)finalSchedule[k]=v;
+
+    const allU=new Set(x.unresolvedKeys||[]);
+    for(const k of [...allU])if(k.startsWith(m+'-'))allU.delete(k);
+    unresolved(a,m,days,y,mo,protectedKeys).forEach(k=>allU.add(k));
+
+    await setDoc(root,{
+      schedule:finalSchedule,
+      generatedKeys:[...g],
+      extraKeys:[...e],
+      unresolvedKeys:[...allU],
+      updatedAt:new Date().toISOString()
+    },{merge:true});
+
+    alert(
+      'Ottimizzazione completata.\n'+
+      'Buchi: '+before.holes+' → '+chosen.holes+'\n'+
+      'Scostamento complessivo dal target: '+before.deficits+' → '+chosen.deficits+'\n'+
+      'Delta OP totali: '+before.opSpread+' → '+chosen.opSpread+'\n'+
+      'Delta OP POM: '+before.pomSpread+' → '+chosen.pomSpread
+    );
+    location.reload();
+  }finally{
+    if(b){b.disabled=false;b.textContent='OTTIMIZZA BOZZA'}
+  }
+}
+function ensureOptimizeDraftButton(){
+  if($('optimizeDraftBtn'))return;
+  const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
+  if(!wrap||!anchor)return;
+  const b=document.createElement('button');
+  b.id='optimizeDraftBtn';b.type='button';b.textContent='OTTIMIZZA BOZZA';
+  b.style.cssText='background:#6d28d9!important;border-color:#6d28d9!important;color:#fff!important;font-weight:800!important';
+  b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();optimizeDraftV1().catch(err=>alert('Errore ottimizzazione: '+err.message))});
+  wrap.insertBefore(b,anchor);
+}
 function ensureColumnGeneratorUI(){
+  ensureOptimizeDraftButton();
   if($('generateColumnSelect')&&$('generateColumnBtn'))return;
   const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
   if(!wrap||!anchor)return;

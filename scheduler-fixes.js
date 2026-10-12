@@ -736,7 +736,7 @@ function serviceCountMonth(a,n,m,s){
 }
 function hasOpMorning(a,n,ds){return ['op1','op2'].some(s=>Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|')))}
 function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|oppom|'))}
-const OP_LONG_DAY=new Set(['CATALDI','FRANCO']);
+const OP_LONG_DAY=new Set(['CATALDI','LENTINI','FRANCO']);
 function opLongDayCount(a,n,m){
   const days=new Set();
   for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))days.add(k.split('|')[0]);
@@ -748,7 +748,7 @@ function canOperatingAll(a,d,s,ds,m){
   if(n==='CALZAVARA'&&calzavaraOpWeekCount(a,ds)>=2)return false;
   const createsLong=(s==='oppom'&&hasBand(a,n,ds,'am'))||((s==='op1'||s==='op2')&&hasBand(a,n,ds,'pm'));
 
-  // Solo CATALDI e FRANCO possono avere una giornata OP 08-20,
+  // Solo CATALDI, LENTINI e FRANCO possono avere una giornata OP 08-20,
   // massimo una volta al mese. Per tutti gli altri la doppia OP resta vietata.
   if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=1))return false;
   return can(a,d,s,ds,m,false,false);
@@ -801,7 +801,7 @@ function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
 
       const repKey=null;
       const A={...a};
-      // Prima metà: Cataldi/Franco rispettano i normali vincoli di sala.
+      // Prima metà: Cataldi/Lentini/Franco rispettano i normali vincoli di sala.
       const amOk=can(A,d,amKeys[0].split('|')[1],ds,m,false,false);
       if(!amOk)continue;
       A[amKeys[0]]=name;
@@ -816,7 +816,7 @@ function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
   }
 }
 function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
-  // Prima assegna, se possibile, una singola giornata 08-20 a Cataldi/Franco.
+  // Prima assegna, se possibile, una singola giornata 08-20 a Cataldi/Lentini/Franco.
   assignMonthlyLongOpDays(a,g,e,doctors,m,opened);
   const keys=['oppom','op1','op2'].flatMap(s=>columnCandidateKeys(m,s,a,opened));
   const ranked=keys.map(k=>{

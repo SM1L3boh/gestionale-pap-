@@ -736,12 +736,31 @@ function serviceCountMonth(a,n,m,s){
 }
 function hasOpMorning(a,n,ds){return ['op1','op2'].some(s=>Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|')))}
 function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|oppom|'))}
+const OP_LONG_DAY=new Set(['CATALDI','CIPRIAN','FRANCO']);
+function opLongDayCount(a,n,m){
+  const days=new Set();
+  for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))days.add(k.split('|')[0]);
+  let q=0;for(const ds of days)if(hasOpMorning(a,n,ds)&&hasOpAfternoon(a,n,ds))q++;
+  return q;
+}
 function canOperatingAll(a,d,s,ds,m){
   const n=d.name;
   if(n==='CALZAVARA'&&calzavaraOpWeekCount(a,ds)>=2)return false;
-  // Fase SALE OPERATORIE: mai creare automaticamente 12 ore diurne.
-  if(s==='oppom'&&hasBand(a,n,ds,'am'))return false;
-  if((s==='op1'||s==='op2')&&hasBand(a,n,ds,'pm'))return false;
+  const createsLong=(s==='oppom'&&hasBand(a,n,ds,'am'))||((s==='op1'||s==='op2')&&hasBand(a,n,ds,'pm'));
+
+  // Solo CATALDI, CIPRIAN e FRANCO possono avere una giornata OP 08-20,
+  // massimo una volta al mese. Per tutti gli altri la doppia OP resta vietata.
+  if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=1))return false;
+
+  // CIPRIAN resta normalmente dedicato al reparto: l'eccezione OP vale solo
+  // come completamento della sua unica giornata lunga già iniziata.
+  if(n==='CIPRIAN'){
+    if(!createsLong)return false;
+    const dt=new Date(ds+'T12:00:00');
+    if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;
+    if(hasBand(a,n,ds,s==='oppom'?'pm':'am'))return false;
+    return true;
+  }
   return can(a,d,s,ds,m,false,false);
 }
 function opWeekCount(a,n,ds){
@@ -777,7 +796,44 @@ function balancedOperatingCandidates(a,doctors,s,ds,m){
 
   return (balanced.length?balanced:valid).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
 }
+function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
+  for(const name of OP_LONG_DAY){
+    if(opLongDayCount(a,name,m)>=1)continue;
+    const d=doctors.find(x=>x.name===name);if(!d)continue;
+    const candidates=[];
+    const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
+    for(let day=1;day<=days;day++){
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
+      if(w===0||w===6||holiday(dt)||leave(a,ds,name)||guard(a,ds,name)||guard(a,prev(ds),name))continue;
+      const amKeys=['op1','op2'].flatMap(s=>slots(s).map(i=>K(ds,s,i))).filter(k=>!a[k]||a[k]==='NESSUNO');
+      const pmKeys=slots('oppom').map(i=>K(ds,'oppom',i)).filter(k=>!a[k]||a[k]==='NESSUNO');
+      if(!amKeys.length||!pmKeys.length)continue;
+
+      // Per Ciprian l'08-20 sostituisce l'eventuale reparto dello stesso giorno.
+      let repKey=null;
+      if(name==='CIPRIAN')repKey=Object.keys(a).find(k=>k.startsWith(ds+'|reparto|')&&a[k]===name)||null;
+
+      const A={...a};
+      if(repKey)delete A[repKey];
+      // Prima metà: per Cataldi/Franco usa i vincoli normali; per Ciprian è l'eccezione.
+      let amOk=false;
+      if(name==='CIPRIAN')amOk=true;
+      else amOk=can(A,d,amKeys[0].split('|')[1],ds,m,false,false);
+      if(!amOk)continue;
+      A[amKeys[0]]=name;
+      if(!canOperatingAll(A,d,'oppom',ds,m))continue;
+      candidates.push({ds,am:amKeys[0],pm:pmKeys[0],repKey,score:orCount(a,name,m)*100+opWeekCount(a,name,ds)*20+weekHours(a,name,ds)});
+    }
+    candidates.sort((x,y)=>x.score-y.score||x.ds.localeCompare(y.ds));
+    const pick=candidates[0];if(!pick)continue;
+    if(pick.repKey){delete a[pick.repKey];g.delete(pick.repKey);e.delete(pick.repKey)}
+    assign(a,g,e,pick.am,name,false);
+    assign(a,g,e,pick.pm,name,false);
+  }
+}
 function generateOperatingRoomsAll(a,g,e,doctors,m,opened){
+  // Prima assegna, se possibile, una singola giornata 08-20 a Cataldi/Ciprian/Franco.
+  assignMonthlyLongOpDays(a,g,e,doctors,m,opened);
   const keys=['oppom','op1','op2'].flatMap(s=>columnCandidateKeys(m,s,a,opened));
   const ranked=keys.map(k=>{
     const [ds,s]=k.split('|');

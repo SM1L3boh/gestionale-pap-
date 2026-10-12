@@ -211,6 +211,7 @@ function markAnomalies(items){
 function generatorWeekendRest(a,name,ds){
   const w=dayObj(ds).getDay();
   if(w===5&&hasService(a,name,shiftDay(ds,-6),x=>x==='disp1'))return 'recupero: venerdì non utilizzabile dopo 1ª DISP del sabato precedente';
+  if(w===2&&hasService(a,name,shiftDay(ds,-3),x=>x==='disp2'))return 'recupero: martedì completamente libero dopo 2ª DISP del sabato precedente';
   return '';
 }
 function generatorConsecutiveViolation(a,doc,s,ds){

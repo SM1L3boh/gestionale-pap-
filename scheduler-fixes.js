@@ -65,9 +65,15 @@ function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}
 function weekendContinuityRest(a,n,ds){
   const w=new Date(ds+'T12:00:00').getDay();
-  // Recupero del 1° disponibile del sabato: venerdì-sabato-domenica successivi a casa.
-  const off=w===5?-6:w===6?-7:w===0?-8:null;
-  return off!==null&&a[K(shiftDay(ds,off),'disp1',0)]===n;
+
+  // 1° DISP del sabato: venerdì-sabato-domenica successivi a casa.
+  const off1=w===5?-6:w===6?-7:w===0?-8:null;
+  if(off1!==null&&a[K(shiftDay(ds,off1),'disp1',0)]===n)return true;
+
+  // 2° DISP del sabato: martedì successivo completamente libero da ogni turno.
+  if(w===2&&a[K(shiftDay(ds,-3),'disp2',0)]===n)return true;
+
+  return false;
 }
 function freePm(d,w){return(d?.constraints?.freePm||RULES[d?.name]?.freePm||[]).includes(w)}
 function preferFreePm(d,w){return(d?.constraints?.preferFreePm||RULES[d?.name]?.preferFreePm||[]).includes(w)}

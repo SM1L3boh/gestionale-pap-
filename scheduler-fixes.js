@@ -78,7 +78,7 @@ function weekendContinuityRest(a,n,ds){
 function freePm(d,w){return(d?.constraints?.freePm||RULES[d?.name]?.freePm||[]).includes(w)}
 function preferFreePm(d,w){return(d?.constraints?.preferFreePm||RULES[d?.name]?.preferFreePm||[]).includes(w)}
 function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(manualOnly(d))return false;if(r.days&&!r.days.includes(w))return false;if(r.services&&!r.services.includes(s))return false;if(!force&&PM.includes(s)&&freePm(d,w))return false;return d.cat==='Strutturato'||n==='CIPRIAN'}
-function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;if(n==='CALZAVARA'&&OR.includes(s)&&(calzavaraOpWeekCount(a,ds)>=2||orCount(a,n,m)>=9))return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
+function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;if(n==='CALZAVARA'&&OR.includes(s)&&calzavaraOpWeekCount(a,ds)>=2)return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}
 function slots(s){return['gessi','amb','gessirep','esami'].includes(s)?[0]:[0,1]}
@@ -650,7 +650,7 @@ function canEmergencyCoverage(a,d,s,ds,m){
   // Copertura finale: può creare al massimo UNA giornata AM+PM per medico/settimana.
   const dt=new Date(ds+'T12:00:00'),n=d.name;
   if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,false)||consecutiveRuleBlocked(a,d,s,ds))return false;
-  if(n==='CALZAVARA'&&OR.includes(s)&&(calzavaraOpWeekCount(a,ds)>=2||orCount(a,n,m)>=9))return false;
+  if(n==='CALZAVARA'&&OR.includes(s)&&calzavaraOpWeekCount(a,ds)>=2)return false;
   if(AM.includes(s)){
     if(hasBand(a,n,ds,'am'))return false;
     if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false;

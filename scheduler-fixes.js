@@ -1082,12 +1082,12 @@ async function resetOperatingRoomsV1(){
 
     const isMonthOp=k=>k.startsWith(m+'-')&&OR.includes(k.split('|')[1]);
 
-    // Pulisce completamente le sale del mese e tutti i relativi flag.
+    // Elimina qualunque vecchia assegnazione/flag OP del mese.
     for(const k of Object.keys(schedule))if(isMonthOp(k))delete schedule[k];
-    for(const set of [generated,extra,unresolved,manual])for(const k of [...set])if(isMonthOp(k))set.delete(k);
-    for(const k of [...opened])if(isMonthOp(k))opened.delete(k);
+    for(const set of [generated,extra,unresolved,manual,opened])
+      for(const k of [...set])if(isMonthOp(k))set.delete(k);
 
-    // Evita che un vecchio SALVA STATO ripristini assegnazioni OP precedenti.
+    // Anche lo stato salvato non deve poter reintrodurre vecchie sale.
     const state={...(savedStates[m]||{})};
     for(const k of Object.keys(state))if(isMonthOp(k))delete state[k];
     savedStates[m]=state;
@@ -1096,41 +1096,30 @@ async function resetOperatingRoomsV1(){
     for(const k of [...savedOpen])if(isMonthOp(k))savedOpen.delete(k);
 
     for(let day=1;day<=days;day++){
-      const dt=new Date(y,mo-1,day,12),w=dt.getDay();
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
       if(w===0||w===6)continue;
-      const ds=`${m}-${String(day).padStart(2,'0')}`;
 
-      // Tutto vuoto e disponibile di base.
-      for(const s of ['op1','op2','oppom'])for(let i=0;i<2;i++){
-        const k=K(ds,s,i);
-        // Se il default strutturale sarebbe NESSUNO ma qui deve essere vuoto,
-        // registra esplicitamente la cella come aperta.
-        if(structuralDefault(m,ds,s,i)==='NESSUNO'){
-          opened.add(k);savedOpen.add(k);
-        }
-      }
+      // Base: tutte le sale feriali sono esplicitamente vuote e disponibili.
+      // Uso stringa vuota in schedule per evitare che i default strutturali
+      // possano far ricomparire NESSUNO dopo il reload.
+      for(const s of OR)for(let i=0;i<2;i++)schedule[K(ds,s,i)]='';
 
-      // OP2 MAT martedì = NESSUNO / NESSUNO.
+      // Martedì OP2 MAT = NESSUNO / NESSUNO.
       if(w===2){
-        for(let i=0;i<2;i++){
-          const k=K(ds,'op2',i);
-          schedule[k]='NESSUNO';opened.delete(k);savedOpen.delete(k);
-        }
+        schedule[K(ds,'op2',0)]='NESSUNO';
+        schedule[K(ds,'op2',1)]='NESSUNO';
       }
 
-      // OP POM mercoledì = NESSUNO / vuoto.
+      // Mercoledì OP POM = NESSUNO / vuoto.
       if(w===3){
-        const k0=K(ds,'oppom',0),k1=K(ds,'oppom',1);
-        schedule[k0]='NESSUNO';opened.delete(k0);savedOpen.delete(k0);
-        delete schedule[k1];opened.add(k1);savedOpen.add(k1);
+        schedule[K(ds,'oppom',0)]='NESSUNO';
+        schedule[K(ds,'oppom',1)]='';
       }
 
-      // OP POM venerdì = NESSUNO / NESSUNO.
+      // Venerdì OP POM = NESSUNO / NESSUNO.
       if(w===5){
-        for(let i=0;i<2;i++){
-          const k=K(ds,'oppom',i);
-          schedule[k]='NESSUNO';opened.delete(k);savedOpen.delete(k);
-        }
+        schedule[K(ds,'oppom',0)]='NESSUNO';
+        schedule[K(ds,'oppom',1)]='NESSUNO';
       }
     }
 
@@ -1147,6 +1136,24 @@ async function resetOperatingRoomsV1(){
       savedOpenedStates,
       updatedAt:new Date().toISOString()
     },{merge:true});
+
+    // Verifica prima di dichiarare il ripristino riuscito.
+    const verify=await cloud(),vs=verify.schedule||{};
+    let ok=true;
+    for(let day=1;day<=days&&ok;day++){
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
+      if(w===0||w===6)continue;
+      const want=(s,i)=>{
+        if(s==='op2'&&w===2)return'NESSUNO';
+        if(s==='oppom'&&w===3)return i===0?'NESSUNO':'';
+        if(s==='oppom'&&w===5)return'NESSUNO';
+        return'';
+      };
+      for(const s of OR)for(let i=0;i<2;i++){
+        if((vs[K(ds,s,i)]??'')!==want(s,i)){ok=false;break}
+      }
+    }
+    if(!ok)throw new Error('verifica finale non riuscita');
     location.reload();
   }finally{
     if(b){b.disabled=false;b.textContent='RIPRISTINA SALE'}

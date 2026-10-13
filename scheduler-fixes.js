@@ -1379,10 +1379,9 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   generateOperatingRoomsAll(a,g,e,doctors,m,openedStructuralKeys);
 
   // 3. GUARDIE NOTTURNE
-  // Solo notti feriali realmente aperte/vuote. Weekend e festivi restano manuali.
+  // Genera tutte le notti realmente vuote del mese, compresi sabati, domeniche e festivi. NESSUNO resta intoccabile.
   for(let day=1;day<=days;day++){
-    const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
-    if(w===0||w===6||holiday(dt))continue;
+    const dt=new Date(y,mo-1,day,12),ds=`${m}-${String(day).padStart(2,'0')}`,k=K(ds,'guardia',0);
     if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')continue;
     if(a[k]==='NESSUNO')continue;
     const list=doctors.filter(d=>canGuardiaColumn(a,d,ds,m,false))

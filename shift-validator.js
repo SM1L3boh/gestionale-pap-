@@ -254,7 +254,7 @@ function generatorBlockReasons(a,absence,doc,k){
   if(fixed.services&&!fixed.services.includes(s))out.push('servizio non previsto');
   if(PM.has(s)&&free.includes(w))out.push('pomeriggio libero');
 
-  if(name==='CALZAVARA'&&['op1','op2','oppom'].includes(s)&&opWeekCountValidator(a,name,ds)>=2)out.push('limite Calzavara: già 2 sale operatorie nella settimana')
+  
   const wh=weekHours(a,name,weekKey(ds)),add=workedHours(s,ds);
   if(wh+add>Math.min(Number(doc.hours)||36,36))out.push('36 h settimanali ('+wh+'+'+add+' h)');
 

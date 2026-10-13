@@ -774,7 +774,7 @@ function serviceCountMonth(a,n,m,s){
 }
 function hasOpMorning(a,n,ds){return ['op1','op2'].some(s=>Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|'+s+'|')))}
 function hasOpAfternoon(a,n,ds){return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|oppom|'))}
-const OP_LONG_DAY=new Set(['CATALDI','LENTINI','FRANCO']);
+const OP_LONG_DAY_LIMIT=new Map([['CATALDI',2],['LENTINI',2],['FRANCO',2],['COMELATO',1]]);
 function opLongDayCount(a,n,m){
   const days=new Set();
   for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&OR.includes(k.split('|')[1]))days.add(k.split('|')[0]);
@@ -788,7 +788,7 @@ function canOperatingAll(a,d,s,ds,m){
 
   // Solo CATALDI, LENTINI e FRANCO possono avere una giornata OP 08-20,
   // massimo una volta al mese. Per tutti gli altri la doppia OP resta vietata.
-  if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=2))return false;
+  if(createsLong){const lim=OP_LONG_DAY_LIMIT.get(n)||0;if(!lim||opLongDayCount(a,n,m)>=lim)return false;}
   return can(a,d,s,ds,m,false,false);
 }
 function opWeekCount(a,n,ds){
@@ -825,8 +825,8 @@ function balancedOperatingCandidates(a,doctors,s,ds,m){
   return (balanced.length?balanced:valid).sort((p,q)=>operatingBalanceScore(a,p,s,ds,m)-operatingBalanceScore(a,q,s,ds,m)||p.name.localeCompare(q.name));
 }
 function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
-  for(const name of OP_LONG_DAY){
-    if(opLongDayCount(a,name,m)>=2)continue;
+  for(const [name,limit] of OP_LONG_DAY_LIMIT){
+    if(opLongDayCount(a,name,m)>=limit)continue;
     const d=doctors.find(x=>x.name===name);if(!d)continue;
     const candidates=[];
     const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();

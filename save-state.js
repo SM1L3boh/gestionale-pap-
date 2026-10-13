@@ -47,6 +47,9 @@ async function saveVisibleState(){
     document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
       const k=s.dataset.k,v=s.value;
       if(!k?.startsWith(month+'-'))return;
+      // VARIE può mostrare automaticamente lo smonto della notte precedente:
+      // se non è mai stata modificata manualmente, non congelarla nel SALVA STATO.
+      if(k.includes('|varie|')&&!Object.prototype.hasOwnProperty.call(x.schedule||{},k))return;
       if(!v){
         if(isStructuralDefaultNessuno(k))opened.add(k);else opened.delete(k);
         manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);

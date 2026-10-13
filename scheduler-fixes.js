@@ -16,14 +16,14 @@ const RULES={
 'ARMATO':{manual:true}
 };
 const rule=d=>RULES[d?.name]||{},manualOnly=d=>d?.cat==='Contratto'||!!rule(d).manual;
-let officialAbsence={};async function cloud(){let s=await getDoc(root),x=s.exists()?s.data():{};officialAbsence=x.absenceManagement||{};return x}
+async function cloud(){let s=await getDoc(root);return s.exists()?s.data():{}}
 function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return new Date(y,mo-1,da,12)}
 function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(f.has(md))return true;let p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function workTarget(m){let[y,mo]=m.split('-').map(Number),n=0,z=new Date(y,mo,0).getDate();for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()!==0&&!holiday(x))n++}return n}
 function target(n,m){if(n==='CIPRIAN'){let[y,mo]=m.split('-').map(Number),z=new Date(y,mo,0).getDate(),q=0;for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()>=1&&x.getDay()<=5&&!holiday(x))q++}return q}return workTarget(m)+1}
-function hrs(s,dt){if(s==='varie')return 0;if(s==='guardia')return 12;if(s==='ferie')return dt.getDay()===0?0:6;if(s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
+function hrs(s,dt){if(s==='guardia')return 12;if(s==='ferie')return dt.getDay()===0?0:6;if(s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
 function workedHrs(s,dt){if(s==='ferie')return 0;return hrs(s,dt)}
-function leave(a,ds,n){return(officialAbsence[n]||[]).includes(ds)||[0,1].some(i=>a[K(ds,'ferie',i)]===n)}
+function leave(a,ds,n){return[0,1,2,3].some(i=>a[K(ds,'ferie',i)]===n)}
 function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function calzWeek(ds){return wk(ds)}
 function calzavaraOpWeekCount(a,ds){const W=wk(ds);let q=0;for(const[k,v]of Object.entries(a))if(v==='CALZAVARA'&&OR.includes(k.split('|')[1])&&wk(k.split('|')[0])===W)q++;return q}
@@ -113,7 +113,7 @@ function applyStructuralDefaults(a,m,days,y,mo,protectedKeys){
     const dt=new Date(y,mo-1,day,12),w=dt.getDay(),ds=`${m}-${String(day).padStart(2,'0')}`;
     if(w===0||w===6)continue;
     for(const svc of ['guardia','giorno','disp1','disp2','gessi','gessirep','reparto','amb','esami','op1','op2','oppom','ferie']){
-      const count=svc==='gessi'||svc==='reparto'||svc==='amb'||svc==='op1'||svc==='op2'||svc==='oppom'?2:svc==='ferie'?2:1;
+      const count=svc==='gessi'||svc==='reparto'||svc==='amb'||svc==='op1'||svc==='op2'||svc==='oppom'?2:svc==='ferie'?4:1;
       for(let i=0;i<count;i++){
         const v=structuralDefault(m,ds,svc,i);
         if(v!=='NESSUNO')continue;
@@ -129,7 +129,7 @@ function doctorBusyDayService(a,n,ds){
   return Object.entries(a).some(([k,v])=>{
     if(v!==n||!k.startsWith(ds+'|')||v==='NESSUNO')return false;
     const s=k.split('|')[1];
-    return !['ferie','disp1','disp2','varie'].includes(s);
+    return !['ferie','disp1','disp2'].includes(s);
   })
 }
 function ensureRepartoForContinuity(a,g,e,doctors,m,ds,n,protectedKeys){
@@ -724,7 +724,7 @@ function columnCandidateKeys(m,s,a,opened){
 }
 function nextDayHasWork(a,n,ds){
   const nx=shiftDay(ds,1);
-  return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(nx+'|')&&!['ferie','guardia','varie'].includes(k.split('|')[1])&&v!=='NESSUNO');
+  return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(nx+'|')&&!['ferie','guardia'].includes(k.split('|')[1])&&v!=='NESSUNO');
 }
 function hasAvailability(a,n,ds){return ['disp1','disp2'].some(s=>a[K(ds,s,0)]===n)}
 function canGuardiaColumn(a,d,ds,m,allowExtra=false){
@@ -734,7 +734,7 @@ function canGuardiaColumn(a,d,ds,m,allowExtra=false){
   const sameDayWork=Object.entries(a).some(([k,v])=>{
     if(v!==n||!k.startsWith(ds+'|'))return false;
     const s=k.split('|')[1];
-    return s!=='guardia'&&s!=='ferie'&&s!=='disp1'&&s!=='disp2'&&s!=='varie';
+    return s!=='guardia'&&s!=='ferie'&&s!=='disp1'&&s!=='disp2';
   });
   if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||sameDayWork||hasAvailability(a,n,ds)||guard(a,prev(ds),n)||guard(a,shiftDay(ds,1),n)||nextDayHasWork(a,n,ds)||!eligible(d,'guardia',dt,false))return false;
   if(!allowExtra){
@@ -871,7 +871,7 @@ async function generateColumnV1(){
     for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){
       byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)
     }
-    for(const[date,names]of Object.entries(byDate))names.slice(0,2).forEach((n,i)=>a[K(date,'ferie',i)]=n);
+    for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);
 
     if(s==='reparto'){
       const protectedKeys=new Set();
@@ -1249,7 +1249,7 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   for(const[n,ds]of Object.entries(absence))for(const date of ds||[])if(date.startsWith(m+'-')){
     byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)
   }
-  for(const[date,names]of Object.entries(byDate))names.slice(0,2).forEach((n,i)=>a[K(date,'ferie',i)]=n);
+  for(const[date,names]of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>a[K(date,'ferie',i)]=n);
   if(m<'2026-11')for(const{ds}of dates){let k=K(ds,'esami',0);if(!protectedKeys.has(k)&&!a[k])a[k]='NESSUNO'}
 
   // 1. REPARTO

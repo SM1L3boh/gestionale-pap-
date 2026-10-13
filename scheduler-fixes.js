@@ -788,7 +788,7 @@ function canOperatingAll(a,d,s,ds,m){
 
   // Solo CATALDI, LENTINI e FRANCO possono avere una giornata OP 08-20,
   // massimo una volta al mese. Per tutti gli altri la doppia OP resta vietata.
-  if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=1))return false;
+  if(createsLong&&(!OP_LONG_DAY.has(n)||opLongDayCount(a,n,m)>=2))return false;
   return can(a,d,s,ds,m,false,false);
 }
 function opWeekCount(a,n,ds){
@@ -826,7 +826,7 @@ function balancedOperatingCandidates(a,doctors,s,ds,m){
 }
 function assignMonthlyLongOpDays(a,g,e,doctors,m,opened){
   for(const name of OP_LONG_DAY){
-    if(opLongDayCount(a,name,m)>=1)continue;
+    if(opLongDayCount(a,name,m)>=2)continue;
     const d=doctors.find(x=>x.name===name);if(!d)continue;
     const candidates=[];
     const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();

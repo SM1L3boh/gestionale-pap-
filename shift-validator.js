@@ -96,7 +96,7 @@ function consecutiveGroupViolation(a,name,s,ds){
   const docService=s;
   if(docService==='reparto')return '';
   let pred,limit,label;
-  if(['op1','op2','oppom'].includes(docService)){pred=x=>['op1','op2','oppom'].includes(x);limit=4;label='più di 4 giorni consecutivi in sala operatoria'}
+  if(['op1','op2','oppom'].includes(docService))return '';
   else if(AM.has(docService)){pred=x=>x===docService;limit=3;label='più di 3 giorni consecutivi nello stesso servizio del mattino: '+(LABELS[docService]||docService)}
   else return '';
   let run=1;

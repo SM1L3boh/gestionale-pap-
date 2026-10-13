@@ -47,6 +47,8 @@ async function saveVisibleState(){
     document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
       const k=s.dataset.k,v=s.value;
       if(!k?.startsWith(month+'-'))return;
+      // VARIE derivata automaticamente dallo smonto non va congelata come manuale.
+      if(k.includes('|varie|')&&!Object.prototype.hasOwnProperty.call(x.schedule||{},k))return;
       if(!v){
         if(isStructuralDefaultNessuno(k))opened.add(k);else opened.delete(k);
         manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
@@ -118,8 +120,8 @@ function monthDefaultCells(month){
   for(let d=1;d<=days;d++){
     const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=`${month}-${String(d).padStart(2,'0')}`;
     const put=(svc,i)=>out[ds+'|'+svc+'|'+i]='NESSUNO';
-    // FERIE-VARIE: default NESSUNO in all four slots, later overwritten by official absences.
-    for(let i=0;i<4;i++)put('ferie',i);
+    // FERIE: due soli posti visibili, alimentati da Gestione Assenze.
+    for(let i=0;i<2;i++)put('ferie',i);
     // Weekend only exposes these services.
     put('guardia',0); put('giorno',0);
     if(w===0||w===6)continue;
@@ -156,7 +158,7 @@ async function emptyCurrentMonth(){
     }
     const expectedLeaves={};
     for(const [ds,names] of Object.entries(byDate)){
-      names.slice(0,4).forEach((name,i)=>{
+      names.slice(0,2).forEach((name,i)=>{
         const k=ds+'|ferie|'+i;
         schedule[k]=name;
         expectedLeaves[k]=name;

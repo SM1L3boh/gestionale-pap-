@@ -1062,6 +1062,106 @@ async function optimizeDraftV1(){
     if(b){b.disabled=false;b.textContent='OTTIMIZZA BOZZA'}
   }
 }
+async function resetOperatingRoomsV1(){
+  const m=$('month')?.value,b=$('resetOperatingRoomsBtn');
+  if(!m)return;
+  if(!confirm('Ripristinare tutte le sale operatorie di '+m+'? Le assegnazioni OP del mese verranno cancellate.'))return;
+  if(b){b.disabled=true;b.textContent='RIPRISTINO…'}
+  try{
+    const x=await cloud(),
+      schedule={...(x.schedule||{})},
+      generated=new Set(x.generatedKeys||[]),
+      extra=new Set(x.extraKeys||[]),
+      unresolved=new Set(x.unresolvedKeys||[]),
+      manual=new Set(x.manualKeys||[]),
+      opened=new Set(x.openedStructuralKeys||[]),
+      savedStates={...(x.savedStates||{})},
+      savedOpenedStates={...(x.savedOpenedStates||{})},
+      [y,mo]=m.split('-').map(Number),
+      days=new Date(y,mo,0).getDate();
+
+    const isMonthOp=k=>k.startsWith(m+'-')&&OR.includes(k.split('|')[1]);
+
+    // Pulisce completamente le sale del mese e tutti i relativi flag.
+    for(const k of Object.keys(schedule))if(isMonthOp(k))delete schedule[k];
+    for(const set of [generated,extra,unresolved,manual])for(const k of [...set])if(isMonthOp(k))set.delete(k);
+    for(const k of [...opened])if(isMonthOp(k))opened.delete(k);
+
+    // Evita che un vecchio SALVA STATO ripristini assegnazioni OP precedenti.
+    const state={...(savedStates[m]||{})};
+    for(const k of Object.keys(state))if(isMonthOp(k))delete state[k];
+    savedStates[m]=state;
+
+    const savedOpen=new Set(savedOpenedStates[m]||[]);
+    for(const k of [...savedOpen])if(isMonthOp(k))savedOpen.delete(k);
+
+    for(let day=1;day<=days;day++){
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay();
+      if(w===0||w===6)continue;
+      const ds=`${m}-${String(day).padStart(2,'0')}`;
+
+      // Tutto vuoto e disponibile di base.
+      for(const s of ['op1','op2','oppom'])for(let i=0;i<2;i++){
+        const k=K(ds,s,i);
+        // Se il default strutturale sarebbe NESSUNO ma qui deve essere vuoto,
+        // registra esplicitamente la cella come aperta.
+        if(structuralDefault(m,ds,s,i)==='NESSUNO'){
+          opened.add(k);savedOpen.add(k);
+        }
+      }
+
+      // OP2 MAT martedì = NESSUNO / NESSUNO.
+      if(w===2){
+        for(let i=0;i<2;i++){
+          const k=K(ds,'op2',i);
+          schedule[k]='NESSUNO';opened.delete(k);savedOpen.delete(k);
+        }
+      }
+
+      // OP POM mercoledì = NESSUNO / vuoto.
+      if(w===3){
+        const k0=K(ds,'oppom',0),k1=K(ds,'oppom',1);
+        schedule[k0]='NESSUNO';opened.delete(k0);savedOpen.delete(k0);
+        delete schedule[k1];opened.add(k1);savedOpen.add(k1);
+      }
+
+      // OP POM venerdì = NESSUNO / NESSUNO.
+      if(w===5){
+        for(let i=0;i<2;i++){
+          const k=K(ds,'oppom',i);
+          schedule[k]='NESSUNO';opened.delete(k);savedOpen.delete(k);
+        }
+      }
+    }
+
+    savedOpenedStates[m]=[...savedOpen];
+
+    await setDoc(root,{
+      schedule,
+      generatedKeys:[...generated],
+      extraKeys:[...extra],
+      unresolvedKeys:[...unresolved],
+      manualKeys:[...manual],
+      openedStructuralKeys:[...opened],
+      savedStates,
+      savedOpenedStates,
+      updatedAt:new Date().toISOString()
+    },{merge:true});
+    location.reload();
+  }finally{
+    if(b){b.disabled=false;b.textContent='RIPRISTINA SALE'}
+  }
+}
+function ensureResetOperatingRoomsButton(){
+  if($('resetOperatingRoomsBtn'))return;
+  const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
+  if(!wrap||!anchor)return;
+  const b=document.createElement('button');
+  b.id='resetOperatingRoomsBtn';b.type='button';b.textContent='RIPRISTINA SALE';
+  b.style.cssText='background:#b45309!important;border-color:#b45309!important;color:#fff!important;font-weight:800!important';
+  b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();resetOperatingRoomsV1().catch(err=>alert('Errore ripristino sale: '+err.message))});
+  wrap.insertBefore(b,anchor);
+}
 function ensureOptimizeDraftButton(){
   if($('optimizeDraftBtn'))return;
   const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
@@ -1074,6 +1174,7 @@ function ensureOptimizeDraftButton(){
 }
 function ensureColumnGeneratorUI(){
   ensureOptimizeDraftButton();
+  ensureResetOperatingRoomsButton();
   if($('generateColumnSelect')&&$('generateColumnBtn'))return;
   const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
   if(!wrap||!anchor)return;

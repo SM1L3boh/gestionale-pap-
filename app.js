@@ -41,7 +41,9 @@ function applyRoleUI(){let a=isAdmin();document.querySelectorAll('.adminOnly').f
 function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorno','disp1','disp2','ferie','varie'].includes(s);return true}function defaultCellValue(m,dt,s,i){
   if(s==='varie'){
     if(i===1)return'NESSUNO';
-    let p=new Date(dt);p.setDate(p.getDate()-1);let ds=p.toISOString().slice(0,10),n=data[key(ds,'guardia',0)];
+    let p=new Date(dt);p.setDate(p.getDate()-1);
+    let ds=`${p.getFullYear()}-${String(p.getMonth()+1).padStart(2,'0')}-${String(p.getDate()).padStart(2,'0')}`;
+    let n=data[key(ds,'guardia',0)];
     if(n===undefined||n==='')return'';
     return n;
   }

@@ -65,6 +65,7 @@ function assignments(a,name,filter=()=>true){
   for(const[k,v]of Object.entries(a)){
     if(v!==name)continue;
     const p=parts(k);
+    if(p.s==='varie')continue;
     if(filter(p,k))out.push({...p,k});
   }
   return out;

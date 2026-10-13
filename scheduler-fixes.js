@@ -622,6 +622,30 @@ function rebalanceOpPomTotals(a,g,e,doctors,m,protectedKeys){
   }
   return spread();
 }
+function enforceGuardRest(a,g,e,protectedKeys,m){
+  let removed=0;
+  const guards=[];
+  for(const [k,n] of Object.entries(a)){
+    if(!k.startsWith(m+'-')||!n||n==='NESSUNO')continue;
+    const [ds,s]=k.split('|');
+    if(s==='guardia')guards.push({ds,n});
+  }
+  for(const {ds,n} of guards){
+    for(const target of [ds,shiftDay(ds,1)]){
+      for(const [k,v] of Object.entries(a)){
+        if(v!==n||!k.startsWith(target+'|'))continue;
+        const s=k.split('|')[1];
+        if(s==='guardia'||s==='ferie'||s==='varie')continue;
+        delete a[k];
+        g.delete(k);e.delete(k);
+        protectedKeys?.delete?.(k);
+        removed++;
+      }
+    }
+  }
+  return removed;
+}
+
 function canEmergencyCoverage(a,d,s,ds,m){
   // Copertura finale: può creare al massimo UNA giornata AM+PM per medico/settimana.
   const dt=new Date(ds+'T12:00:00'),n=d.name;
@@ -1366,6 +1390,10 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
     if(list[0])assign(a,g,e,k,list[0].name,false);
   }
 
+  // La guardia prevale su qualunque assegnazione dello stesso giorno
+  // e sul giorno successivo, anche se il mese partiva già incoerente.
+  enforceGuardRest(a,g,e,protectedKeys,m);
+
   // 4. ALTRI SERVIZI
   // AMB ESAMI resta escluso da GENERA BOZZA.
   for(const svc of ['gessi','gessirep','amb'])
@@ -1401,6 +1429,10 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
 
   // Ultimo controllo: il riequilibrio non deve lasciare OP copribili vuote.
   finalOperatingRoomFill(a,g,e,doctors,m,days,y,mo,protectedKeys);
+
+  // Verifica finale assoluta: nessun servizio/disponibilità può restare
+  // nello stesso giorno o nel giorno successivo a una guardia notturna.
+  enforceGuardRest(a,g,e,protectedKeys,m);
 
   normalizeExtras(a,g,e,doctors,m);
   let u=unresolved(a,m,days,y,mo,protectedKeys),allU=new Set(x.unresolvedKeys||[]);

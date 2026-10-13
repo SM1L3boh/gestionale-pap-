@@ -223,10 +223,6 @@ function opWeekCountValidator(a,name,ds){
   const wk=weekKey(ds);
   return assignments(a,name,p=>weekKey(p.ds)===wk&&['op1','op2','oppom'].includes(p.s)).length;
 }
-function opMonthCountValidator(a,name,ds){
-  const m=ds.slice(0,7);
-  return assignments(a,name,p=>p.ds.startsWith(m+'-')&&['op1','op2','oppom'].includes(p.s)).length;
-}
 function generatorBlockReasons(a,absence,doc,k){
   const {ds,s}=parts(k),name=doc?.name,out=[];
   if(s==='guardia'){
@@ -258,7 +254,7 @@ function generatorBlockReasons(a,absence,doc,k){
   if(fixed.services&&!fixed.services.includes(s))out.push('servizio non previsto');
   if(PM.has(s)&&free.includes(w))out.push('pomeriggio libero');
 
-  if(name==='CALZAVARA'&&['op1','op2','oppom'].includes(s)){if(opWeekCountValidator(a,name,ds)>=2)out.push('limite Calzavara: già 2 sale operatorie nella settimana');if(opMonthCountValidator(a,name,ds)>=9)out.push('limite Calzavara: già 9 sale operatorie nel mese')}
+  if(name==='CALZAVARA'&&['op1','op2','oppom'].includes(s)&&opWeekCountValidator(a,name,ds)>=2)out.push('limite Calzavara: già 2 sale operatorie nella settimana')
   const wh=weekHours(a,name,weekKey(ds)),add=workedHours(s,ds);
   if(wh+add>Math.min(Number(doc.hours)||36,36))out.push('36 h settimanali ('+wh+'+'+add+' h)');
 

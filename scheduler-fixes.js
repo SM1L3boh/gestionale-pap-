@@ -1159,6 +1159,89 @@ async function resetOperatingRoomsV1(){
     if(b){b.disabled=false;b.textContent='RIPRISTINA SALE'}
   }
 }
+async function resetWeekdayAvailabilityV1(){
+  const m=$('month')?.value,b=$('resetWeekdayAvailabilityBtn');
+  if(!m)return;
+  if(!confirm('Ripristinare tutte le disponibilità feriali di '+m+'? Verranno svuotate solo 1ª e 2ª DISP dal lunedì al venerdì non festivi.'))return;
+  if(b){b.disabled=true;b.textContent='RIPRISTINO…'}
+  try{
+    const x=await cloud(),
+      schedule={...(x.schedule||{})},
+      generated=new Set(x.generatedKeys||[]),
+      extra=new Set(x.extraKeys||[]),
+      unresolved=new Set(x.unresolvedKeys||[]),
+      manual=new Set(x.manualKeys||[]),
+      opened=new Set(x.openedStructuralKeys||[]),
+      savedStates={...(x.savedStates||{})},
+      savedOpenedStates={...(x.savedOpenedStates||{})},
+      [y,mo]=m.split('-').map(Number),
+      days=new Date(y,mo,0).getDate();
+
+    const isWeekdayDispKey=k=>{
+      if(!k.startsWith(m+'-'))return false;
+      const [ds,s]=k.split('|');
+      if(!['disp1','disp2'].includes(s))return false;
+      const dt=new Date(ds+'T12:00:00'),w=dt.getDay();
+      return w>=1&&w<=5&&!holiday(dt);
+    };
+
+    for(const k of Object.keys(schedule))if(isWeekdayDispKey(k))delete schedule[k];
+    for(const set of [generated,extra,unresolved,manual,opened])
+      for(const k of [...set])if(isWeekdayDispKey(k))set.delete(k);
+
+    const state={...(savedStates[m]||{})};
+    for(const k of Object.keys(state))if(isWeekdayDispKey(k))delete state[k];
+    savedStates[m]=state;
+
+    const savedOpen=new Set(savedOpenedStates[m]||[]);
+    for(const k of [...savedOpen])if(isWeekdayDispKey(k))savedOpen.delete(k);
+    savedOpenedStates[m]=[...savedOpen];
+
+    // Scrive esplicitamente vuoto solo nei feriali non festivi.
+    for(let day=1;day<=days;day++){
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay();
+      if(w<1||w>5||holiday(dt))continue;
+      const ds=`${m}-${String(day).padStart(2,'0')}`;
+      schedule[K(ds,'disp1',0)]='';
+      schedule[K(ds,'disp2',0)]='';
+    }
+
+    await setDoc(root,{
+      schedule,
+      generatedKeys:[...generated],
+      extraKeys:[...extra],
+      unresolvedKeys:[...unresolved],
+      manualKeys:[...manual],
+      openedStructuralKeys:[...opened],
+      savedStates,
+      savedOpenedStates,
+      updatedAt:new Date().toISOString()
+    },{merge:true});
+
+    const verify=await cloud(),vs=verify.schedule||{};
+    let ok=true;
+    for(let day=1;day<=days&&ok;day++){
+      const dt=new Date(y,mo-1,day,12),w=dt.getDay();
+      if(w<1||w>5||holiday(dt))continue;
+      const ds=`${m}-${String(day).padStart(2,'0')}`;
+      if((vs[K(ds,'disp1',0)]??'')!==''||(vs[K(ds,'disp2',0)]??'')!=='')ok=false;
+    }
+    if(!ok)throw new Error('verifica finale non riuscita');
+    location.reload();
+  }finally{
+    if(b){b.disabled=false;b.textContent='RIPRISTINA DISP. FERIALI'}
+  }
+}
+function ensureResetWeekdayAvailabilityButton(){
+  if($('resetWeekdayAvailabilityBtn'))return;
+  const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
+  if(!wrap||!anchor)return;
+  const b=document.createElement('button');
+  b.id='resetWeekdayAvailabilityBtn';b.type='button';b.textContent='RIPRISTINA DISP. FERIALI';
+  b.style.cssText='background:#0369a1!important;border-color:#0369a1!important;color:#fff!important;font-weight:800!important';
+  b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();resetWeekdayAvailabilityV1().catch(err=>alert('Errore ripristino disponibilità: '+err.message))});
+  wrap.insertBefore(b,anchor);
+}
 function ensureResetOperatingRoomsButton(){
   if($('resetOperatingRoomsBtn'))return;
   const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
@@ -1182,6 +1265,7 @@ function ensureOptimizeDraftButton(){
 function ensureColumnGeneratorUI(){
   ensureOptimizeDraftButton();
   ensureResetOperatingRoomsButton();
+  ensureResetWeekdayAvailabilityButton();
   if($('generateColumnSelect')&&$('generateColumnBtn'))return;
   const wrap=document.querySelector('#turni .draftActions'),anchor=$('generate');
   if(!wrap||!anchor)return;

@@ -386,102 +386,13 @@ function dayLeaves(ds){return new Set([...document.querySelectorAll(`#schedule s
 function weekKey(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function preassignContract(name,days,services){let month=$('month')?.value;if(!month)return;let rows=[...document.querySelectorAll('#schedule tbody tr')],weeks={};for(const row of rows){let any=row.querySelector('select[data-k]');if(!any)continue;let ds=any.dataset.k.split('|')[0];if(!ds.startsWith(month+'-'))continue;let dt=new Date(ds+'T12:00:00'),wd=dt.getDay();if(!days.includes(wd))continue;let wk=weekKey(ds);weeks[wk]??=[];weeks[wk].push({ds,wd})}for(const list of Object.values(weeks)){let all=[...document.querySelectorAll('#schedule select[data-k]')],wk=weekKey(list[0].ds),count=all.filter(s=>s.value===name&&weekKey(s.dataset.k.split('|')[0])===wk&&!s.dataset.k.includes('|ferie|')&&!s.dataset.k.includes('|varie|')).length;for(const {ds} of list){if(count>=3)break;if(dayLeaves(ds).has(name))continue;if(all.some(s=>s.value===name&&s.dataset.k.startsWith(ds+'|')&&!s.dataset.k.includes('|ferie|')&&!s.dataset.k.includes('|varie|')))continue;let target=null;for(const svc of services){target=[...document.querySelectorAll(`#schedule select[data-k^="${ds}|${svc}|"]`)].find(s=>!s.value||s.value==='NESSUNO');if(target)break}if(target){target.value=name;target.dispatchEvent(new Event('change',{bubbles:true}));count++}}}}
 function wrapGenerator(){let b=$('generate');if(!b||b.dataset.contractPriority)return;let old=b.onclick;if(typeof old!=='function')return;b.dataset.contractPriority='1';b.onclick=()=>{preassignContract('RIVA',[1,2,3],['gessi','amb']);preassignContract('FREGUIA',[3,4,5],['amb']);old()}}
-async function exportExcel(){
-  let month=$('month')?.value;
-  if(!month)return alert('Seleziona un mese.');
-  if(!window.XLSX)return alert('Modulo Excel non disponibile. Ricarica la pagina e riprova.');
-
-  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},extra=new Set(x.extraKeys||[]),
-      [y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate(),
-      names=['dom','lun','mar','mer','gio','ven','sab'],
-      monthShort=['','gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'],
-      monthNames=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],
-      svcs=[
-        ['guardia','GUARDIA\nNOTTURNA',1,9],
-        ['giorno','INTERD\n14/20',1,8],
-        ['disp1','PRIMA\nDISPONIBILITÀ',1,10],
-        ['disp2','SECONDA\nDISPONIBILITÀ',1,10],
-        ['gessi','SALA GESSI\n08/14',2,11],
-        ['gessirep','SALA G. +\nREPARTO 14/20',1,12],
-        ['reparto','REPARTO',2,13],
-        ['amb','AMBULATORIO',2,11],
-        ['esami','AMB ESAMI',1,9],
-        ['op1','SALA OPERATORIA\nMATTINA',2,13],
-        ['op2','SALA OP 2\nMATTINA',2,11],
-        ['oppom','SALA OP\nPOMERIGGIO',2,13],
-        ['ferie','FERIE',4,19],
-        ['varie','VARIE',2,11]
-      ];
-
-  let rows=[['TURNI ORTOPEDIA '+monthNames[mo-1]+' '+y,...Array(svcs.length).fill('')],
-            ['DATA',...svcs.map(z=>z[1])]],
-      extraCells=[],holidayRows=[];
-
-  for(let d=1;d<=days;d++){
-    let ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),
-        row=[names[dt.getDay()]+' '+d+' '+monthShort[mo]];
-    if(mobileIsHoliday(dt))holidayRows.push(rows.length);
-
-    for(let ci=0;ci<svcs.length;ci++){
-      let s=svcs[ci][0],count=svcs[ci][2],vals=[];
-      for(let i=0;i<count;i++){
-        let k=ds+'|'+s+'|'+i,v=schedule[k];
-        if(s==='varie'&&!v&&i===0){
-          let p=new Date(ds+'T12:00:00');p.setDate(p.getDate()-1);
-          let gn=schedule[p.toISOString().slice(0,10)+'|guardia|0'];
-          if(gn!==undefined&&gn!=='')v=gn;
-        }
-        if(s==='varie'&&!v&&i===1)v='NESSUNO';
-        if(v&&v!=='NESSUNO'&&!vals.includes(v))vals.push(v);
-        if(extra.has(k))extraCells.push({r:rows.length,c:ci+1});
-      }
-      row.push(vals.join(' · '));
-    }
-    rows.push(row);
-  }
-
-  let ws=XLSX.utils.aoa_to_sheet(rows),lastCol=rows[1].length-1,range=XLSX.utils.decode_range(ws['!ref']);
-  ws['!merges']=[XLSX.utils.decode_range('A1:'+XLSX.utils.encode_col(lastCol)+'1')];
-  ws['!cols']=[{wch:9},...svcs.map(z=>({wch:z[3]}))];
-  ws['!rows']=rows.map((_,i)=>({hpt:i===0?18:i===1?31:18}));
-
-  const black='000000',headerFill='D9E2F3',notesFill='E4DFEC',holidayFill='F4CCCC',white='FFFFFF';
-  const border={top:{style:'thin',color:{rgb:black}},bottom:{style:'thin',color:{rgb:black}},left:{style:'thin',color:{rgb:black}},right:{style:'thin',color:{rgb:black}}};
-
-  for(let R=range.s.r;R<=range.e.r;R++){
-    for(let C=range.s.c;C<=range.e.c;C++){
-      let a=XLSX.utils.encode_cell({r:R,c:C}),cell=ws[a]||(ws[a]={t:'s',v:''}),
-          isTitle=R===0,isHeader=R===1,isHoliday=holidayRows.includes(R),
-          isNotes=C>=lastCol-1;
-      let fill=white;
-      if(isHeader)fill=isNotes?notesFill:headerFill;
-      else if(isHoliday)fill=holidayFill;
-
-      cell.s={
-        font:{name:'Arial',sz:isTitle?10:isHeader?7:6,bold:isTitle||isHeader||C===0,color:{rgb:black}},
-        fill:{patternType:'solid',fgColor:{rgb:fill}},
-        alignment:{vertical:'center',horizontal:'center',wrapText:true},
-        border:isTitle?undefined:border
-      };
-    }
-  }
-
-  for(const q of extraCells){
-    let a=XLSX.utils.encode_cell(q),cell=ws[a];
-    if(cell)cell.s={...cell.s,font:{...(cell.s.font||{}),bold:true,color:{rgb:'9C1C1C'}}};
-  }
-
-  ws['!margins']={left:0.12,right:0.12,top:0.18,bottom:0.18,header:0.08,footer:0.08};
-  ws['!pageSetup']={paperSize:9,orientation:'landscape',fitToWidth:1,fitToHeight:1,scale:100,horizontalDpi:600,verticalDpi:600};
-  ws['!printArea']='A1:'+XLSX.utils.encode_col(lastCol)+(days+2);
-  ws['!sheetPr']={pageSetUpPr:{fitToPage:true,autoPageBreaks:false}};
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:days+1,c:lastCol}})};
-  ws['!freeze']={xSplit:1,ySplit:2,topLeftCell:'B3',activePane:'bottomRight',state:'frozen'};
-
-  let wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);
-  XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true});
-}
+async function exportExcel(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');if(!window.XLSX)return alert('Modulo Excel non disponibile. Ricarica la pagina e riprova.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},extra=new Set(x.extraKeys||[]),[y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate(),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],monthNames=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],svcs=[['guardia','GUARDIA NOTT.',1],['giorno','GIORNO',1],['disp1','1ª DISP.',1],['disp2','2ª DISP.',1],['gessi','GESSI MAT',2],['gessirep','GESSI+REP POM',1],['reparto','REPARTO',2],['amb','AMBULATORIO',2],['esami','AMB ESAMI',1],['op1','OP1 MAT',2],['op2','OP2 MAT',2],['oppom','OP POM',2],['ferie','FERIE-VARIE',4],['varie','VARIE',2]];let rows=[['TURNI ORTOPEDIA — '+monthNames[mo-1]+' '+y,...Array(svcs.length+1).fill('')],['DATA','GIORNO',...svcs.map(z=>z[1])]],extraCells=[],weekendRows=[];for(let d=1;d<=days;d++){let ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),row=[String(d).padStart(2,'0'),names[dt.getDay()]];if(dt.getDay()===0||dt.getDay()===6)weekendRows.push(rows.length);for(let ci=0;ci<svcs.length;ci++){let s=svcs[ci][0],count=svcs[ci][2],vals=[];for(let i=0;i<count;i++){let k=ds+'|'+s+'|'+i,v=schedule[k];if(s==='varie'&&!v&&i===0){let p=new Date(ds+'T12:00:00');p.setDate(p.getDate()-1);let pd=p.toISOString().slice(0,10),gn=schedule[pd+'|guardia|0'];v=gn&&gn!=='NESSUNO'?gn:'NESSUNO'}if(s==='varie'&&!v&&i===1)v='NESSUNO';if(v&&v!=='NESSUNO')vals.push(v);if(extra.has(k))extraCells.push({r:rows.length,c:ci+2})}row.push(vals.join(s==='ferie'?'\n':'  •  '))}rows.push(row)}let ws=XLSX.utils.aoa_to_sheet(rows),lastCol=rows[1].length-1,range=XLSX.utils.decode_range(ws['!ref']);ws['!merges']=[XLSX.utils.decode_range('A1:'+XLSX.utils.encode_col(lastCol)+'1')];ws['!cols']=[{wch:6},{wch:7},...svcs.map(z=>({wch:z[0]==='ferie'?32:z[0]==='varie'?13:16}))];ws['!rows']=rows.map((_,i)=>({hpt:i===0?28:i===1?30:36}));let border={top:{style:'thin',color:{rgb:'B7C5D3'}},bottom:{style:'thin',color:{rgb:'B7C5D3'}},left:{style:'thin',color:{rgb:'B7C5D3'}},right:{style:'thin',color:{rgb:'B7C5D3'}}};for(let R=range.s.r;R<=range.e.r;R++){for(let C=range.s.c;C<=range.e.c;C++){let a=XLSX.utils.encode_cell({r:R,c:C}),cell=ws[a]||(ws[a]={t:'s',v:''}),isTitle=R===0,isHeader=R===1,isWeekend=weekendRows.includes(R);cell.s={font:{name:'Aptos',sz:isTitle?14:isHeader?10:9,bold:isTitle||isHeader||C<2,color:{rgb:isTitle||isHeader?'FFFFFF':'172033'}},fill:{patternType:'solid',fgColor:{rgb:isTitle?'123A67':isHeader?'1D5B93':isWeekend?'FCE8D5':R%2===0?'F7FAFC':'FFFFFF'}},alignment:{vertical:'center',horizontal:'center',wrapText:true},border:isTitle?undefined:border};}}for(let R=2;R<=range.e.r;R++){let a=XLSX.utils.encode_cell({r:R,c:lastCol}),cell=ws[a]||(ws[a]={t:'s',v:''});if(cell.v){cell.s={...cell.s,fill:{patternType:'solid',fgColor:{rgb:'FFF2B3'}},font:{...(cell.s.font||{}),bold:true,color:{rgb:'7A4B00'}},alignment:{vertical:'center',horizontal:'center',wrapText:true}}}}
+for(const q of extraCells){let a=XLSX.utils.encode_cell(q),cell=ws[a];if(cell){cell.s={...cell.s,fill:{patternType:'solid',fgColor:{rgb:'FADBD8'}},font:{...(cell.s.font||{}),bold:true,color:{rgb:'9C1C1C'}}}}}ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:days+1,c:lastCol}})};ws['!freeze']={xSplit:2,ySplit:2,topLeftCell:'C3',activePane:'bottomRight',state:'frozen'};
+ws['!margins']={left:0.25,right:0.25,top:0.35,bottom:0.35,header:0.15,footer:0.15};
+ws['!pageSetup']={paperSize:9,orientation:'landscape',fitToWidth:1,fitToHeight:1,scale:100};
+ws['!printArea']='A1:'+XLSX.utils.encode_col(lastCol)+(days+2);
+ws['!sheetPr']={pageSetUpPr:{fitToPage:true,autoPageBreaks:false}};
+let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true})}
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}
 function fixFullPrint(){
   const old=$('printBtn');
@@ -491,89 +402,154 @@ function fixFullPrint(){
   fresh.dataset.fixedPrint='1';
 
   fresh.addEventListener('click',async e=>{
-    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
 
     const m=$('month')?.value||'';
     if(!m)return alert('Seleziona un mese.');
 
-    const [y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate();
+    const [y,mo]=m.split('-').map(Number);
+    const days=new Date(y,mo,0).getDate();
     const monthName=['','gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][mo]||m;
-    const monthShort=['','gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][mo];
     const services=[
-      ['guardia','GUARDIA NOTTURNA','',1],
-      ['giorno','INTERD','14/20',1],
-      ['disp1','PRIMA DISPONIBILITÀ','',1],
-      ['disp2','SECONDA DISPONIBILITÀ','',1],
-      ['gessi','SALA GESSI','08/14',2],
-      ['gessirep','SALA G. + REPARTO','14/20',1],
-      ['reparto','REPARTO','',2],
-      ['amb','AMBULATORIO','',2],
-      ['esami','AMB ESAMI','',1],
-      ['op1','SALA OPERATORIA','MATTINA',2],
-      ['op2','SALA OP 2','MATTINA',2],
-      ['oppom','SALA OP','POMERIGGIO',2],
-      ['ferie','FERIE','',4],
-      ['varie','VARIE','',2]
+      ['guardia','GUARDIA NOTT.','20–08',1],
+      ['giorno','INTERD','14–20',1],
+      ['disp1','1ª DISP.','20–08',1],
+      ['disp2','2ª DISP.','20–08',1],
+      ['gessi','GESSI MAT','08–14',2],
+      ['gessirep','GESSI+REP POM','14–20',1],
+      ['reparto','REPARTO','08–14',2],
+      ['amb','AMBULATORIO','08–14',2],
+      ['esami','AMB ESAMI','08–14',1],
+      ['op1','OP1 MAT','08–14',2],
+      ['op2','OP2 MAT','08–14',2],
+      ['oppom','OP POM','14–20',2],
+      ['ferie','FERIE-VARIE','',4],
+      ['varie','VARIE','SMONTO / NOTE',2]
     ];
-    const weekdays=['dom','lun','mar','mer','gio','ven','sab'],visible={};
+    const weekdays=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+    const visible={};
     document.querySelectorAll('#schedule select[data-k]').forEach(sel=>{
-      const k=sel.dataset.k;if(k?.startsWith(m+'-'))visible[k]=sel.value||'';
+      const k=sel.dataset.k;
+      if(k?.startsWith(m+'-'))visible[k]=sel.value||'';
     });
 
     const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const cellText=(ds,svc,count)=>{
       const vals=[];
       for(let i=0;i<count;i++){
-        let v=visible[ds+'|'+svc+'|'+i]||'';
-        if(svc==='varie'&&!v&&i===0){
-          let p=new Date(ds+'T12:00:00');p.setDate(p.getDate()-1);
-          v=visible[p.toISOString().slice(0,10)+'|guardia|0']||'';
-        }
+        const v=visible[ds+'|'+svc+'|'+i]||'';
         if(v&&v!=='NESSUNO'&&!vals.includes(v))vals.push(v);
       }
-      return vals.map(esc).join(' · ');
+      return vals.map(esc).join('<br>');
     };
     const allowedPrint=(svc,w)=>![0,6].includes(w)||['guardia','giorno','disp1','disp2','ferie','varie'].includes(svc);
 
-    let head='<tr><th>DATA</th>'+services.map((s,i)=>'<th class="'+(i>=services.length-2?'notesHead':'')+'">'+esc(s[1])+(s[2]?'<br><small>'+esc(s[2])+'</small>':'')+'</th>').join('')+'</tr>';
+    let head='<tr><th>DATA</th><th>GIORNO</th>'+services.map(s=>'<th>'+esc(s[1])+(s[2]?'<br><small>'+esc(s[2])+'</small>':'')+'</th>').join('')+'</tr>';
     let body='';
     for(let d=1;d<=days;d++){
-      const dt=new Date(y,mo-1,d,12),wd=dt.getDay(),ds=m+'-'+String(d).padStart(2,'0'),holiday=mobileIsHoliday(dt);
-      body+='<tr class="'+(holiday?'holiday':'')+'"><td class="date">'+weekdays[wd]+' '+d+' '+monthShort+'</td>';
+      const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=m+'-'+String(d).padStart(2,'0');
+      body+='<tr class="'+([0,6].includes(w)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
       for(const [svc,label,hrs,count] of services){
-        if(!allowedPrint(svc,wd)){body+='<td class="off">—</td>';continue}
-        body+='<td>'+cellText(ds,svc,count)+'</td>';
+        if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
+        body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+cellText(ds,svc,count)+'</td>';
       }
       body+='</tr>';
     }
 
-    const w=window.open('','_blank','width=1600,height=950');
+    const w=window.open('','_blank','width=1500,height=950');
     if(!w)return alert('Il browser ha bloccato la finestra di stampa. Consenti i popup per questo sito e riprova.');
-
     w.document.open();
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni mensili ${monthName} ${y}</title><style>
-      @page{size:A4 landscape;margin:3mm}
-      *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-      html,body{margin:0;padding:0;background:#fff;color:#000}
-      body{font-family:Arial,sans-serif;padding:3mm}
-      h1{text-align:center;font-size:10pt;margin:0 0 1.5mm;font-weight:700}
-      .actions{text-align:center;margin:0 0 2mm}.actions button{padding:6px 16px;font-weight:700}
-      table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:5.25pt;line-height:1.02}
-      th,td{border:.22mm solid #000;padding:.30mm .18mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
-      th{height:7mm;background:#d9e2f3;font-size:5.35pt;font-weight:700}
-      th small{font-size:4.7pt;font-weight:700}
-      th.notesHead{background:#e4dfec}
-      td.date,th:first-child{width:10mm;font-weight:700}
-      th:nth-last-child(2),td:nth-last-child(2){width:24mm}
-      th:last-child,td:last-child{width:14mm}
-      tr{height:5.55mm;break-inside:avoid}
-      .holiday td{background:#f4cccc!important}
-      .off{background:#eee!important;color:#777}
-      @media print{body{padding:0}.actions{display:none}table{font-size:5.05pt}th{font-size:5.15pt}tr{height:5.35mm}}
-    </style></head><body><h1>TURNI ORTOPEDIA ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);
-    w.document.close();w.focus();
-    setTimeout(()=>{try{w.print()}catch{}},700);
+      @page{size:A4 landscape;margin:4mm}
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;margin:0;padding:4mm;background:#fff;color:#111}
+      h1{text-align:center;font-size:14px;margin:0 0 3mm}
+      .actions{text-align:center;margin:0 0 3mm}
+      .actions button{padding:7px 18px;font-weight:700}
+      table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:5.7pt}
+      th,td{border:.25mm solid #555;padding:.45mm .3mm;text-align:center;vertical-align:middle;line-height:1.05;overflow-wrap:anywhere}
+      th{background:#d9e2f3;font-size:5.8pt;font-weight:700}
+      th:first-child,td:first-child{width:6mm}
+      th:nth-child(2),td:nth-child(2){width:7mm}
+      .weekend td{background:#fce8e8}
+      .off{background:#eee!important;color:#888}
+      .pmCol{background:#fff8cc}
+      tr{break-inside:avoid}
+      @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}th:nth-last-child(2),td:nth-last-child(2){width:29mm!important}th:last-child,td:last-child{width:15mm!important}.weekend td{background:#fce8e8!important}.off{background:#eee!important;color:#888!important}.pmCol{background:#fff8cc!important}th{background:#d9e2f3!important}}
+    </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>{try{w.print()}catch{}},900);
   },true);
+}
+function isStructuralNessunoKey(k){
+  const [ds,s,iRaw]=(k||'').split('|'),i=Number(iRaw||0),m=ds?.slice(0,7);
+  if(!ds||!m||m<'2026-11')return false;
+  const w=new Date(ds+'T12:00:00').getDay();
+  if(s==='ferie'||s==='guardia'||s==='giorno'||s==='esami')return true;
+  if(s==='gessi'||s==='amb')return i===1;
+  if(s==='op2')return w===2;
+  if(s==='oppom'){
+    if(w===3)return i===1;
+    if([1,2,4].includes(w))return false;
+    return true;
+  }
+  return false;
+}
+async function persistManualKey(k){if(!k||k.includes('|ferie|'))return;let sel=document.querySelector(`#schedule select[data-k="${CSS.escape(k)}"]`),v=sel?.value||'';let snap=await getDoc(root),x=snap.exists()?snap.data():{},mk=new Set(x.manualKeys||[]),g=new Set(x.generatedKeys||[]),ex=new Set(x.extraKeys||[]),opened=new Set(x.openedStructuralKeys||[]);if(!v){manualKeys.delete(k);mk.delete(k);g.delete(k);ex.delete(k);if(isStructuralNessunoKey(k))opened.add(k);else opened.delete(k)}else{manualKeys.add(k);mk.add(k);g.delete(k);ex.delete(k);opened.delete(k)}await setDoc(root,{manualKeys:[...mk],generatedKeys:[...g],extraKeys:[...ex],openedStructuralKeys:[...opened],updatedAt:new Date().toISOString()},{merge:true});applyValueColors().catch(()=>{})}
+function trackManualChanges(){let schedule=$('schedule');if(!schedule||schedule.dataset.manualTracking)return;schedule.dataset.manualTracking='1';schedule.addEventListener('change',e=>{let s=e.target;if(s instanceof HTMLSelectElement&&s.dataset.k&&!s.dataset.k.includes('|ferie|')){applyValueColors();persistManualKey(s.dataset.k).catch(()=>{})}},true)}
+async function clearGeneratedSafe(e){e.preventDefault();e.stopImmediatePropagation();let m=$('month')?.value;if(!m)return;if(!confirm(`Ripristinare lo stato manuale salvato di ${m}? Verranno eliminati soltanto i turni aggiunti dalla bozza automatica.`))return;let snap=await getDoc(root),x=snap.exists()?snap.data():{},baseline=x.savedStates?.[m],absenceBaseline=x.savedAbsenceStates?.[m];if(!baseline){alert('Nessuno stato manuale salvato per '+m+'. Per sicurezza non è stato cancellato nulla.');return}let schedule={...(x.schedule||{})};for(const k of Object.keys(schedule))if(k.startsWith(m+'-'))delete schedule[k];for(const[k,v]of Object.entries(baseline))if(k.startsWith(m+'-'))schedule[k]=v;let generated=new Set(x.generatedKeys||[]),extra=new Set(x.extraKeys||[]),unresolved=new Set(x.unresolvedKeys||[]),manual=new Set(x.manualKeys||[]),opened=new Set(x.openedStructuralKeys||[]),savedOpened=x.savedOpenedStates?.[m];if(Array.isArray(savedOpened)){for(const k of [...opened])if(k.startsWith(m+'-'))opened.delete(k);for(const k of savedOpened)if(k.startsWith(m+'-'))opened.add(k)}for(const k of opened)if(k.startsWith(m+'-')){delete schedule[k];manual.delete(k)};for(const set of[generated,extra,unresolved])for(const k of[...set])if(k.startsWith(m+'-'))set.delete(k);for(const k of Object.keys(baseline))manual.add(k);let sync=$('sync');try{if(sync)sync.textContent='Ripristino stato manuale…';let absenceManagement=x.absenceManagement||{};await setDoc(root,{schedule,absenceManagement,generatedKeys:[...generated],extraKeys:[...extra],unresolvedKeys:[...unresolved],manualKeys:[...manual],openedStructuralKeys:[...opened],updatedAt:new Date().toISOString()},{merge:true});if(sync){sync.textContent='● Stato manuale ripristinato';sync.className='status online'}alert('Bozza '+m+' cancellata. Ripristinato esattamente lo stato salvato con SALVA STATO.');location.reload()}catch(err){if(sync)sync.textContent='Errore ripristino';alert('Errore durante il ripristino: '+err.message)}}
+
+let mobileViewExplicit=null,mobileDoctor='';
+const MOBILE_SERVICE_ORDER=['guardia','giorno','disp1','disp2','gessi','gessirep','reparto','amb','esami','op1','op2','oppom'];
+function escHtml(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function mobileEaster(y){let a=y%19,b=Math.floor(y/100),cc=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(cc/4),k=cc%4,l=(32+2*e+2*i-h-k)%7,n=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*n+114)/31),da=(h+l-7*n+114)%31+1;return new Date(y,mo-1,da,12)}
+function mobileIsHoliday(d){if([0,6].includes(d.getDay()))return true;const md=`${d.getMonth()+1}-${d.getDate()}`;if(new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']).has(md))return true;const p=mobileEaster(d.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===d.toDateString()}
+function mobileShouldBeOn(){return mobileViewExplicit===null?window.matchMedia('(max-width:760px)').matches:mobileViewExplicit}
+async function renderMobileShiftView(){
+  const panel=$('mobileShiftPanel'),sel=$('mobileDoctorSelect'),month=$('month')?.value;
+  if(!panel||!sel||!month)return;
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},docs=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
+  doctorNames=docs;
+  const previous=mobileDoctor||sel.value||'';
+  sel.innerHTML='<option value="">Tutti i medici</option>'+docs.map(n=>`<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+  mobileDoctor=docs.includes(previous)?previous:'';
+  sel.value=mobileDoctor;
+
+  const byDate={};
+  for(const [k,name] of Object.entries(schedule)){
+    if(!k.startsWith(month+'-')||!name||name==='NESSUNO')continue;
+    const [ds,svc]=k.split('|');
+    if(svc==='ferie'||svc==='varie')continue;
+    if(mobileDoctor&&name!==mobileDoctor)continue;
+    byDate[ds]??={};
+    byDate[ds][svc]??=[];
+    if(!byDate[ds][svc].includes(name))byDate[ds][svc].push(name);
+  }
+  let dates=Object.keys(byDate).sort();
+  const list=$('mobileShiftList');
+  if(mobileDoctor){const [yy,mm]=month.split('-').map(Number),daysInMonth=new Date(yy,mm,0).getDate();dates=Array.from({length:daysInMonth},(_,i)=>month+'-'+String(i+1).padStart(2,'0'));}
+  if(!dates.length){list.innerHTML='<div class="mobileShiftEmpty">Nessun turno assegnato nel mese selezionato.</div>';return}
+  const weekdays=['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+  const months=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  list.innerHTML=dates.map(ds=>{
+    const d=new Date(ds+'T12:00:00'),groups=byDate[ds]||{};
+    const services=MOBILE_SERVICE_ORDER.filter(s=>groups[s]?.length),isHome=!!mobileDoctor&&!services.length,isAvailability=!!mobileDoctor&&services.length>0&&services.every(s=>s==='disp1'||s==='disp2'),isHoliday=mobileIsHoliday(d);
+    const rows=isHome?'<div class="mobileHomeLabel">CASA</div>':services.map(s=>{
+      const who=mobileDoctor?'':groups[s].join(' / ');
+      return `<div class="mobileShiftRow${mobileDoctor&&(s==='disp1'||s==='disp2')?' mobileAvailabilityRow':''}"><div class="mobileShiftSvc">${escHtml(serviceLabel(s))}</div><div class="mobileShiftWho">${escHtml(who||mobileDoctor)}</div></div>`;
+    }).join('');
+    const stateClass=isHome?' mobileHome':isHoliday?' mobileHoliday':isAvailability?' mobileAvailability':'';
+    return `<div class="mobileDayCard${stateClass}"><div class="mobileDayHead"><b>${weekdays[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}</b><span>${ds.split('-').reverse().join('/')}</span></div>${rows}</div>`;
+  }).join('');
+}
+function applyMobileShiftMode(){
+  const on=mobileShouldBeOn(),turni=$('turni'),btn=$('mobileViewBtn');
+  turni?.classList.toggle('mobileShiftsView',on);
+  if(btn)btn.textContent=on?'VISTA COMPLETA':'VISTA MOBILE';
+  if(on)renderMobileShiftView().catch(()=>{});
 }
 function ensureMobileShiftView(){
   const turni=$('turni'),toolbar=turni?.querySelector('.toolbar');

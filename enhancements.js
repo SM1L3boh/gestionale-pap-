@@ -130,7 +130,7 @@ async function printMyShifts(){
   const isAfternoon=r=>['giorno','gessirep','oppom'].includes(r.s);
   const isNight=r=>r.s==='guardia';
 
-  const workRows=rows.filter(r=>!isWeekdayAvailability(r));
+  const workRows=rows.filter(r=>!isWeekdayAvailability(r)&&r.s!=='varie');
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
   const byDate=new Map();
@@ -229,7 +229,7 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate con turni/servizi: <b>${byDate.size}</b> &nbsp;·&nbsp; Turni lavorati: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length}</b></div>
+    <div class="summary">Giornate lavorate: <b>${byDate.size}</b> &nbsp;·&nbsp; Servizi assegnati: <b>${workRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
@@ -298,11 +298,13 @@ async function printMyShifts(){
 
       const sums=[...w.document.querySelectorAll('.summary')];
       yy-=12;
+      const serviceCount=workRows.length;
       const workedCount=workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0);
       const leaveCount=leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length;
-      text(x0,yy,8,'Giornate con turni/servizi: '+byDate.size,true);
-      text(x0+190,yy,8,'Turni lavorati: '+workedCount,true);
-      text(x0+335,yy,8,'Giorni ferie/assenza: '+leaveCount,true);
+      text(x0,yy,7.5,'Giornate lavorate: '+byDate.size,true);
+      text(x0+135,yy,7.5,'Servizi: '+serviceCount,true);
+      text(x0+225,yy,7.5,'Turni eq. 6h: '+workedCount,true);
+      text(x0+355,yy,7.5,'Ferie/assenza: '+leaveCount,true);
 
       // Disponibilità infrasettimanali
       yy-=22;

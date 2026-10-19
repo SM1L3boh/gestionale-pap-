@@ -68,7 +68,44 @@ function render(){
   if(panel)panel.style.display=mobile?'block':'none';
   if(mobile)renderMobileAbsence(y,m,days);else renderDesktopAbsence(y,m,days)
 }
-async function load(){let s=await getDoc(root);data=s.exists()?s.data():{};data.absenceManagement=data.absenceManagement||{};render()}
+const POST_NIGHT_FIX='absencePostNightCleanup202611v1';
+async function removeImportedNightRest(){
+  const snapshot=await getDoc(root),x=snapshot.exists()?snapshot.data():{};
+  if(x[POST_NIGHT_FIX])return x;
+  const absence=structuredClone(x.absenceManagement||{}),schedule={...(x.schedule||{})};
+  const candidates=[
+    ['VIALE','2026-11-05'],['LENTINI','2026-11-17'],
+    ['COMELATO','2026-11-11'],['COMELATO','2026-11-20'],
+    ['FRANCO','2026-11-25'],['FRANCO','2026-11-30'],
+    ['DEI ROSSI','2026-11-27']
+  ];
+  const removed=[];
+  for(const [name,date] of candidates){
+    const previous=new Date(date+'T12:00:00');previous.setDate(previous.getDate()-1);
+    const pd=previous.getFullYear()+'-'+String(previous.getMonth()+1).padStart(2,'0')+'-'+String(previous.getDate()).padStart(2,'0');
+    const hasNight=Object.entries(schedule).some(([key,n])=>n===name&&key.startsWith(pd+'|guardia|'));
+    const hasRest=Object.entries(schedule).some(([key,n])=>n===name&&key.startsWith(date+'|varie|'));
+    if(!hasNight||!hasRest||!(absence[name]||[]).includes(date))continue;
+    absence[name]=absence[name].filter(d=>d!==date);
+    for(const key of Object.keys(schedule))if(key.startsWith(date+'|ferie|')&&schedule[key]===name)delete schedule[key];
+    removed.push([name,date]);
+  }
+  const savedAbsenceStates={...(x.savedAbsenceStates||{})};
+  if(savedAbsenceStates['2026-11']){
+    const archive=structuredClone(savedAbsenceStates['2026-11']);
+    for(const [name,date] of removed)if(Array.isArray(archive[name]))archive[name]=archive[name].filter(d=>d!==date);
+    savedAbsenceStates['2026-11']=archive;
+  }
+  const savedStates={...(x.savedStates||{})};
+  if(savedStates['2026-11']){
+    const state={...savedStates['2026-11']};
+    for(const [name,date] of removed)for(const key of Object.keys(state))if(key.startsWith(date+'|ferie|')&&state[key]===name)delete state[key];
+    savedStates['2026-11']=state;
+  }
+  await setDoc(root,{absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true,updatedAt:new Date().toISOString()},{merge:true});
+  return {...x,absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true};
+}
+async function load(){data=await removeImportedNightRest();data.absenceManagement=data.absenceManagement||{};render()}
 function syncNovemberLeave(schedule,n,date,on){if(!date.startsWith('2026-11-'))return;const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
 async function save(next,change){let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};if(change&&change.date.startsWith('2026-11-'))syncNovemberLeave(schedule,change.n,change.date,change.on);await setDoc(root,{absenceManagement:next,schedule,updatedAt:new Date().toISOString()},{merge:true});data.absenceManagement=next;data.schedule=schedule;if(change&&change.date.startsWith('2026-11-'))novDirty=true;render()}
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}

@@ -655,6 +655,7 @@ function ensureMobileShiftView(){
     btn.onclick=()=>{const next=!mobileShouldBeOn();mobileViewExplicit=next;if(next)mobileDoctor='';applyMobileShiftMode()};
     toolbar.appendChild(btn);
   }
+  btn.onclick=()=>{const next=!mobileShouldBeOn();mobileViewExplicit=next;if(next)mobileDoctor='';applyMobileShiftMode()};
   let panel=$('mobileShiftPanel');
   if(!panel){
     panel=document.createElement('div');panel.id='mobileShiftPanel';panel.className='mobileShiftPanel';

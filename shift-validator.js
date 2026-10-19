@@ -39,13 +39,7 @@ function monthEquivalent(a,name,m){return assignments(a,name,p=>p.ds.startsWith(
 
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
-function hours(s,ds){
-  if(s==='guardia')return 12;
-  if(s==='ferie'){const dt=dayObj(ds);return dt.getDay()===0||validatorHoliday(dt)?0:6;}
-  if(s==='giorno')return 6;
-  if(s==='disp1'||s==='disp2'){const w=dayObj(ds).getDay();return(w===0||w===6)?6:0;}
-  return 6;
-}
+function hours(s,ds){return window.TurniCountRules.equivalents(s,ds)*6;}
 function workedHours(s,ds){
   // La disponibilità è reperibilità, non servizio effettivamente lavorato.
   if(s==='ferie')return 0;

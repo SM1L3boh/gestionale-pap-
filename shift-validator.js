@@ -43,7 +43,7 @@ function hours(s,ds){
   if(s==='guardia')return 12;
   if(s==='ferie'){const dt=dayObj(ds);return dt.getDay()===0||validatorHoliday(dt)?0:6;}
   if(s==='giorno')return 6;
-  if(s==='disp1'||s==='disp2'){const w=dayObj(ds).getDay();return(w===0||w===6)?6:0}
+  if(s==='disp1'||s==='disp2')return 0
   return 6;
 }
 function workedHours(s,ds){

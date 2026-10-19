@@ -388,13 +388,93 @@ function dayLeaves(ds){return new Set([...document.querySelectorAll(`#schedule s
 function weekKey(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function preassignContract(name,days,services){let month=$('month')?.value;if(!month)return;let rows=[...document.querySelectorAll('#schedule tbody tr')],weeks={};for(const row of rows){let any=row.querySelector('select[data-k]');if(!any)continue;let ds=any.dataset.k.split('|')[0];if(!ds.startsWith(month+'-'))continue;let dt=new Date(ds+'T12:00:00'),wd=dt.getDay();if(!days.includes(wd))continue;let wk=weekKey(ds);weeks[wk]??=[];weeks[wk].push({ds,wd})}for(const list of Object.values(weeks)){let all=[...document.querySelectorAll('#schedule select[data-k]')],wk=weekKey(list[0].ds),count=all.filter(s=>s.value===name&&weekKey(s.dataset.k.split('|')[0])===wk&&!s.dataset.k.includes('|ferie|')&&!s.dataset.k.includes('|varie|')).length;for(const {ds} of list){if(count>=3)break;if(dayLeaves(ds).has(name))continue;if(all.some(s=>s.value===name&&s.dataset.k.startsWith(ds+'|')&&!s.dataset.k.includes('|ferie|')&&!s.dataset.k.includes('|varie|')))continue;let target=null;for(const svc of services){target=[...document.querySelectorAll(`#schedule select[data-k^="${ds}|${svc}|"]`)].find(s=>!s.value||s.value==='NESSUNO');if(target)break}if(target){target.value=name;target.dispatchEvent(new Event('change',{bubbles:true}));count++}}}}
 function wrapGenerator(){let b=$('generate');if(!b||b.dataset.contractPriority)return;let old=b.onclick;if(typeof old!=='function')return;b.dataset.contractPriority='1';b.onclick=()=>{preassignContract('RIVA',[1,2,3],['gessi','amb']);preassignContract('FREGUIA',[3,4,5],['amb']);old()}}
-async function exportExcel(){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');if(!window.XLSX)return alert('Modulo Excel non disponibile. Ricarica la pagina e riprova.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},extra=new Set(x.extraKeys||[]),[y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate(),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],monthNames=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],svcs=[['guardia','GUARDIA NOTT.',1],['giorno','GIORNO',1],['disp1','1ª DISP.',1],['disp2','2ª DISP.',1],['gessi','GESSI MAT',2],['gessirep','GESSI+REP POM',1],['reparto','REPARTO',2],['amb','AMBULATORIO',2],['esami','AMB ESAMI',1],['op1','OP1 MAT',2],['op2','OP2 MAT',2],['oppom','OP POM',2],['ferie','FERIE-VARIE',4],['varie','VARIE',2]];let rows=[['TURNI ORTOPEDIA — '+monthNames[mo-1]+' '+y,...Array(svcs.length+1).fill('')],['DATA','GIORNO',...svcs.map(z=>z[1])]],extraCells=[],weekendRows=[];for(let d=1;d<=days;d++){let ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),row=[String(d).padStart(2,'0'),names[dt.getDay()]];if(dt.getDay()===0||dt.getDay()===6)weekendRows.push(rows.length);for(let ci=0;ci<svcs.length;ci++){let s=svcs[ci][0],count=svcs[ci][2],vals=[];for(let i=0;i<count;i++){let k=ds+'|'+s+'|'+i,v=schedule[k];if(s==='varie'&&!v&&i===0){let p=new Date(ds+'T12:00:00');p.setDate(p.getDate()-1);let pd=p.toISOString().slice(0,10),gn=schedule[pd+'|guardia|0'];v=gn&&gn!=='NESSUNO'?gn:'NESSUNO'}if(s==='varie'&&!v&&i===1)v='NESSUNO';if(v&&v!=='NESSUNO')vals.push(v);if(extra.has(k))extraCells.push({r:rows.length,c:ci+2})}row.push(vals.join(s==='ferie'?'\n':'  •  '))}rows.push(row)}let ws=XLSX.utils.aoa_to_sheet(rows),lastCol=rows[1].length-1,range=XLSX.utils.decode_range(ws['!ref']);ws['!merges']=[XLSX.utils.decode_range('A1:'+XLSX.utils.encode_col(lastCol)+'1')];ws['!cols']=[{wch:6},{wch:7},...svcs.map(z=>({wch:z[0]==='ferie'?32:z[0]==='varie'?13:16}))];ws['!rows']=rows.map((_,i)=>({hpt:i===0?20:i===1?28:22}));let border={top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}};for(let R=range.s.r;R<=range.e.r;R++){for(let C=range.s.c;C<=range.e.c;C++){let a=XLSX.utils.encode_cell({r:R,c:C}),cell=ws[a]||(ws[a]={t:'s',v:''}),isTitle=R===0,isHeader=R===1,isWeekend=weekendRows.includes(R),isNotes=C>=lastCol-1;let fill='FFFFFF';if(isHeader)fill=isNotes?'D9D2E9':'D9E2F3';else if(isWeekend)fill='F4CCCC';cell.s={font:{name:'Arial',sz:10,bold:isTitle||isHeader||C<2,color:{rgb:'000000'}},fill:{patternType:'solid',fgColor:{rgb:fill}},alignment:{vertical:'center',horizontal:'center',wrapText:true},border:isTitle?undefined:border};}}
+async function exportExcel(toDrive=false){let month=$('month')?.value;if(!month)return alert('Seleziona un mese.');if(!window.XLSX)return alert('Modulo Excel non disponibile. Ricarica la pagina e riprova.');let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},extra=new Set(x.extraKeys||[]),[y,mo]=month.split('-').map(Number),days=new Date(y,mo,0).getDate(),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],monthNames=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],svcs=[['guardia','GUARDIA NOTT.',1],['giorno','GIORNO',1],['disp1','1ª DISP.',1],['disp2','2ª DISP.',1],['gessi','GESSI MAT',2],['gessirep','GESSI+REP POM',1],['reparto','REPARTO',2],['amb','AMBULATORIO',2],['esami','AMB ESAMI',1],['op1','OP1 MAT',2],['op2','OP2 MAT',2],['oppom','OP POM',2],['ferie','FERIE-VARIE',4],['varie','VARIE',2]];let rows=[['TURNI ORTOPEDIA — '+monthNames[mo-1]+' '+y,...Array(svcs.length+1).fill('')],['DATA','GIORNO',...svcs.map(z=>z[1])]],extraCells=[],weekendRows=[];for(let d=1;d<=days;d++){let ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),row=[String(d).padStart(2,'0'),names[dt.getDay()]];if(dt.getDay()===0||dt.getDay()===6)weekendRows.push(rows.length);for(let ci=0;ci<svcs.length;ci++){let s=svcs[ci][0],count=svcs[ci][2],vals=[];for(let i=0;i<count;i++){let k=ds+'|'+s+'|'+i,v=schedule[k];if(s==='varie'&&!v&&i===0){let p=new Date(ds+'T12:00:00');p.setDate(p.getDate()-1);let pd=p.toISOString().slice(0,10),gn=schedule[pd+'|guardia|0'];v=gn&&gn!=='NESSUNO'?gn:'NESSUNO'}if(s==='varie'&&!v&&i===1)v='NESSUNO';if(v&&v!=='NESSUNO')vals.push(v);if(extra.has(k))extraCells.push({r:rows.length,c:ci+2})}row.push(vals.join(s==='ferie'?'\n':'  •  '))}rows.push(row)}let ws=XLSX.utils.aoa_to_sheet(rows),lastCol=rows[1].length-1,range=XLSX.utils.decode_range(ws['!ref']);ws['!merges']=[XLSX.utils.decode_range('A1:'+XLSX.utils.encode_col(lastCol)+'1')];ws['!cols']=[{wch:6},{wch:7},...svcs.map(z=>({wch:z[0]==='ferie'?32:z[0]==='varie'?13:16}))];ws['!rows']=rows.map((_,i)=>({hpt:i===0?20:i===1?28:22}));let border={top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}};for(let R=range.s.r;R<=range.e.r;R++){for(let C=range.s.c;C<=range.e.c;C++){let a=XLSX.utils.encode_cell({r:R,c:C}),cell=ws[a]||(ws[a]={t:'s',v:''}),isTitle=R===0,isHeader=R===1,isWeekend=weekendRows.includes(R),isNotes=C>=lastCol-1;let fill='FFFFFF';if(isHeader)fill=isNotes?'D9D2E9':'D9E2F3';else if(isWeekend)fill='F4CCCC';cell.s={font:{name:'Arial',sz:10,bold:isTitle||isHeader||C<2,color:{rgb:'000000'}},fill:{patternType:'solid',fgColor:{rgb:fill}},alignment:{vertical:'center',horizontal:'center',wrapText:true},border:isTitle?undefined:border};}}
 for(const q of extraCells){let a=XLSX.utils.encode_cell(q),cell=ws[a];if(cell){cell.s={...cell.s,font:{...(cell.s.font||{}),bold:true,color:{rgb:'9C1C1C'}}}}}ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:days+1,c:lastCol}})};ws['!freeze']={xSplit:2,ySplit:2,topLeftCell:'C3',activePane:'bottomRight',state:'frozen'};
 ws['!margins']={left:0.15,right:0.15,top:0.20,bottom:0.20,header:0.10,footer:0.10};
 ws['!pageSetup']={paperSize:9,orientation:'landscape',fitToWidth:1,fitToHeight:1,blackAndWhite:false,draft:false,horizontalDpi:600,verticalDpi:600};
 ws['!printArea']='A1:'+XLSX.utils.encode_col(lastCol)+(days+2);
 ws['!sheetPr']={pageSetUpPr:{fitToPage:true,autoPageBreaks:false}};ws['!pageMargins']=ws['!margins'];ws['!view']={view:'pageLayout'};
-let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true})}
+let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Turni '+month);if(toDrive)return {fileName:'Turni_Ortopedia_'+month+'.xlsx',bytes:XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true})};XLSX.writeFile(wb,'Turni_Ortopedia_'+month+'.xlsx',{cellStyles:true})}
+
+// OAuth per esportazione personale su Google Drive (solo file creati dall'app).
+const DRIVE_OAUTH_CLIENT_ID='740270620148-mflsb2rcmjl0m4hmc9m17c3usrhj6r95.apps.googleusercontent.com';
+const DRIVE_TARGET_FOLDER='1FnBDHdn9n4v2MXEpcoXiiQTIrpqZgJg2';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+let driveTokenClient=null;
+function loadGoogleIdentity(){
+  if(window.google?.accounts?.oauth2)return Promise.resolve();
+  if(window.__turniGISLoading)return window.__turniGISLoading;
+  window.__turniGISLoading=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://accounts.google.com/gsi/client';script.async=true;
+    script.onload=()=>window.google?.accounts?.oauth2?resolve():reject(new Error('Libreria di autorizzazione Google non disponibile'));
+    script.onerror=()=>reject(new Error('Impossibile caricare Google Identity Services'));
+    document.head.appendChild(script);
+  }).catch(err=>{window.__turniGISLoading=null;throw err});
+  return window.__turniGISLoading;
+}
+async function googleDriveAccessToken(){
+  await loadGoogleIdentity();
+  return new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>reject(new Error('Autorizzazione Google scaduta: riprova')),90000);
+    driveTokenClient=window.google.accounts.oauth2.initTokenClient({
+      client_id:DRIVE_OAUTH_CLIENT_ID,scope:DRIVE_SCOPE,
+      callback:response=>{
+        clearTimeout(timeout);
+        if(response?.error)reject(new Error(response.error_description||response.error));
+        else if(response?.access_token)resolve(response.access_token);
+        else reject(new Error('Nessun token Google restituito'));
+      },
+      error_callback:err=>{clearTimeout(timeout);reject(new Error(err?.message||err?.type||'Autorizzazione annullata'))}
+    });
+    driveTokenClient.requestAccessToken({prompt:'consent'});
+  });
+}
+async function driveApiFetch(url,token,options={}){
+  const res=await fetch(url,{...options,headers:{Authorization:'Bearer '+token,...(options.headers||{})}});
+  if(!res.ok){let msg='';try{const j=await res.json();msg=j?.error?.message||''}catch{}
+    throw new Error('Google Drive ('+res.status+'): '+(msg||res.statusText));
+  }
+  return res.json();
+}
+async function exportToDrive(){
+  const b=$('saveDriveExcelBtn');
+  if(b?.disabled)return;
+  if(b){b.disabled=true;b.textContent='SALVATAGGIO DRIVE…'}
+  try{
+    // Prima chiedere l'autorizzazione dal clic dell'utente, per consentire il popup.
+    const token=await googleDriveAccessToken();
+    const {fileName,bytes}=await exportExcel(true);
+    const mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const q=encodeURIComponent("name = '"+fileName.replace(/'/g,"\\'")+"' and '"+DRIVE_TARGET_FOLDER+"' in parents and trashed = false");
+    let list;
+    try{list=await driveApiFetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name,webViewLink)&page_size=100',token)}
+    catch(e){throw new Error('Impossibile controllare i file nella cartella: '+e.message)}
+    const matches=list.files||[];
+    // Sostituisce soltanto un file creato/autorizzato dall'app (scope drive.file).
+    const existing=matches[0];
+    const metadata=existing?{name:fileName}:{name:fileName,parents:[DRIVE_TARGET_FOLDER]};
+    const boundary='turni_upload_boundary_'+Date.now();
+    const blob=new Blob(['--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n',JSON.stringify(metadata),'\\r\\n--'+boundary+'\\r\\nContent-Type: '+mime+'\\r\\n\\r\\n',bytes,'\\r\\n--'+boundary+'--'],{type:'multipart/related; boundary='+boundary});
+    const method=existing?'PATCH':'POST';
+    const uri='https://www.googleapis.com/upload/drive/v3/files'+(existing?'/'+encodeURIComponent(existing.id):'')+'?uploadType=multipart&fields=id,name,webViewLink';
+    let result;
+    try{result=await driveApiFetch(uri,token,{method,headers:{'Content-Type':'multipart/related; boundary='+boundary},body:blob})}
+    catch(e){throw new Error(e.message+'\\nSe la cartella non è accessibile con il permesso drive.file, occorrerà autorizzarla esplicitamente tramite Google Picker.')}
+    alert('Excel '+(existing?'aggiornato':'salvato')+' su Google Drive: '+fileName);
+    if(result.webViewLink&&confirm('Aprire il file su Google Drive?'))window.open(result.webViewLink,'_blank','noopener');
+  }catch(err){alert('Salvataggio su Drive non riuscito: '+err.message)}
+  finally{if(b){b.disabled=false;b.textContent='SALVA SU GOOGLE DRIVE'}}
+}
+function ensureDriveButton(){
+  if($('saveDriveExcelBtn'))return;
+  const anchor=$('exportExcelBtn');if(!anchor)return;
+  const b=document.createElement('button');
+  b.id='saveDriveExcelBtn';b.type='button';b.className=anchor.className;
+  b.textContent='SALVA SU GOOGLE DRIVE';b.title='Salva il file Excel del mese nella cartella Drive configurata';
+  anchor.insertAdjacentElement('afterend',b);b.addEventListener('click',exportToDrive);
+}
+
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}
 function fixFullPrint(){
   const old=$('printBtn');
@@ -573,7 +653,7 @@ function ensureMobileShiftView(){
   applyMobileShiftMode();
 }
 function installSafeClear(){let b=$('clearDraft');if(!b||b.dataset.safeClear)return;b.dataset.safeClear='1';b.addEventListener('click',clearGeneratedSafe,true)}
-function refreshEnhancements(){mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();installSafeClear();ensureMobileShiftView()}
+function refreshEnhancements(){mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();installSafeClear();ensureMobileShiftView()}
 function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);

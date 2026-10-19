@@ -47,7 +47,8 @@ function hours(s,ds){
   return 6;
 }
 function workedHours(s,ds){
-  if(s==='ferie')return 0;
+  // La disponibilità è reperibilità, non servizio effettivamente lavorato.
+  if(s==='ferie'||s==='disp1'||s==='disp2')return 0;
   return hours(s,ds);
 }
 function scheduleFromDom(base={}){
@@ -141,7 +142,7 @@ function assignmentIssues(a,absence,docs,name,k){
   if((AM.has(s)||PM.has(s))&&sameBandCount(a,name,ds,s)>1)
     issues.push(AM.has(s)?'più servizi contemporanei nella fascia mattutina':'più servizi contemporanei nella fascia pomeridiana');
   const wk=weekKey(ds),wh=weekHours(a,name,wk);
-  if(wh>36)issues.push('supera 36 ore nella settimana ('+wh+' h)');
+  if(wh>36&&workedHours(s,ds)>0)issues.push('supera 36 ore nella settimana ('+wh+' h)');
   const dd=doubleDaysInWeek(a,name,wk);
   if(dd.length>1)issues.push('più di una giornata da 12 ore (mattina + pomeriggio) nella stessa settimana');
   if(doc?.cat==='Strutturato'&&name!=='PINI'){const seq=consecutiveGroupViolation(a,name,s,ds);if(seq)issues.push(seq)}

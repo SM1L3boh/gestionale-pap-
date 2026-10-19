@@ -455,7 +455,7 @@ async function exportToDrive(){
     const existing=matches[0];
     const metadata=existing?{name:fileName}:{name:fileName,parents:[DRIVE_TARGET_FOLDER]};
     const boundary='turni_upload_boundary_'+Date.now();
-    const blob=new Blob(['--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n',JSON.stringify(metadata),'\\r\\n--'+boundary+'\\r\\nContent-Type: '+mime+'\\r\\n\\r\\n',bytes,'\\r\\n--'+boundary+'--'],{type:'multipart/related; boundary='+boundary});
+    const blob=new Blob(['--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n',JSON.stringify(metadata),'\r\n--'+boundary+'\r\nContent-Type: '+mime+'\r\n\r\n',bytes,'\r\n--'+boundary+'--'],{type:'multipart/related; boundary='+boundary});
     const method=existing?'PATCH':'POST';
     const uri='https://www.googleapis.com/upload/drive/v3/files'+(existing?'/'+encodeURIComponent(existing.id):'')+'?uploadType=multipart&fields=id,name,webViewLink';
     let result;
@@ -472,7 +472,7 @@ function ensureDriveButton(){
   const b=document.createElement('button');
   b.id='saveDriveExcelBtn';b.type='button';b.className=anchor.className;
   b.textContent='SALVA SU GOOGLE DRIVE';b.title='Salva il file Excel del mese nella cartella Drive configurata';
-  anchor.insertAdjacentElement('afterend',b);b.addEventListener('click',exportToDrive);
+  anchor.insertAdjacentElement('afterend',b);b.addEventListener('click',exportToDrive);loadGoogleIdentity().catch(()=>{});
 }
 
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}

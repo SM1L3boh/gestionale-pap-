@@ -111,7 +111,44 @@ async function save(next,change){let snap=await getDoc(root),x=snap.exists()?sna
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}
 function warnCrowded(date,n){let names=absentOn(date,n);return names.length<2||confirm('ATTENZIONE: il '+date.split('-').reverse().join('/')+' risultano già assenti: '+names.join(', ')+'.\\n\\nVuoi inserire comunque questa assenza?')}
 async function toggle(td){let n=td.dataset.doctor,date=td.dataset.date,next=structuredClone(store()),set=new Set(next[n]||[]);if(set.has(date))set.delete(date);else{if(!warnCrowded(date,n))return;set.add(date)}next[n]=[...set].sort();await save(next,{n,date,on:set.has(date)})}
-async function reconcileMonthLeaves(month){if(!/^\d{4}-\d{2}$/.test(month))return;let r=await getDoc(root),rootData=r.exists()?r.data():{},absence=rootData.absenceManagement||{},schedule={...(rootData.schedule||{})},prefix=month+'-';for(const k of Object.keys(schedule)){let p=k.split('|');if(k.startsWith(prefix)&&(p[1]==='ferie'||k.includes('|ferie|')))delete schedule[k]};let byDate={};for(const [n,dates] of Object.entries(absence))for(const date of dates||[])if(date.startsWith(prefix)){byDate[date]??=[];if(!byDate[date].includes(n))byDate[date].push(n)}for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);await setDoc(root,{schedule,updatedAt:new Date().toISOString()},{mergeFields:['schedule','updatedAt']});let verify=await getDoc(root),vs=verify.exists()?(verify.data().schedule||{}):{},remaining=Object.keys(vs).filter(k=>k.startsWith(prefix)&&k.includes('|ferie|'));data.schedule=vs;if(!Object.values(absence).some(ds=>(ds||[]).some(d=>d.startsWith(prefix)))&&remaining.length)throw new Error('Verifica fallita: restano '+remaining.length+' celle ferie in '+month)}
+async function reconcileMonthLeaves(month){
+  if(!/^\d{4}-\d{2}$/.test(month))return;
+  let r=await getDoc(root),rootData=r.exists()?r.data():{},absence=rootData.absenceManagement||{},schedule={...(rootData.schedule||{})},prefix=month+'-';
+
+  // Le FERIE visibili vengono sempre ricostruite da Gestione Assenze:
+  // nessuna vecchia cella FERIE può sopravvivere alla chiusura del pannello.
+  for(const k of Object.keys(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete schedule[k];
+
+  let byDate={};
+  for(const [n,dates] of Object.entries(absence))for(const date of dates||[])if(date.startsWith(prefix)){
+    byDate[date]??=[];
+    if(!byDate[date].includes(n))byDate[date].push(n);
+  }
+  for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);
+
+  // Allinea anche lo stato salvato del mese, così un successivo reload/ripristino
+  // non può reintrodurre ferie eliminate da Gestione Assenze.
+  const savedStates={...(rootData.savedStates||{})};
+  const state={...(savedStates[month]||{})};
+  for(const k of Object.keys(state))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete state[k];
+  for(const [k,v] of Object.entries(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))state[k]=v;
+  savedStates[month]=state;
+
+  const savedAbsenceStates={...(rootData.savedAbsenceStates||{})};
+  savedAbsenceStates[month]=structuredClone(absence);
+
+  await setDoc(root,{schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()},{merge:true});
+
+  let verify=await getDoc(root),vd=verify.exists()?verify.data():{},vs=vd.schedule||{};
+  const actual={};
+  for(const [k,v] of Object.entries(vs))if(k.startsWith(prefix)&&k.includes('|ferie|')&&v&&v!=='NESSUNO')actual[k]=v;
+  const expected={};
+  for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>expected[date+'|ferie|'+i]=n);
+
+  if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error('Verifica ferie non riuscita per '+month);
+  data.schedule=vs;
+  data.absenceManagement=absence;
+}
 function move(delta){view=new Date(view.getFullYear(),view.getMonth()+delta,1,12);render()}
 function ensureAbsenceMobileStyle(){
   if($('absenceMobilePanelStyle'))return;

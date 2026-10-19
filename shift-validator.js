@@ -48,7 +48,7 @@ function hours(s,ds){
 }
 function workedHours(s,ds){
   // La disponibilità è reperibilità, non servizio effettivamente lavorato.
-  if(s==='ferie'||s==='disp1'||s==='disp2')return 0;
+  if(s==='ferie')return 0;
   return hours(s,ds);
 }
 function scheduleFromDom(base={}){

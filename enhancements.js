@@ -116,12 +116,12 @@ async function printMyShifts(){
   const isWeekdayAvailability=r=>{
     if(!['disp1','disp2'].includes(r.s))return false;
     const w=new Date(r.ds+'T12:00:00').getDay();
-    return w>=1&&w<=5;
+    return w>=1&&w<=5&&!window.TurniCountRules.holiday(r.ds);
   };
   const isWeekendAvailability=r=>{
     if(!['disp1','disp2'].includes(r.s))return false;
     const w=new Date(r.ds+'T12:00:00').getDay();
-    return w===0||w===6;
+    return window.TurniCountRules.weekendOrHoliday(r.ds);
   };
   const isMorning=r=>{
     if(isWeekendAvailability(r))return true;
@@ -131,7 +131,7 @@ async function printMyShifts(){
   const isNight=r=>r.s==='guardia';
 
   const workRows=rows.filter(r=>!isWeekdayAvailability(r)&&r.s!=='varie');
-  const actuallyWorkedRows=workRows;
+  const actuallyWorkedRows=workRows.filter(r=>window.TurniCountRules.services(r.s,r.ds)>0);
   const actuallyWorkedDates=new Set(actuallyWorkedRows.map(r=>r.ds));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
@@ -172,12 +172,10 @@ async function printMyShifts(){
   // ferie = 1 da lunedì a sabato, 0 la domenica.
   const monthlyEquivalentFor=r=>{
     const d=new Date(r.ds+'T12:00:00'),wd=d.getDay();
-    if(r.s==='guardia')return 2;
-    if(['disp1','disp2'].includes(r.s))return(wd===0||wd===6)?1:0;
-    return 1;
+    return window.TurniCountRules.equivalents(r.s,r.ds);
   };
   const serviceEquivalentTotal=rows.filter(r=>r.s!=='varie').reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);
-  const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+(mobileIsHoliday(new Date(ds+'T12:00:00'))?0:1),0);
+  const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+window.TurniCountRules.equivalents('ferie',ds),0);
   const monthlyEquivalentTotal=serviceEquivalentTotal+leaveEquivalentTotal;
 
   const leaveBody=leaveList.length?leaveList.map(ds=>{
@@ -231,7 +229,7 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>!mobileIsHoliday(new Date(ds+'T12:00:00'))).length}</b></div>
+    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>window.TurniCountRules.eligibleLeave(ds)).length}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
@@ -302,7 +300,7 @@ async function printMyShifts(){
       yy-=12;
       const serviceCount=actuallyWorkedRows.length;
       const workedCount=serviceEquivalentTotal;
-      const leaveCount=leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length;
+      const leaveCount=leaveList.filter(ds=>window.TurniCountRules.eligibleLeave(ds)).length;
       text(x0,yy,7.5,'Giornate lavorate: '+actuallyWorkedDates.size,true);
       text(x0+135,yy,7.5,'Servizi: '+serviceCount,true);
       text(x0+225,yy,7.5,'Turni eq. 6h: '+workedCount,true);

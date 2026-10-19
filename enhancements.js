@@ -131,7 +131,7 @@ async function printMyShifts(){
   const isNight=r=>r.s==='guardia';
 
   const workRows=rows.filter(r=>!isWeekdayAvailability(r)&&r.s!=='varie');
-  const actuallyWorkedRows=workRows.filter(r=>!['disp1','disp2'].includes(r.s));
+  const actuallyWorkedRows=workRows;
   const actuallyWorkedDates=new Set(actuallyWorkedRows.map(r=>r.ds));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
@@ -176,7 +176,7 @@ async function printMyShifts(){
     if(['disp1','disp2'].includes(r.s))return(wd===0||wd===6)?1:0;
     return 1;
   };
-  const serviceEquivalentTotal=rows.reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);
+  const serviceEquivalentTotal=rows.filter(r=>r.s!=='varie').reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);
   const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+(mobileIsHoliday(new Date(ds+'T12:00:00'))?0:1),0);
   const monthlyEquivalentTotal=serviceEquivalentTotal+leaveEquivalentTotal;
 

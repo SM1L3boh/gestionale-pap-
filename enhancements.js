@@ -175,7 +175,7 @@ async function printMyShifts(){
     return 1;
   };
   const serviceEquivalentTotal=rows.reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);
-  const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+(new Date(ds+'T12:00:00').getDay()===0?0:1),0);
+  const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+(mobileIsHoliday(new Date(ds+'T12:00:00'))?0:1),0);
   const monthlyEquivalentTotal=serviceEquivalentTotal+leaveEquivalentTotal;
 
   const leaveBody=leaveList.length?leaveList.map(ds=>{
@@ -229,7 +229,7 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate lavorate: <b>${byDate.size}</b> &nbsp;·&nbsp; Servizi assegnati: <b>${workRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length}</b></div>
+    <div class="summary">Giornate lavorate: <b>${byDate.size}</b> &nbsp;·&nbsp; Servizi assegnati: <b>${workRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0)}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>!mobileIsHoliday(new Date(ds+'T12:00:00'))).length}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>

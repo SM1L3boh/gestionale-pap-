@@ -47,11 +47,11 @@ async function buildDoctorFilter(){
   if(!toolbar)return;
   building=true;
   try{
-    removeDuplicateFilters(toolbar);
     let snap=await getDoc(root),x=snap.exists()?snap.data():{};
     doctorNames=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
     for(const n of [...highlightedDoctors])if(!doctorNames.includes(n))highlightedDoctors.delete(n);
     if(!doctorNames.length)return;
+    removeDuplicateFilters(toolbar);
 
     let box=document.createElement('div');
     box.id='doctorFilter';

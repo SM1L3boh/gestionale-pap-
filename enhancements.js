@@ -186,7 +186,7 @@ async function printMyShifts(){
   const monthlyEquivalentFor=r=>{
     const d=new Date(r.ds+'T12:00:00'),wd=d.getDay();
     if(r.s==='guardia')return 2;
-    if(['disp1','disp2'].includes(r.s))return 0;
+    if(['disp1','disp2'].includes(r.s))return(wd===0||wd===6)?1:0;
     return 1;
   };
   const serviceEquivalentTotal=rows.reduce((sum,r)=>sum+monthlyEquivalentFor(r),0);

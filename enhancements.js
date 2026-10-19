@@ -316,7 +316,7 @@ async function printMyShifts(){
       const serviceCount=actuallyWorkedRows.length;
       const workedCount=actuallyWorkedRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0);
       const leaveCount=leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length;
-      text(x0,yy,7.5,'Giornate lavorate: '+byDate.size,true);
+      text(x0,yy,7.5,'Giornate lavorate: '+actuallyWorkedDates.size,true);
       text(x0+135,yy,7.5,'Servizi: '+serviceCount,true);
       text(x0+225,yy,7.5,'Turni eq. 6h: '+workedCount,true);
       text(x0+355,yy,7.5,'Ferie/assenza: '+leaveCount,true);

@@ -396,7 +396,7 @@ async function printMyShifts(){
   setTimeout(bindPersonalActions,100);
   setTimeout(bindPersonalActions,500);
   setTimeout(bindPersonalActions,1200);
-}function ensureMyShiftsButton(){let p=$('printBtn');if(!p||$('myShiftsBtn'))return;let b=document.createElement('button');b.id='myShiftsBtn';b.type='button';b.textContent='I MIEI TURNI';b.onclick=printMyShifts;p.insertAdjacentElement('afterend',b)}
+}function ensureMyShiftsButton(){let p=$('printBtn');if(!p)return;let btn=$('myShiftsBtn');if(!btn){btn=document.createElement('button');btn.id='myShiftsBtn';btn.type='button';btn.textContent='I MIEI TURNI';p.insertAdjacentElement('afterend',btn)}btn.onclick=printMyShifts;btn.classList.remove('hidden')}
 async function enhanceLeaveSlots(){if(leaveBusy)return;let cells=[...document.querySelectorAll('#schedule .leaveCell')];if(!cells.length)return;leaveBusy=true;try{let snap=await getDoc(root),x=snap.exists()?snap.data():{},sch=x.schedule||{};for(const cell of cells){let first=cell.querySelector('select[data-k*="|ferie|"]');if(!first)continue;let base=first.dataset.k.replace(/\|ferie\|\d+$/,'|ferie|');for(let i=2;i<4;i++){let k=base+i;if(cell.querySelector(`select[data-k="${k}"]`))continue;let s=document.createElement('select');s.dataset.k=k;s.innerHTML='<option></option>'+doctorNames.map(n=>`<option>${n}</option>`).join('');s.value=sch[k]||'';cell.appendChild(s)}}applyValueColors()}finally{leaveBusy=false}}
 function installLeavePersistence(){/* Gestione assenze è l'unica fonte delle ferie: nessun salvataggio autonomo dalla griglia */}
 function dayLeaves(ds){return new Set([...document.querySelectorAll(`#schedule select[data-k^="${ds}|ferie|"]`)].map(s=>s.value).filter(v=>v&&v!=='NESSUNO'))}

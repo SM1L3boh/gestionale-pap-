@@ -109,6 +109,16 @@ async function printMyShifts(){
   }
   const officialAbsence=x.absenceManagement?.[doctor]||[];
   for(const ds of officialAbsence)if(ds.startsWith(month+'-'))leaveDates.add(ds);
+  // Lo smonto segue una guardia notturna e non costituisce ferie né turno aggiuntivo.
+  const nightRests=new Set();
+  for(const [q,n] of Object.entries(schedule)){
+    if(n!==doctor||!q.includes('|guardia|'))continue;
+    const ds=q.split('|')[0],next=new Date(ds+'T12:00:00');
+    next.setDate(next.getDate()+1);
+    const nextDay=next.getFullYear()+'-'+String(next.getMonth()+1).padStart(2,'0')+'-'+String(next.getDate()).padStart(2,'0');
+    if(nextDay.startsWith(month+'-'))nightRests.add(nextDay);
+  }
+  for(const ds of nightRests)leaveDates.delete(ds);
   rows.sort((a,b)=>a.ds.localeCompare(b.ds)||a.s.localeCompare(b.s));
 
   let[y,mo]=month.split('-'),names=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
@@ -152,8 +162,8 @@ async function printMyShifts(){
     const dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
     const z=byDate.get(ds)||{mattino:[],pomeriggio:[]};
-    const isLeave=leaveDates.has(ds);
-    return `<tr class="${weekend?'weekendRow':''}${isLeave?' leaveRow':''}"><td>${dateLabel}</td><td>${isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+    const isRest=nightRests.has(ds),isLeave=!isRest&&leaveDates.has(ds);
+    return `<tr class="${weekend?'weekendRow':''}${isLeave?' leaveRow':''}"><td>${dateLabel}</td><td>${isRest?'SMONTO':isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
   }).join('');
 
   const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{

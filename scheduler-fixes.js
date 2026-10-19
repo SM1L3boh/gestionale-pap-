@@ -1208,14 +1208,14 @@ function ensureColumnGeneratorUI(){
   const sel=document.createElement('select');
   sel.id='generateColumnSelect';
   sel.title='Seleziona la colonna da compilare';
-  sel.style.cssText='min-width:155px;padding:7px 8px;border:1px solid #94a3b8;border-radius:6px;background:#fff';
+  sel.style.cssText='width:190px;min-width:150px;max-width:190px;flex:0 0 190px;padding:7px 8px;border:1px solid #94a3b8;border-radius:6px;background:#fff';
   sel.innerHTML=COLUMN_GENERATORS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
   const btn=document.createElement('button');
   btn.id='generateColumnBtn';btn.type='button';btn.textContent='GENERA COLONNA';
   btn.style.cssText='background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;font-weight:800!important';
   btn.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();generateColumnV1().catch(err=>alert('Errore generazione colonna: '+err.message))});
-  wrap.insertBefore(sel,anchor);
   wrap.insertBefore(btn,anchor);
+  wrap.insertBefore(sel,anchor);
 }
 async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.setItem('turniLastMonth',m);let b=$('generate');if(b){b.disabled=true;b.textContent='GENERAZIONE…'}try{
   const esamiSnapshot=new Map([...document.querySelectorAll('#schedule select[data-k*="|esami|"]')].filter(sel=>sel.dataset.k?.startsWith(m+'-')).map(sel=>[sel.dataset.k,sel.value||'']));

@@ -144,6 +144,8 @@ async function printMyShifts(){
   const isNight=r=>r.s==='guardia';
 
   const workRows=rows.filter(r=>!isWeekdayAvailability(r)&&r.s!=='varie');
+  const actuallyWorkedRows=workRows.filter(r=>!['disp1','disp2'].includes(r.s));
+  const actuallyWorkedDates=new Set(actuallyWorkedRows.map(r=>r.ds));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
   const byDate=new Map();

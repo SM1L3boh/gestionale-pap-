@@ -313,7 +313,7 @@ async function printMyShifts(){
 
       const sums=[...w.document.querySelectorAll('.summary')];
       yy-=12;
-      const serviceCount=workRows.length;
+      const serviceCount=actuallyWorkedRows.length;
       const workedCount=workRows.reduce((tot,r)=>tot+(r.s==='guardia'?2:1),0);
       const leaveCount=leaveList.filter(ds=>new Date(ds+'T12:00:00').getDay()!==0).length;
       text(x0,yy,7.5,'Giornate lavorate: '+byDate.size,true);

@@ -35,7 +35,25 @@ async function purgeComelatoNov19(x){
   await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixComelatoNov19V1:true,updatedAt:new Date().toISOString()},{merge:true});
   return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixComelatoNov19V1:true};
 }
-async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await purgeComelatoNov19(s.data());doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);manualKeys=new Set(x.manualKeys||[]);varieManualKeys=new Set(x.varieManualKeys||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();manualKeys=new Set();varieManualKeys=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
+async function purgeCalzavaraNov27(x){
+  if(x?.fixCalzavaraNov27V1)return x;
+  const target='2026-11-27',name='CALZAVARA';
+  const schedule={...(x.schedule||{})};
+  for(let i=0;i<4;i++){const k=target+'|ferie|'+i;if(schedule[k]===name)delete schedule[k]}
+  const absenceManagement=structuredClone(x.absenceManagement||{});
+  absenceManagement[name]=(absenceManagement[name]||[]).filter(d=>d!==target);
+  const savedStates=structuredClone(x.savedStates||{});
+  for(const state of Object.values(savedStates))if(state&&typeof state==='object'){
+    for(let i=0;i<4;i++){const k=target+'|ferie|'+i;if(state[k]===name)delete state[k]}
+  }
+  const savedAbsenceStates=structuredClone(x.savedAbsenceStates||{});
+  for(const state of Object.values(savedAbsenceStates))if(state&&typeof state==='object'){
+    if(Array.isArray(state[name]))state[name]=state[name].filter(d=>d!==target);
+  }
+  await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixCalzavaraNov27V1:true,updatedAt:new Date().toISOString()},{merge:true});
+  return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixCalzavaraNov27V1:true};
+}
+async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await purgeComelatoNov19(s.data());x=await purgeCalzavaraNov27(x);doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);manualKeys=new Set(x.manualKeys||[]);varieManualKeys=new Set(x.varieManualKeys||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();manualKeys=new Set();varieManualKeys=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
 async function saveCloud(now=false){if(!auth.currentUser)return;clearTimeout(saveTimer);let run=async()=>{try{$('sync').textContent='Salvataggio…';await setDoc(root,{doctors,schedule:data,generatedKeys:[...generatedKeys],extraKeys:[...extraKeys],varieManualKeys:[...varieManualKeys],updatedAt:new Date().toISOString()},{merge:true});$('sync').textContent='● Salvato online';$('sync').className='status online'}catch(e){$('sync').textContent='Errore salvataggio'}};if(now)await run();else saveTimer=setTimeout(run,300)}
 function applyRoleUI(){let a=isAdmin();document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));$('tabUtenti').classList.toggle('hidden',!a);if($('loggedUser'))$('loggedUser').textContent=(auth.currentUser?.email||'Utente')+(a?' · Amministratore':' · Utente')}
 function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorno','disp1','disp2','ferie','varie'].includes(s);return true}function defaultCellValue(m,dt,s,i){

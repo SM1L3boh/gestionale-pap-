@@ -22,7 +22,7 @@ function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1
 function workTarget(m){let[y,mo]=m.split('-').map(Number),n=0,z=new Date(y,mo,0).getDate();for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()!==0&&!holiday(x))n++}return n}
 function target(n,m){if(n==='CIPRIAN'){let[y,mo]=m.split('-').map(Number),z=new Date(y,mo,0).getDate(),q=0;for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()>=1&&x.getDay()<=5&&!holiday(x))q++}return q}return workTarget(m)}
 function hrs(s,dt){if(s==='varie')return 0;if(s==='guardia')return 12;if(s==='ferie')return dt.getDay()===0?0:6;if(s==='giorno')return 6;if(['disp1','disp2'].includes(s))return[0,6].includes(dt.getDay())?6:0;return 6}
-function workedHrs(s,dt){if(s==='ferie')return 0;return hrs(s,dt)}
+function workedHrs(s,dt){if(['ferie','disp1','disp2'].includes(s))return 0;return hrs(s,dt)}
 function leave(a,ds,n){return[0,1,2,3].some(i=>a[K(ds,'ferie',i)]===n)}
 function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
 function calzWeek(ds){return wk(ds)}

@@ -119,7 +119,30 @@ async function repairDeiRossiNov17(x){
   await updateDoc(root,{absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true,updatedAt:new Date().toISOString()});
   return {...x,absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true};
 }
-async function load(){data=await removeImportedNightRest();data=await repairDeiRossiNov17(data);data.absenceManagement=data.absenceManagement||{};render()}
+async function syncAbsenceArchiveFromVisibleLeave(x){
+  const schedule=x.schedule||{},absence=structuredClone(x.absenceManagement||{});
+  let changed=false;
+  for(const [k,n] of Object.entries(schedule)){
+    if(!k.includes('|ferie|')||!n||n==='NESSUNO')continue;
+    const date=k.split('|')[0];
+    absence[n]??=[];
+    if(!absence[n].includes(date)){absence[n]=[...absence[n],date].sort();changed=true}
+  }
+  if(!changed)return x;
+  const savedAbsenceStates={...(x.savedAbsenceStates||{})};
+  for(const month of new Set(Object.values(absence).flat().map(d=>String(d).slice(0,7)).filter(Boolean))){
+    savedAbsenceStates[month]=structuredClone(absence);
+  }
+  await updateDoc(root,{absenceManagement:absence,savedAbsenceStates,updatedAt:new Date().toISOString()});
+  return {...x,absenceManagement:absence,savedAbsenceStates};
+}
+async function load(){
+  data=await removeImportedNightRest();
+  data=await repairDeiRossiNov17(data);
+  data=await syncAbsenceArchiveFromVisibleLeave(data);
+  data.absenceManagement=data.absenceManagement||{};
+  render()
+}
 function syncLeave(schedule,n,date,on){const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
 async function save(next,change){
   let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};
@@ -176,49 +199,78 @@ async function toggle(td){
 }
 async function reconcileMonthLeaves(month){
   if(!/^\d{4}-\d{2}$/.test(month))return;
-  let r=await getDoc(root),rootData=r.exists()?r.data():{},absence=rootData.absenceManagement||{},schedule={...(rootData.schedule||{})},prefix=month+'-';
+  const prefix=month+'-';
 
-  // Le FERIE visibili vengono sempre ricostruite da Gestione Assenze:
-  // nessuna vecchia cella FERIE può sopravvivere alla chiusura del pannello.
-  for(const k of Object.keys(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete schedule[k];
+  async function buildAndWrite(source){
+    const schedule={...(source.schedule||{})};
+    const absence=structuredClone(source.absenceManagement||{});
 
-  let byDate={};
-  for(const [n,dates] of Object.entries(absence))for(const date of dates||[])if(date.startsWith(prefix)){
-    byDate[date]??=[];
-    if(!byDate[date].includes(n))byDate[date].push(n);
+    // Se una FERIE è già visibile in turnistica ma manca dall'archivio assenze,
+    // la conserviamo: la griglia visibile non deve perdere ferie valide.
+    for(const [k,n] of Object.entries(schedule)){
+      if(!k.startsWith(prefix)||!k.includes('|ferie|')||!n||n==='NESSUNO')continue;
+      const date=k.split('|')[0];
+      absence[n]??=[];
+      if(!absence[n].includes(date))absence[n]=[...absence[n],date].sort();
+    }
+
+    const byDate={};
+    for(const [n,dates] of Object.entries(absence))for(const date of dates||[])if(date.startsWith(prefix)){
+      byDate[date]??=[];
+      if(!byDate[date].includes(n))byDate[date].push(n);
+    }
+
+    for(const k of Object.keys(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete schedule[k];
+    for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);
+
+    const savedStates={...(source.savedStates||{})};
+    const state={...(savedStates[month]||{})};
+    for(const k of Object.keys(state))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete state[k];
+    for(const [k,v] of Object.entries(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))state[k]=v;
+    savedStates[month]=state;
+
+    const savedAbsenceStates={...(source.savedAbsenceStates||{})};
+    savedAbsenceStates[month]=structuredClone(absence);
+
+    await updateDoc(root,{schedule,absenceManagement:absence,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
+    return {schedule,absence,byDate};
   }
-  for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);
 
-  // Allinea anche lo stato salvato del mese, così un successivo reload/ripristino
-  // non può reintrodurre ferie eliminate da Gestione Assenze.
-  const savedStates={...(rootData.savedStates||{})};
-  const state={...(savedStates[month]||{})};
-  for(const k of Object.keys(state))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete state[k];
-  for(const [k,v] of Object.entries(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))state[k]=v;
-  savedStates[month]=state;
-
-  const savedAbsenceStates={...(rootData.savedAbsenceStates||{})};
-  savedAbsenceStates[month]=structuredClone(absence);
-
-  await updateDoc(root,{schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
-
-  let verify=await getDoc(root),vd=verify.exists()?verify.data():{},vs=vd.schedule||{};
-  const actualByDate={};
-  for(const [k,v] of Object.entries(vs)){
-    if(!k.startsWith(prefix)||!k.includes('|ferie|')||!v||v==='NESSUNO')continue;
-    const date=k.split('|')[0];
-    actualByDate[date]??=[];
-    if(!actualByDate[date].includes(v))actualByDate[date].push(v);
+  function compare(vs,byDate){
+    const actualByDate={};
+    for(const [k,v] of Object.entries(vs||{})){
+      if(!k.startsWith(prefix)||!k.includes('|ferie|')||!v||v==='NESSUNO')continue;
+      const date=k.split('|')[0];
+      actualByDate[date]??=[];
+      if(!actualByDate[date].includes(v))actualByDate[date].push(v);
+    }
+    const dates=new Set([...Object.keys(byDate),...Object.keys(actualByDate)]);
+    const mismatches=[];
+    for(const date of dates){
+      const expected=[...(byDate[date]||[])].slice(0,4).sort();
+      const actual=[...(actualByDate[date]||[])].sort();
+      if(expected.length!==actual.length||expected.some((n,i)=>n!==actual[i]))mismatches.push({date,expected,actual});
+    }
+    return mismatches;
   }
-  const dates=new Set([...Object.keys(byDate),...Object.keys(actualByDate)]);
-  const sameValues=[...dates].every(date=>{
-    const expected=[...(byDate[date]||[])].slice(0,4).sort();
-    const actual=[...(actualByDate[date]||[])].sort();
-    return expected.length===actual.length&&expected.every((n,i)=>n===actual[i]);
-  });
-  if(!sameValues)throw new Error('Verifica ferie non riuscita per '+month);
-  data.schedule=vs;
-  data.absenceManagement=absence;
+
+  let snap=await getDoc(root),source=snap.exists()?snap.data():{};
+  let built=await buildAndWrite(source);
+  let verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{};
+  let mismatches=compare(verify.schedule||{},built.byDate);
+
+  // Un secondo passaggio elimina eventuali scritture concorrenti/stati residui.
+  if(mismatches.length){
+    built=await buildAndWrite(verify);
+    verifySnap=await getDoc(root);verify=verifySnap.exists()?verifySnap.data():{};
+    mismatches=compare(verify.schedule||{},built.byDate);
+  }
+
+  if(mismatches.length){
+    const d=mismatches[0];
+    throw new Error('Verifica ferie non riuscita per '+month+' ('+d.date+': attese '+(d.expected.join(', ')||'nessuna')+'; trovate '+(d.actual.join(', ')||'nessuna')+')');
+  }
+  data=verify;
 }
 function move(delta){view=new Date(view.getFullYear(),view.getMonth()+delta,1,12);render()}
 function ensureAbsenceMobileStyle(){

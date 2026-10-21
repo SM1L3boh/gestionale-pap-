@@ -188,6 +188,29 @@ async function printMyShifts(){
   const leaveEquivalentTotal=leaveList.reduce((sum,ds)=>sum+window.TurniCountRules.equivalents('ferie',ds),0);
   const monthlyEquivalentTotal=serviceEquivalentTotal+leaveEquivalentTotal;
 
+  const doctorInfo=(x.doctors||[]).find(d=>d.name===doctor)||{};
+  const monthlyTargetForDoctor=()=>{
+    const [yy,mm]=month.split('-').map(Number),days=new Date(yy,mm,0).getDate();
+    if(doctor==='CIPRIAN'){
+      let q=0;
+      for(let d=1;d<=days;d++){
+        const ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00'),w=dt.getDay();
+        if(w>=1&&w<=5&&!window.TurniCountRules.holiday(ds))q++;
+      }
+      return q;
+    }
+    if(doctorInfo.cat==='Strutturato'){
+      let q=0;
+      for(let d=1;d<=days;d++){
+        const ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00');
+        if(dt.getDay()!==0&&!window.TurniCountRules.holiday(ds))q++;
+      }
+      return q;
+    }
+    return 'Specifico';
+  };
+  const monthlyTargetValue=monthlyTargetForDoctor();
+
   const leaveBody=leaveList.length?leaveList.map(ds=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
@@ -239,7 +262,8 @@ async function printMyShifts(){
 
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Giorni ferie/assenza: <b>${leaveList.filter(ds=>window.TurniCountRules.eligibleLeave(ds)).length}</b></div>
+    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Ferie: <b>${leaveEquivalentTotal}</b></div>
+    <div class="summary"><b>Turni totali: ${monthlyEquivalentTotal}</b> = turni equivalenti ${serviceEquivalentTotal} + ferie ${leaveEquivalentTotal} &nbsp;·&nbsp; <b>Target mese: ${monthlyTargetValue}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>

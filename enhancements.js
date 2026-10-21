@@ -85,10 +85,10 @@ async function buildDoctorFilter(){
   }finally{building=false}
 }
 function serviceLabel(s){return({guardia:'GUARDIA NOTT. 20–08',giorno:'GIORNO 14–20',disp1:'1ª DISP. 20–08',disp2:'2ª DISP. 20–08',gessi:'GESSI MAT 08–14',gessirep:'GESSI+REP POM 14–20',reparto:'REPARTO 08–14',amb:'AMBULATORIO 08–14',esami:'AMB ESAMI 08–14',op1:'OP1 MAT 08–14',op2:'OP2 MAT 08–14',oppom:'OP POM 14–20',ferie:'FERIE-VARIE',varie:'VARIE'})[s]||s}
-async function printMyShifts(){
+async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   let month=$('month')?.value;
   if(!month)return alert('Seleziona un mese.');
-  let doctor=highlightedDoctors.size===1?[...highlightedDoctors][0]:'';
+  let doctor=doctorOverride|| (highlightedDoctors.size===1?[...highlightedDoctors][0]:'');
   if(!doctor){
     let email=($('loggedUser')?.textContent||'').split('·')[0].trim().toLowerCase(),local=email.split('@')[0].replace(/[._-]+/g,' ');
     doctor=doctorNames.find(n=>{let q=n.toLowerCase();return local.includes(q)||q.split(' ').every(p=>local.includes(p))})||'';
@@ -220,8 +220,9 @@ async function printMyShifts(){
   const monthNames=['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const doctorFileName=doctor.toLowerCase().replace(/\b\w/g,ch=>ch.toUpperCase()).replace(/[^A-Za-zÀ-ÿ0-9 _-]+/g,'').trim()||'Medico';
   const pdfName=doctorFileName+' '+monthNames[Number(mo)]+' '+y+'.pdf';
-  let w=window.open('','_blank','width=900,height=900');
+  let w=reuseWindow||window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
+  if(reuseWindow)w.document.open();
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Turni ${doctor}</title><style>
     @page{size:A4 portrait;margin:5mm}
     *{box-sizing:border-box}
@@ -415,7 +416,45 @@ async function printMyShifts(){
   setTimeout(bindPersonalActions,100);
   setTimeout(bindPersonalActions,500);
   setTimeout(bindPersonalActions,1200);
-}function ensureMyShiftsButton(){let p=$('printBtn');if(!p)return;let btn=$('myShiftsBtn');if(!btn){btn=document.createElement('button');btn.id='myShiftsBtn';btn.type='button';btn.textContent='I MIEI TURNI';p.insertAdjacentElement('afterend',btn)}btn.onclick=printMyShifts;btn.classList.remove('hidden')}
+  if(autoSave){
+    await new Promise(resolve=>setTimeout(resolve,180));
+    savePdf();
+    await new Promise(resolve=>setTimeout(resolve,260));
+  }
+  return true;
+}
+async function downloadAllMyShifts(){
+  const month=$('month')?.value;
+  if(!month)return alert('Seleziona un mese.');
+  if(!doctorNames.length)await buildDoctorFilter();
+  const names=doctorNames.filter(Boolean);
+  if(!names.length)return alert('Nessun medico attivo trovato.');
+  const w=window.open('','_blank','width=900,height=900');
+  if(!w)return alert('Consenti i popup e riprova.');
+  try{
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Preparazione PDF</title><body style="font-family:Arial;padding:24px"><h3>Preparazione PDF di tutti i medici…</h3><p>Non chiudere questa finestra fino al completamento.</p></body>');
+    w.document.close();
+    for(const n of names)await printMyShifts(n,true,w);
+    try{w.close()}catch{}
+  }catch(err){
+    try{w.close()}catch{}
+    alert('Errore download PDF di tutti i medici: '+err.message);
+  }
+}
+function ensureMyShiftsButton(){
+  let p=$('printBtn');if(!p)return;
+  let btn=$('myShiftsBtn');
+  if(!btn){btn=document.createElement('button');btn.id='myShiftsBtn';btn.type='button';btn.textContent='I MIEI TURNI';p.insertAdjacentElement('afterend',btn)}
+  btn.onclick=()=>printMyShifts();btn.classList.remove('hidden');
+  let all=$('allMyShiftsPdfBtn');
+  if(!all){
+    all=document.createElement('button');
+    all.id='allMyShiftsPdfBtn';all.type='button';all.textContent='PDF TUTTI I MEDICI';
+    btn.insertAdjacentElement('afterend',all);
+  }
+  all.onclick=downloadAllMyShifts;
+  all.classList.remove('hidden');
+}
 async function enhanceLeaveSlots(){if(leaveBusy)return;let cells=[...document.querySelectorAll('#schedule .leaveCell')];if(!cells.length)return;leaveBusy=true;try{let snap=await getDoc(root),x=snap.exists()?snap.data():{},sch=x.schedule||{};for(const cell of cells){let first=cell.querySelector('select[data-k*="|ferie|"]');if(!first)continue;let base=first.dataset.k.replace(/\|ferie\|\d+$/,'|ferie|');for(let i=2;i<4;i++){let k=base+i;if(cell.querySelector(`select[data-k="${k}"]`))continue;let s=document.createElement('select');s.dataset.k=k;s.innerHTML='<option></option>'+doctorNames.map(n=>`<option>${n}</option>`).join('');s.value=sch[k]||'';cell.appendChild(s)}}applyValueColors()}finally{leaveBusy=false}}
 function installLeavePersistence(){/* Gestione assenze è l'unica fonte delle ferie: nessun salvataggio autonomo dalla griglia */}
 function dayLeaves(ds){return new Set([...document.querySelectorAll(`#schedule select[data-k^="${ds}|ferie|"]`)].map(s=>s.value).filter(v=>v&&v!=='NESSUNO'))}

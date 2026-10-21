@@ -263,7 +263,7 @@ async function printMyShifts(){
     <h3>TURNI / SERVIZI</h3>
     <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
     <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Ferie: <b>${leaveEquivalentTotal}</b></div>
-    <div class="summary"><b>Turni totali: ${monthlyEquivalentTotal}</b> = turni equivalenti ${serviceEquivalentTotal} + ferie ${leaveEquivalentTotal} &nbsp;·&nbsp; <b>Target mese: ${monthlyTargetValue}</b></div>
+    <div class="summary"><b>Turni totali: ${monthlyEquivalentTotal}</b> &nbsp;·&nbsp; <b>Target mese: ${monthlyTargetValue}</b></div>
 
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>

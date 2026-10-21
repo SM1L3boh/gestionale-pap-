@@ -300,7 +300,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       const line=(x1,y1,x2,y2)=>ops.push(x1+' '+y1+' m '+x2+' '+y2+' l S');
       const fill=(x,y,wid,hei,r,g,b)=>ops.push(r+' '+g+' '+b+' rg '+x+' '+y+' '+wid+' '+hei+' re f 0 0 0 rg');
       const box=(x,y,wid,hei)=>ops.push(x+' '+y+' '+wid+' '+hei+' re S');
-      const clip=s=>{s=String(s||'').replace(/\s+/g,' ').trim();return s.length>42?s.slice(0,39)+'...':s};
+      const clip=s=>{s=String(s||'').replace(/\s+/g,' ').trim();return s.length>90?s.slice(0,87)+'...':s};
 
       // Titolo
       text(margin,pageH-34,15,'TURNI PERSONALI - '+doctor,true);
@@ -333,13 +333,10 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
 
       const sums=[...w.document.querySelectorAll('.summary')];
       yy-=12;
-      const serviceCount=actuallyWorkedRows.length;
-      const workedCount=serviceEquivalentTotal;
-      const leaveCount=leaveList.filter(ds=>window.TurniCountRules.eligibleLeave(ds)).length;
-      text(x0,yy,7.5,'Giornate lavorate: '+actuallyWorkedDates.size,true);
-      text(x0+135,yy,7.5,'Servizi: '+serviceCount,true);
-      text(x0+225,yy,7.5,'Turni eq. 6h: '+workedCount,true);
-      text(x0+355,yy,7.5,'Ferie/assenza: '+leaveCount,true);
+      // Usa esattamente gli stessi riepiloghi mostrati nella versione stampabile.
+      text(x0,yy,7.4,clip(sums[0]?.innerText||''),false);
+      yy-=11;
+      text(x0,yy,7.4,clip(sums[1]?.innerText||''),true);
 
       // Disponibilità infrasettimanali
       yy-=22;
@@ -363,7 +360,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
         text(ax1+4,yy+4.2,7.0,clip(cells[1]||''));
       }
       yy-=11;
-      text(ax0,yy,8,clip(sums[1]?.innerText||''),true);
+      text(ax0,yy,8,clip(sums[2]?.innerText||''),true);
 
       const stream=ops.join('\n');
       const objs=[];

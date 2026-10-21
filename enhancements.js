@@ -452,6 +452,7 @@ function ensureMyShiftsButton(){
     all.id='allMyShiftsPdfBtn';all.type='button';all.textContent='PDF TUTTI I MEDICI';
     btn.insertAdjacentElement('afterend',all);
   }
+  all.textContent='PDF TUTTI I MEDICI';
   all.onclick=downloadAllMyShifts;
   all.classList.remove('hidden');
 }

@@ -55,19 +55,22 @@ async function purgeCalzavaraNov27(x){
 }
 
 async function fixNovemberLeaveCounts(x){
-  if(x?.fixNovemberLeaveCountsV1)return x;
+  if(x?.fixNovemberLeaveCountsV2)return x;
   const schedule={...(x.schedule||{})};
   const absenceManagement=structuredClone(x.absenceManagement||{});
   const savedStates=structuredClone(x.savedStates||{});
   const savedAbsenceStates=structuredClone(x.savedAbsenceStates||{});
 
+  // Correzioni novembre confermate manualmente:
+  // CATALDI 03/11 ferie; DEI ROSSI 17/11 smonto; VIALE 10/11 smonto;
+  // COMELATO 21/11 ferie.
   const remove=[
     ['DEI ROSSI','2026-11-17'],
-    ['VIALE','2026-11-10'],
-    ['COMELATO','2026-11-21']
+    ['VIALE','2026-11-10']
   ];
   const add=[
-    ['FREGUIA','2026-11-14']
+    ['CATALDI','2026-11-03'],
+    ['COMELATO','2026-11-21']
   ];
 
   for(const [name,date] of remove){
@@ -78,32 +81,25 @@ async function fixNovemberLeaveCounts(x){
     }
   }
 
+  const ensureLeave=(container,name,date)=>{
+    const exists=Object.entries(container).some(([k,v])=>k.startsWith(date+'|ferie|')&&v===name);
+    if(exists)return;
+    const slot=[0,1,2,3].find(i=>!container[date+'|ferie|'+i]||container[date+'|ferie|'+i]==='NESSUNO');
+    if(slot!==undefined)container[date+'|ferie|'+slot]=name;
+  };
+
   for(const [name,date] of add){
     absenceManagement[name]??=[];
     if(!absenceManagement[name].includes(date))absenceManagement[name]=[...absenceManagement[name],date].sort();
-    const exists=Object.entries(schedule).some(([k,v])=>k.startsWith(date+'|ferie|')&&v===name);
-    if(!exists){
-      const slot=[0,1,2,3].find(i=>!schedule[date+'|ferie|'+i]||schedule[date+'|ferie|'+i]==='NESSUNO');
-      if(slot!==undefined)schedule[date+'|ferie|'+slot]=name;
-    }
+    ensureLeave(schedule,name,date);
+    if(savedStates['2026-11'])ensureLeave(savedStates['2026-11'],name,date);
   }
 
-  if(savedStates['2026-11']){
-    const st=savedStates['2026-11'];
-    for(const [name,date] of add){
-      const exists=Object.entries(st).some(([k,v])=>k.startsWith(date+'|ferie|')&&v===name);
-      if(!exists){
-        const slot=[0,1,2,3].find(i=>!st[date+'|ferie|'+i]||st[date+'|ferie|'+i]==='NESSUNO');
-        if(slot!==undefined)st[date+'|ferie|'+slot]=name;
-      }
-    }
-  }
   savedAbsenceStates['2026-11']=structuredClone(absenceManagement);
 
-  await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV1:true,updatedAt:new Date().toISOString()},{merge:true});
-  return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV1:true};
+  await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV2:true,updatedAt:new Date().toISOString()},{merge:true});
+  return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV2:true};
 }
-
 async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await purgeComelatoNov19(s.data());x=await purgeCalzavaraNov27(x);x=await fixNovemberLeaveCounts(x);doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);manualKeys=new Set(x.manualKeys||[]);varieManualKeys=new Set(x.varieManualKeys||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();manualKeys=new Set();varieManualKeys=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
 async function saveCloud(now=false){if(!auth.currentUser)return;clearTimeout(saveTimer);let run=async()=>{try{$('sync').textContent='Salvataggio…';await setDoc(root,{doctors,schedule:data,generatedKeys:[...generatedKeys],extraKeys:[...extraKeys],varieManualKeys:[...varieManualKeys],updatedAt:new Date().toISOString()},{merge:true});$('sync').textContent='● Salvato online';$('sync').className='status online'}catch(e){$('sync').textContent='Errore salvataggio'}};if(now)await run();else saveTimer=setTimeout(run,300)}
 window.__turniApplyExternalSchedule=schedule=>{

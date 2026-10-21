@@ -205,7 +205,7 @@ async function printMyShifts(){
         const ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00');
         if(dt.getDay()!==0&&!window.TurniCountRules.holiday(ds))q++;
       }
-      return q;
+      return q+1;
     }
     return 'Specifico';
   };

@@ -203,13 +203,19 @@ async function reconcileMonthLeaves(month){
   await setDoc(root,{schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()},{merge:true});
 
   let verify=await getDoc(root),vd=verify.exists()?verify.data():{},vs=vd.schedule||{};
-  const actual={};
-  for(const [k,v] of Object.entries(vs))if(k.startsWith(prefix)&&k.includes('|ferie|')&&v&&v!=='NESSUNO')actual[k]=v;
-  const expected={};
-  for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>expected[date+'|ferie|'+i]=n);
-
-  const sameKeys=Object.keys(actual).length===Object.keys(expected).length;
-  const sameValues=sameKeys&&Object.entries(expected).every(([k,v])=>actual[k]===v);
+  const actualByDate={};
+  for(const [k,v] of Object.entries(vs)){
+    if(!k.startsWith(prefix)||!k.includes('|ferie|')||!v||v==='NESSUNO')continue;
+    const date=k.split('|')[0];
+    actualByDate[date]??=[];
+    if(!actualByDate[date].includes(v))actualByDate[date].push(v);
+  }
+  const dates=new Set([...Object.keys(byDate),...Object.keys(actualByDate)]);
+  const sameValues=[...dates].every(date=>{
+    const expected=[...(byDate[date]||[])].slice(0,4).sort();
+    const actual=[...(actualByDate[date]||[])].sort();
+    return expected.length===actual.length&&expected.every((n,i)=>n===actual[i]);
+  });
   if(!sameValues)throw new Error('Verifica ferie non riuscita per '+month);
   data.schedule=vs;
   data.absenceManagement=absence;

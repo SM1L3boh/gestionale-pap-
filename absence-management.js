@@ -107,17 +107,8 @@ async function removeImportedNightRest(){
 }
 const DEI_ROSSI_17_FIX='absenceDeiRossi20261117V1';
 async function repairDeiRossiNov17(x){
-  if(x[DEI_ROSSI_17_FIX])return x;
-  const date='2026-11-17',name='DEI ROSSI',schedule={...(x.schedule||{})};
-  const hasVisibleLeave=Object.entries(schedule).some(([k,v])=>k.startsWith(date+'|ferie|')&&v===name);
-  if(!hasVisibleLeave)return x;
-  const absence=structuredClone(x.absenceManagement||{});
-  absence[name]??=[];
-  if(!absence[name].includes(date))absence[name]=[...absence[name],date].sort();
-  const savedAbsenceStates={...(x.savedAbsenceStates||{})};
-  savedAbsenceStates['2026-11']=structuredClone(absence);
-  await updateDoc(root,{absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true,updatedAt:new Date().toISOString()});
-  return {...x,absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true};
+  // Correzione superata: il 17/11 DEI ROSSI è SMONTO/RECUPERO, non FERIE.
+  return x;
 }
 async function syncAbsenceArchiveFromVisibleLeave(x){
   const schedule=x.schedule||{},absence=structuredClone(x.absenceManagement||{});

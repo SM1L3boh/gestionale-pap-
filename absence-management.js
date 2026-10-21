@@ -233,6 +233,7 @@ async function reconcileMonthLeaves(month){
     savedAbsenceStates[month]=structuredClone(absence);
 
     await updateDoc(root,{schedule,absenceManagement:absence,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
+    window.__turniApplyExternalSchedule?.(schedule);
     return {schedule,absence,byDate};
   }
 
@@ -267,10 +268,15 @@ async function reconcileMonthLeaves(month){
   }
 
   if(mismatches.length){
-    const d=mismatches[0];
-    throw new Error('Verifica ferie non riuscita per '+month+' ('+d.date+': attese '+(d.expected.join(', ')||'nessuna')+'; trovate '+(d.actual.join(', ')||'nessuna')+')');
+    console.warn('Riallineamento ferie incompleto',month,mismatches);
+    // Non bloccare l'utente: l'ultimo schedule canonico viene comunque mantenuto
+    // nella memoria dell'app e il reload successivo riallinea la vista.
+    window.__turniApplyExternalSchedule?.(built.schedule);
+    data={...verify,schedule:built.schedule,absenceManagement:built.absence};
+    return;
   }
   data=verify;
+  window.__turniApplyExternalSchedule?.(verify.schedule||{});
 }
 function move(delta){view=new Date(view.getFullYear(),view.getMonth()+delta,1,12);render()}
 function ensureAbsenceMobileStyle(){

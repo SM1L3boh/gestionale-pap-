@@ -107,10 +107,59 @@ async function removeImportedNightRest(){
 }
 async function load(){data=await removeImportedNightRest();data.absenceManagement=data.absenceManagement||{};render()}
 function syncLeave(schedule,n,date,on){const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
-async function save(next,change){let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};if(change)syncLeave(schedule,change.n,change.date,change.on);let patch={absenceManagement:next,schedule,updatedAt:new Date().toISOString()};if(change){const month=change.date.slice(0,7),savedStates={...(x.savedStates||{})},savedAbsenceStates={...(x.savedAbsenceStates||{})};let state={...(savedStates[month]||{})};for(const k of Object.keys(state))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete state[k];for(const[k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;savedStates[month]=state;savedAbsenceStates[month]=structuredClone(next);patch.savedStates=savedStates;patch.savedAbsenceStates=savedAbsenceStates}await setDoc(root,patch,{merge:true});data.absenceManagement=next;data.schedule=schedule;render()}
+async function save(next,change){
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};
+  if(change)syncLeave(schedule,change.n,change.date,change.on);
+  let patch={absenceManagement:next,schedule,updatedAt:new Date().toISOString()};
+  if(change){
+    const month=change.date.slice(0,7),savedStates={...(x.savedStates||{})},savedAbsenceStates={...(x.savedAbsenceStates||{})};
+    let state={...(savedStates[month]||{})};
+    for(const k of Object.keys(state))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete state[k];
+    for(const[k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;
+    savedStates[month]=state;savedAbsenceStates[month]=structuredClone(next);patch.savedStates=savedStates;patch.savedAbsenceStates=savedAbsenceStates;
+  }
+  await setDoc(root,patch,{merge:true});
+  if(change){
+    const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{},va=verify.absenceManagement||{},vs=verify.schedule||{};
+    const inArchive=(va[change.n]||[]).includes(change.date);
+    const inLeave=Object.entries(vs).some(([k,v])=>k.startsWith(change.date+'|ferie|')&&v===change.n);
+    if(change.on?(!inArchive||!inLeave):(inArchive||inLeave))throw new Error('verifica salvataggio assenza non riuscita');
+    data=verify;
+  }else{
+    data.absenceManagement=next;data.schedule=schedule;
+  }
+  render();
+}
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}
+const SHIFT_SERVICES=new Set(['guardia','giorno','disp1','disp2','gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);
+function assignedShifts(date,n){
+  const schedule=data.schedule||{};
+  const labels={guardia:'GUARDIA NOTT.',giorno:'INTERD',disp1:'1ª DISP.',disp2:'2ª DISP.',gessi:'GESSI MAT',gessirep:'GESSI+REP POM',reparto:'REPARTO',amb:'AMBULATORIO',esami:'AMB ESAMI',op1:'OP1 MAT',op2:'OP2 MAT',oppom:'OP POM'};
+  const found=[];
+  for(const [k,v] of Object.entries(schedule)){
+    if(v!==n||!k.startsWith(date+'|'))continue;
+    const svc=k.split('|')[1];
+    if(SHIFT_SERVICES.has(svc)&&!found.includes(labels[svc]||svc))found.push(labels[svc]||svc);
+  }
+  return found;
+}
 function warnCrowded(date,n){let names=absentOn(date,n);return names.length<2||confirm('ATTENZIONE: il '+date.split('-').reverse().join('/')+' risultano già assenti: '+names.join(', ')+'.\\n\\nVuoi inserire comunque questa assenza?')}
-async function toggle(td){let n=td.dataset.doctor,date=td.dataset.date,next=structuredClone(store()),set=new Set(next[n]||[]);if(set.has(date))set.delete(date);else{if(!warnCrowded(date,n))return;set.add(date)}next[n]=[...set].sort();await save(next,{n,date,on:set.has(date)})}
+function warnExistingShift(date,n){
+  const shifts=assignedShifts(date,n);
+  return !shifts.length||confirm('ATTENZIONE: '+n+' risulta già assegnato il '+date.split('-').reverse().join('/')+' a: '+shifts.join(', ')+'.\\n\\nL’assenza verrà registrata ma il turno non sarà cancellato automaticamente. Vuoi continuare?');
+}
+async function toggle(td){
+  let n=td.dataset.doctor,date=td.dataset.date,next=structuredClone(store()),set=new Set(next[n]||[]),removing=set.has(date);
+  if(removing)set.delete(date);
+  else{
+    const others=absentOn(date,n);
+    if(others.length>=4){alert('Impossibile aggiungere l’assenza: per il '+date.split('-').reverse().join('/')+' sono già presenti 4 assenti, cioè tutti i posti disponibili nella colonna FERIE.');return}
+    if(!warnCrowded(date,n)||!warnExistingShift(date,n))return;
+    set.add(date);
+  }
+  next[n]=[...set].sort();
+  await save(next,{n,date,on:set.has(date)})
+}
 async function reconcileMonthLeaves(month){
   if(!/^\d{4}-\d{2}$/.test(month))return;
   let r=await getDoc(root),rootData=r.exists()?r.data():{},absence=rootData.absenceManagement||{},schedule={...(rootData.schedule||{})},prefix=month+'-';

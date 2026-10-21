@@ -2,7 +2,7 @@ import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/fire
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
 const MN=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],DW=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
-let data={},view=new Date(),novDirty=false,mobileAbsenceDoctor='';
+let data={},view=new Date(),mobileAbsenceDoctor='';
 function store(){return data.absenceManagement||{}}
 function doctors(){return(data.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean)}
 function key(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
@@ -106,8 +106,8 @@ async function removeImportedNightRest(){
   return {...x,absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true};
 }
 async function load(){data=await removeImportedNightRest();data.absenceManagement=data.absenceManagement||{};render()}
-function syncNovemberLeave(schedule,n,date,on){if(!date.startsWith('2026-11-'))return;const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
-async function save(next,change){let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};if(change&&change.date.startsWith('2026-11-'))syncNovemberLeave(schedule,change.n,change.date,change.on);let patch={absenceManagement:next,schedule,updatedAt:new Date().toISOString()};if(change){const month=change.date.slice(0,7),savedStates={...(x.savedStates||{})},savedAbsenceStates={...(x.savedAbsenceStates||{})};let state={...(savedStates[month]||{})};for(const k of Object.keys(state))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete state[k];for(const[k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;savedStates[month]=state;savedAbsenceStates[month]=structuredClone(next);patch.savedStates=savedStates;patch.savedAbsenceStates=savedAbsenceStates}await setDoc(root,patch,{merge:true});data.absenceManagement=next;data.schedule=schedule;if(change&&change.date.startsWith('2026-11-'))novDirty=true;render()}
+function syncLeave(schedule,n,date,on){const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
+async function save(next,change){let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};if(change)syncLeave(schedule,change.n,change.date,change.on);let patch={absenceManagement:next,schedule,updatedAt:new Date().toISOString()};if(change){const month=change.date.slice(0,7),savedStates={...(x.savedStates||{})},savedAbsenceStates={...(x.savedAbsenceStates||{})};let state={...(savedStates[month]||{})};for(const k of Object.keys(state))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete state[k];for(const[k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;savedStates[month]=state;savedAbsenceStates[month]=structuredClone(next);patch.savedStates=savedStates;patch.savedAbsenceStates=savedAbsenceStates}await setDoc(root,patch,{merge:true});data.absenceManagement=next;data.schedule=schedule;render()}
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}
 function warnCrowded(date,n){let names=absentOn(date,n);return names.length<2||confirm('ATTENZIONE: il '+date.split('-').reverse().join('/')+' risultano già assenti: '+names.join(', ')+'.\\n\\nVuoi inserire comunque questa assenza?')}
 async function toggle(td){let n=td.dataset.doctor,date=td.dataset.date,next=structuredClone(store()),set=new Set(next[n]||[]);if(set.has(date))set.delete(date);else{if(!warnCrowded(date,n))return;set.add(date)}next[n]=[...set].sort();await save(next,{n,date,on:set.has(date)})}
@@ -184,7 +184,6 @@ function install(){
   $('absenceClose').onclick=async()=>{
     let m=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
     $('absenceManageModal').classList.add('hidden');
-    novDirty=false;
     sessionStorage.setItem('turniRestoreMonthOnce',m);
     localStorage.setItem('turniLastMonth',m);
     const monthInput=$('month');if(monthInput)monthInput.value=m;

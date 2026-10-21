@@ -1,5 +1,5 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
-import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import{getFirestore,doc,getDoc,setDoc,updateDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
 const MN=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],DW=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
 let data={},view=new Date(),mobileAbsenceDoctor='';
@@ -102,7 +102,7 @@ async function removeImportedNightRest(){
     for(const [name,date] of removed)for(const key of Object.keys(state))if(key.startsWith(date+'|ferie|')&&state[key]===name)delete state[key];
     savedStates['2026-11']=state;
   }
-  await setDoc(root,{absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true,updatedAt:new Date().toISOString()},{merge:true});
+  await updateDoc(root,{absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true,updatedAt:new Date().toISOString()});
   return {...x,absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true};
 }
 const DEI_ROSSI_17_FIX='absenceDeiRossi20261117V1';
@@ -116,7 +116,7 @@ async function repairDeiRossiNov17(x){
   if(!absence[name].includes(date))absence[name]=[...absence[name],date].sort();
   const savedAbsenceStates={...(x.savedAbsenceStates||{})};
   savedAbsenceStates['2026-11']=structuredClone(absence);
-  await setDoc(root,{absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true,updatedAt:new Date().toISOString()},{merge:true});
+  await updateDoc(root,{absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true,updatedAt:new Date().toISOString()});
   return {...x,absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true};
 }
 async function load(){data=await removeImportedNightRest();data=await repairDeiRossiNov17(data);data.absenceManagement=data.absenceManagement||{};render()}
@@ -132,7 +132,7 @@ async function save(next,change){
     for(const[k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;
     savedStates[month]=state;savedAbsenceStates[month]=structuredClone(next);patch.savedStates=savedStates;patch.savedAbsenceStates=savedAbsenceStates;
   }
-  await setDoc(root,patch,{merge:true});
+  await updateDoc(root,patch);
   if(change){
     const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{},va=verify.absenceManagement||{},vs=verify.schedule||{};
     const inArchive=(va[change.n]||[]).includes(change.date);
@@ -200,7 +200,7 @@ async function reconcileMonthLeaves(month){
   const savedAbsenceStates={...(rootData.savedAbsenceStates||{})};
   savedAbsenceStates[month]=structuredClone(absence);
 
-  await setDoc(root,{schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()},{merge:true});
+  await updateDoc(root,{schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
 
   let verify=await getDoc(root),vd=verify.exists()?verify.data():{},vs=vd.schedule||{};
   const actualByDate={};

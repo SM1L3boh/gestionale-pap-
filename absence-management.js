@@ -105,7 +105,21 @@ async function removeImportedNightRest(){
   await setDoc(root,{absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true,updatedAt:new Date().toISOString()},{merge:true});
   return {...x,absenceManagement:absence,schedule,savedAbsenceStates,savedStates,[POST_NIGHT_FIX]:true};
 }
-async function load(){data=await removeImportedNightRest();data.absenceManagement=data.absenceManagement||{};render()}
+const DEI_ROSSI_17_FIX='absenceDeiRossi20261117V1';
+async function repairDeiRossiNov17(x){
+  if(x[DEI_ROSSI_17_FIX])return x;
+  const date='2026-11-17',name='DEI ROSSI',schedule={...(x.schedule||{})};
+  const hasVisibleLeave=Object.entries(schedule).some(([k,v])=>k.startsWith(date+'|ferie|')&&v===name);
+  if(!hasVisibleLeave)return x;
+  const absence=structuredClone(x.absenceManagement||{});
+  absence[name]??=[];
+  if(!absence[name].includes(date))absence[name]=[...absence[name],date].sort();
+  const savedAbsenceStates={...(x.savedAbsenceStates||{})};
+  savedAbsenceStates['2026-11']=structuredClone(absence);
+  await setDoc(root,{absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true,updatedAt:new Date().toISOString()},{merge:true});
+  return {...x,absenceManagement:absence,savedAbsenceStates,[DEI_ROSSI_17_FIX]:true};
+}
+async function load(){data=await removeImportedNightRest();data=await repairDeiRossiNov17(data);data.absenceManagement=data.absenceManagement||{};render()}
 function syncLeave(schedule,n,date,on){const prefix=date+'|ferie|';if(!on){for(let i=0;i<4;i++){let k=prefix+i;if(schedule[k]===n)delete schedule[k]}return}for(let i=0;i<4;i++)if(schedule[prefix+i]===n)return;let free=[0,1,2,3].find(i=>!schedule[prefix+i]||schedule[prefix+i]==='NESSUNO');if(free!==undefined)schedule[prefix+free]=n}
 async function save(next,change){
   let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule={...(x.schedule||{})};
@@ -194,7 +208,9 @@ async function reconcileMonthLeaves(month){
   const expected={};
   for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>expected[date+'|ferie|'+i]=n);
 
-  if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error('Verifica ferie non riuscita per '+month);
+  const sameKeys=Object.keys(actual).length===Object.keys(expected).length;
+  const sameValues=sameKeys&&Object.entries(expected).every(([k,v])=>actual[k]===v);
+  if(!sameValues)throw new Error('Verifica ferie non riuscita per '+month);
   data.schedule=vs;
   data.absenceManagement=absence;
 }

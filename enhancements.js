@@ -223,6 +223,23 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   const monthlyRealHours=monthlyWorkingDays*(6+20/60);
   const monthlyRealHoursLabel=monthlyRealHours.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
 
+  // Ore mensili assegnate al singolo medico, espresse in ore decimali.
+  const assignedHoursFor=r=>{
+    const d=new Date(r.ds+'T12:00:00'),wd=d.getDay();
+    if(r.s==='guardia')return 12;
+    if(r.s==='giorno')return 7;
+    if(r.s==='disp1'||r.s==='disp2')return (wd===0||wd===6)?5:0;
+    if(r.s==='gessi'||r.s==='gessirep'||r.s==='reparto')return 6;
+    if(r.s==='op1'||r.s==='op2')return 6+20/60;
+    if(r.s==='oppom')return 6;
+    if(r.s==='amb'||r.s==='esami')return 6;
+    return 0;
+  };
+  const assignedServiceHours=rows.filter(r=>r.s!=='ferie'&&r.s!=='varie').reduce((sum,r)=>sum+assignedHoursFor(r),0);
+  const assignedLeaveHours=leaveList.reduce((sum)=>sum+(6+20/60),0);
+  const monthlyAssignedHours=assignedServiceHours+assignedLeaveHours;
+  const monthlyAssignedHoursLabel=monthlyAssignedHours.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+
   const leaveBody=leaveList.length?leaveList.map(ds=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
@@ -281,7 +298,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
-    <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI TEORICHE: ${monthlyRealHoursLabel} h</b></div>
+    <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI TEORICHE: ${monthlyRealHoursLabel} h</b> &nbsp;·&nbsp; <b>ORE MENSILI ASSEGNATE: ${monthlyAssignedHoursLabel} h</b></div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
   </body></html>`);
@@ -375,7 +392,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       yy-=11;
       text(ax0,yy,8,clip(sums[2]?.innerText||''),true);
       yy-=13;
-      text(ax0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h',true);
+      text(ax0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h   |   ORE MENSILI ASSEGNATE: '+monthlyAssignedHoursLabel+' h',true);
 
       const stream=ops.join('\n');
       const objs=[];

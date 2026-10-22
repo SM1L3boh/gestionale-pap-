@@ -210,6 +210,18 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     return 'Specifico';
   };
   const monthlyTargetValue=monthlyTargetForDoctor();
+  // Valore puramente informativo, identico al riquadro "ORE MENSILI VERE" del Conteggio mese.
+  const monthlyWorkingDays=(()=>{
+    const [yy,mm]=month.split('-').map(Number),days=new Date(yy,mm,0).getDate();let q=0;
+    for(let d=1;d<=days;d++){
+      const ds=month+'-'+String(d).padStart(2,'0'),dt=new Date(ds+'T12:00:00');
+      if(dt.getDay()===0||window.TurniCountRules.holiday(ds))continue;
+      q++;
+    }
+    return q;
+  })();
+  const monthlyRealHours=monthlyWorkingDays*(6+20/60);
+  const monthlyRealHoursLabel=monthlyRealHours.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   const leaveBody=leaveList.length?leaveList.map(ds=>{
     const d=new Date(ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
@@ -269,6 +281,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
+    <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI VERE: ${monthlyRealHoursLabel} h</b></div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
   </body></html>`);
@@ -361,6 +374,8 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       }
       yy-=11;
       text(ax0,yy,8,clip(sums[2]?.innerText||''),true);
+      yy-=13;
+      text(ax0,yy,8,'ORE MENSILI VERE: '+monthlyRealHoursLabel+' h',true);
 
       const stream=ops.join('\n');
       const objs=[];

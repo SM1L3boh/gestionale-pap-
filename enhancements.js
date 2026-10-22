@@ -232,7 +232,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     if(r.s==='gessi'||r.s==='gessirep'||r.s==='reparto')return 6;
     if(r.s==='op1'||r.s==='op2')return 6+20/60;
     if(r.s==='oppom')return 6;
-    if(r.s==='amb'||r.s==='esami')return 6;
+    if(r.s==='amb'||r.s==='esami')return 6+20/60;
     return 0;
   };
   const assignedServiceHours=rows.filter(r=>r.s!=='ferie'&&r.s!=='varie').reduce((sum,r)=>sum+assignedHoursFor(r),0);

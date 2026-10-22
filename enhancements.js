@@ -210,7 +210,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     return 'Specifico';
   };
   const monthlyTargetValue=monthlyTargetForDoctor();
-  // Valore puramente informativo, identico al riquadro "ORE MENSILI VERE" del Conteggio mese.
+  // Valore puramente informativo, identico al riquadro "ORE MENSILI TEORICHE" del Conteggio mese.
   const monthlyWorkingDays=(()=>{
     const [yy,mm]=month.split('-').map(Number),days=new Date(yy,mm,0).getDate();let q=0;
     for(let d=1;d<=days;d++){
@@ -281,7 +281,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
     <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
     <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
-    <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI VERE: ${monthlyRealHoursLabel} h</b></div>
+    <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI TEORICHE: ${monthlyRealHoursLabel} h</b></div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
   </body></html>`);
@@ -375,7 +375,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       yy-=11;
       text(ax0,yy,8,clip(sums[2]?.innerText||''),true);
       yy-=13;
-      text(ax0,yy,8,'ORE MENSILI VERE: '+monthlyRealHoursLabel+' h',true);
+      text(ax0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h',true);
 
       const stream=ops.join('\n');
       const objs=[];

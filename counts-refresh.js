@@ -21,7 +21,7 @@ function renderMonthlyRealHours(m,show=true){
   const modal=$('countModal')?.querySelector('.modal'),wrap=$('countTable')?.closest('.countWrap');if(!modal||!wrap)return;
   let row=modal.querySelector('.countContentRow'),box=$('monthlyRealHoursBox');
   if(!row){
-    row=document.createElement('div');row.className='countContentRow';row.style.cssText='display:flex;align-items:flex-start;gap:22px;max-width:100%;';
+    row=document.createElement('div');row.className='countContentRow';row.style.cssText='display:flex;align-items:flex-start;gap:22px;max-width:100%;flex-wrap:wrap;';
     wrap.parentNode.insertBefore(row,wrap);row.appendChild(wrap);
   }
   if(!box){

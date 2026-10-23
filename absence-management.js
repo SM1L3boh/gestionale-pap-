@@ -57,7 +57,20 @@ function renderMobileAbsence(y,m,days){
   }
   html+='</div>';
   grid.innerHTML=html;
-  grid.querySelectorAll('.absenceMobileDay').forEach(btn=>btn.onclick=()=>toggle(btn).catch(e=>alert('Errore modifica assenza: '+e.message)))
+  grid.querySelectorAll('.absenceMobileDay').forEach(btn=>btn.addEventListener('click',async e=>{
+    e.preventDefault();
+    if(btn.disabled)return;
+    btn.disabled=true;
+    btn.style.opacity='0.65';
+    const original=btn.innerHTML;
+    btn.innerHTML='<b>...</b><small>SALVATAGGIO</small>';
+    try{await toggle(btn)}
+    catch(err){
+      console.error('Salvataggio assenza fallito',err);
+      btn.disabled=false;btn.style.opacity='';btn.innerHTML=original;
+      alert('Assenza non registrata: '+(err?.message||String(err)));
+    }
+  }))
 }
 function render(){
   let y=view.getFullYear(),m=view.getMonth(),days=new Date(y,m+1,0).getDate();

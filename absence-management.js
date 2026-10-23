@@ -1,5 +1,5 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
-import{getFirestore,doc,getDoc,getDocFromServer,setDoc,updateDoc,runTransaction}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import{getFirestore,doc,getDoc,setDoc,updateDoc,runTransaction}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
 const MN=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],DW=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
 let data={},view=new Date(),mobileAbsenceDoctor='';
@@ -152,7 +152,7 @@ async function save(next,change){
   if(!change)return;
   // Read and update atomically to avoid losing other doctors' edits.
   // Only the selected doctor's absence and the month's FERIE slots change.
-  await runTransaction(db,async tx=>{
+  const committed=await runTransaction(db,async tx=>{
     const snap=await tx.get(root);
     if(!snap.exists())throw new Error('Archivio turni non trovato');
     const x=snap.data(),absence=structuredClone(x.absenceManagement||{});
@@ -171,17 +171,12 @@ async function save(next,change){
     const savedAbsenceStates={...(x.savedAbsenceStates||{})};
     savedAbsenceStates[month]=structuredClone(absence);
     tx.update(root,{absenceManagement:absence,schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
+    return {...x,absenceManagement:absence,schedule,savedStates,savedAbsenceStates};
   });
-  // Force a server read rather than potentially checking an old offline cache.
-  const verified=await getDocFromServer(root);
-  if(!verified.exists())throw new Error('Archivio turni non disponibile');
-  const fresh=verified.data(),va=fresh.absenceManagement||{},vs=fresh.schedule||{};
-  const inArchive=(va[change.n]||[]).includes(change.date);
-  const inLeave=Object.entries(vs).some(([k,v])=>k.startsWith(change.date+'|ferie|')&&v===change.n);
-  data=fresh;
+  // Firestore resolves the transaction only after the commit succeeds.
+  // Avoid a redundant second server read of the entire schedule.
+  data=committed;
   render();
-  if(change.on?(!inArchive||!inLeave):(inArchive||inLeave))
-    throw new Error('L’assenza non risulta persistita nel gestionale. Aggiorna e riprova.');
 }
 function absentOn(date,exclude=''){return doctors().filter(n=>n!==exclude&&(store()[n]||[]).includes(date))}
 const SHIFT_SERVICES=new Set(['guardia','giorno','disp1','disp2','gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);

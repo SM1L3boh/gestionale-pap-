@@ -285,7 +285,52 @@ function ensureAbsenceMobileStyle(){
   .absenceMobileDay b{font-size:16px}.absenceMobileDay small{font-size:9px;color:#64748b}.absenceMobileDay strong{font-size:8px;color:#854d0e}
   .absenceMobileDay.weekend{background:#fee2e2;border-color:#fecaca}.absenceMobileDay.active{background:#fef3c7;border-color:#f59e0b;box-shadow:inset 0 0 0 1px #f59e0b}
   .absenceMobileDay.active.weekend{background:#fde68a}.absenceMobileBlank{min-height:62px}
-  @media(max-width:760px){#absenceManageModal .modal{width:100vw!important;max-width:100vw!important;height:100vh!important;max-height:100vh!important;border-radius:0!important;margin:0!important;padding:12px!important;overflow:auto}#absenceManageModal{align-items:stretch!important;justify-content:stretch!important}#absenceManageModal p.small{margin:8px 0}#absenceManageModal .modalActions{position:sticky;bottom:0;background:white;padding-top:8px}}
+  @media(max-width:760px){
+    #absenceManageModal{align-items:stretch!important;justify-content:stretch!important;padding:0!important;overflow:hidden!important}
+    #absenceManageModal .modal{
+      width:100vw!important;max-width:100vw!important;
+      height:100dvh!important;max-height:100dvh!important;min-height:100dvh!important;
+      border-radius:0!important;margin:0!important;padding:10px 10px 0!important;
+      overflow:hidden!important;display:flex!important;flex-direction:column!important;
+      overscroll-behavior:contain!important
+    }
+    #absenceManageModal .modal>div:first-child{
+      position:sticky;top:0;z-index:8;background:white;
+      flex:0 0 auto;padding:2px 0 6px
+    }
+    #absenceManageModal p.small{margin:4px 0 6px;flex:0 0 auto;font-size:11px;line-height:1.25}
+    #absenceMobilePanel{
+      display:block;flex:1 1 auto;min-height:0;overflow-y:auto!important;
+      -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+      padding:0 1px 86px;margin-top:0!important
+    }
+    #absenceMobileControls{
+      position:sticky!important;top:0!important;z-index:7!important;
+      background:white!important;padding:8px 0!important;
+      box-shadow:0 1px 0 #e2e8f0
+    }
+    #absenceMobileSummary{margin:8px 0!important}
+    .absenceMobileWeekHead{
+      position:sticky;top:58px;z-index:6;background:white;padding:5px 0 4px;margin-bottom:3px!important
+    }
+    .absenceMobileWeekHead,.absenceMobileDays{gap:4px!important}
+    .absenceMobileDay{
+      min-height:56px!important;padding:4px 1px!important;border-radius:7px!important;
+      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+      user-select:none;-webkit-user-select:none
+    }
+    .absenceMobileDay b{font-size:15px!important}
+    .absenceMobileDay small{font-size:8px!important}
+    .absenceMobileDay strong{font-size:7px!important;line-height:1.05}
+    .absenceMobileBlank{min-height:56px!important}
+    #absenceManageModal .countWrap{display:none!important}
+    #absenceManageModal .modalActions{
+      position:absolute!important;left:0;right:0;bottom:0;z-index:10;
+      background:rgba(255,255,255,.97)!important;padding:8px 10px calc(8px + env(safe-area-inset-bottom))!important;
+      border-top:1px solid #e2e8f0;margin:0!important
+    }
+    #absenceManageModal .modalActions button{width:100%;min-height:44px;font-weight:700}
+  }
   `;document.head.appendChild(s)
 }
 function install(){

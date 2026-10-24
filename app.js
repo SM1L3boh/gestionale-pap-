@@ -168,15 +168,11 @@ $('confirmLeave').onclick=async()=>{let n=$('leaveDoctor').value,a=$('leaveStart
 $('removeLeave').onclick=async()=>{let n=$('leaveDoctor').value,a=$('leaveStart').value,b=$('leaveEnd').value;if(!n||!a||!b||a>b)return alert('Controlla medico e date.');for(let x=new Date(a+'T12:00:00'),e=new Date(b+'T12:00:00');x<=e;x.setDate(x.getDate()+1)){let ds=x.toISOString().slice(0,10);for(let i=0;i<4;i++){let k=key(ds,'ferie',i);if(data[k]===n)delete data[k]}}await updateOfficialLeaveRange(n,a,b,false);$('leaveModal').classList.add('hidden');saveCloud();renderSchedule()};
 $('clearDraft').onclick=async()=>{if(!isAdmin())return;let m=$('month').value;if(!m)return;if(!confirm(`Cancellare tutti i servizi automatici feriali di ${m}? Guardia, INTERD, ferie e weekend resteranno invariati.`))return;clearTimeout(saveTimer);let automatici=new Set([...services.filter(s=>s[3]==='auto').map(s=>s[0]),'esami']),removed=0;for(const q of Object.keys(data)){let[ds,s]=q.split('|');if(!ds.startsWith(m+'-')||!automatici.has(s))continue;let w=new Date(ds+'T12:00:00').getDay();if(w===0||w===6)continue;delete data[q];generatedKeys.delete(q);extraKeys.delete(q);removed++}for(const q of [...generatedKeys])if(q.startsWith(m+'-'))generatedKeys.delete(q);for(const q of [...extraKeys])if(q.startsWith(m+'-'))extraKeys.delete(q);try{$('sync').textContent='Cancellazione…';await updateDoc(root,{schedule:data,generatedKeys:[...generatedKeys],extraKeys:[...extraKeys],updatedAt:new Date().toISOString()});$('sync').textContent='● Salvato online';renderSchedule();alert(`Bozza ${m} cancellata. Rimossi ${removed} turni automatici.`)}catch(e){$('sync').textContent='Errore cancellazione';alert('Errore durante la cancellazione: '+e.message)}};
 let syncing=false;$('gridwrap').onscroll=()=>{if(syncing)return;syncing=true;$('scrollProxy').scrollLeft=$('gridwrap').scrollLeft;syncing=false};$('scrollProxy').onscroll=()=>{if(syncing)return;syncing=true;$('gridwrap').scrollLeft=$('scrollProxy').scrollLeft;syncing=false};window.addEventListener('resize',syncScroll);
-function showSection(id,tab){['turni','medici','agenda','utenti'].forEach(x=>$(x)?.classList.add('hidden'));['tabTurni','tabMedici','tabAgenda','tabUtenti'].forEach(x=>$(x)?.classList.remove('active'));$(id)?.classList.remove('hidden');$(tab)?.classList.add('active')}$('tabTurni').onclick=()=>showSection('turni','tabTurni');$('tabMedici').onclick=()=>showSection('medici','tabMedici');function isComelatoAgendaUser(){
-  const email=(auth.currentUser?.email||'').toLowerCase();
-  return String(currentProfile?.doctorName||'').toUpperCase()==='COMELATO'||email.includes('comelato');
+function showSection(id,tab){['turni','medici','agenda','utenti'].forEach(x=>$(x)?.classList.add('hidden'));['tabTurni','tabMedici','tabAgenda','tabUtenti'].forEach(x=>$(x)?.classList.remove('active'));$(id)?.classList.remove('hidden');$(tab)?.classList.add('active')}$('tabTurni').onclick=()=>showSection('turni','tabTurni');$('tabMedici').onclick=()=>showSection('medici','tabMedici');function canOpenAgenda(){
+  return !!auth.currentUser;
 }
 async function openAgendaSection(){
-  if(!isComelatoAgendaUser()){
-    alert('Agenda personale disponibile solo per utente COMELATO.');
-    return;
-  }
+  if(!canOpenAgenda())return;
   showSection('agenda','tabAgenda');
   const agendaMonth=$('agendaMonth');
   if(agendaMonth&&!agendaMonth.value)agendaMonth.value=$('month')?.value||new Date().toISOString().slice(0,7);

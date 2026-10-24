@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Installa Turni Medici</title>
+<meta name="theme-color" content="#123a67">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/app-icon.svg">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f7fb;color:#172033;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+main{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:22px}
+.card{width:min(460px,100%);background:#fff;border:1px solid #d7e0ea;border-radius:18px;padding:26px;box-shadow:0 10px 30px #123a6714}
+.logo{width:72px;height:72px;margin:0 auto 14px;display:block}
+h1{text-align:center;font-size:24px;margin:0 0 6px;color:#123a67}
+.sub{text-align:center;color:#637083;margin:0 0 22px}
+button,a.btn{width:100%;min-height:50px;border-radius:10px;border:0;background:#1d5b93;color:#fff;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;text-decoration:none;padding:12px 16px}
+button:disabled{opacity:.55}
+.secondary{margin-top:10px!important;background:#eef4fa!important;color:#123a67!important;border:1px solid #c6d5e4!important}
+.box{margin-top:18px;padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.45}
+.box b{color:#123a67}
+ol{margin:8px 0 0;padding-left:22px}
+.hidden{display:none!important}
+.ok{background:#ecfdf3;border-color:#bbf7d0;color:#166534}
+.small{font-size:12px;color:#64748b;text-align:center;margin-top:18px}
+</style>
+</head>
+<body>
+<main>
+<section class="card">
+<img class="logo" src="/app-icon.svg" alt="">
+<h1>Turni Medici</h1>
+<p class="sub">Installa il gestionale sul telefono come un'app.</p>
+
+<div id="already" class="box ok hidden"><b>App già installata.</b><br>Puoi aprirla dalla schermata Home del telefono.</div>
+
+<div id="android" class="hidden">
+<button id="installBtn" disabled>INSTALLA APP</button>
+<div id="androidHelp" class="box"><b>Se il pulsante non si attiva:</b><br>apri questa pagina con Chrome e attendi qualche secondo.</div>
+</div>
+
+<div id="ios" class="hidden">
+<div class="box"><b>Su iPhone:</b>
+<ol>
+<li>Apri questa pagina in <b>Safari</b>.</li>
+<li>Tocca <b>Condividi</b> e poi <b>Aggiungi alla schermata Home</b>.</li>
+<li>Conferma con <b>Aggiungi</b>.</li>
+</ol>
+</div>
+</div>
+
+<div id="other" class="hidden">
+<div class="box">Apri questa pagina dal browser del telefono. Se disponibile, scegli <b>Installa app</b> oppure <b>Aggiungi alla schermata Home</b>.</div>
+</div>
+
+<a class="btn secondary" href="/">APRI IL GESTIONALE</a>
+<p class="small">L'accesso resta protetto con le credenziali del gestionale.</p>
+</section>
+</main>
+<script>
+let deferredPrompt=null;
+const $=id=>document.getElementById(id);
+const standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+const ua=navigator.userAgent||'';
+const isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+const isAndroid=/Android/i.test(ua);
+
+if(standalone){
+  $('already').classList.remove('hidden');
+}else if(isIOS){
+  $('ios').classList.remove('hidden');
+}else if(isAndroid){
+  $('android').classList.remove('hidden');
+}else{
+  $('other').classList.remove('hidden');
+}
+
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  const b=$('installBtn');
+  if(b){b.disabled=false;b.textContent='INSTALLA APP'}
+});
+
+$('installBtn')?.addEventListener('click',async()=>{
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  try{await deferredPrompt.userChoice}catch(_){}
+  deferredPrompt=null;
+  $('installBtn').disabled=true;
+});
+
+window.addEventListener('appinstalled',()=>{
+  $('android')?.classList.add('hidden');
+  $('already').classList.remove('hidden');
+});
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+</script>
+</body>
+</html>

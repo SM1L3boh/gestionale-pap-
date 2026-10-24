@@ -20,6 +20,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Piccolo debounce: durante una serie di modifiche ravvicinate il job
+      # precedente viene cancellato dalla concurrency prima di pubblicare
+      # una versione intermedia del gestionale.
+      - name: Attendi versione stabile
+        run: sleep 12
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

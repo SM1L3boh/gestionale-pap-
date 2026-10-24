@@ -74,14 +74,6 @@ async function loadSchedule(){
   return byDate;
 }
 
-function snapHalfHour(v){
-  if(!v)return '';
-  const [h,m]=v.split(':').map(Number);
-  if(!Number.isFinite(h)||!Number.isFinite(m))return v;
-  let total=h*60+m,rounded=Math.round(total/30)*30;
-  if(rounded>=24*60)rounded=23*60+30;
-  return pad(Math.floor(rounded/60))+':'+pad(rounded%60);
-}
 function itemTime(i){
   if(i.start&&i.end)return i.start+'–'+i.end;
   if(i.start)return i.start;
@@ -131,7 +123,7 @@ async function render(){
 function resetForm(){
   $('agendaEditId').value='';
   $('agendaFormTitle').textContent='Nuovo impegno';
-  $('agendaDeleteEdit')?.classList.add('hidden');
+  const del=$('agendaDeleteEdit');if(del)del.classList.add('hidden');
   $('agendaForm').reset();
   const d=new Date();
   $('agendaDate').value=viewMonth===normalizeMonth()?dsFrom(d.getFullYear(),d.getMonth()+1,d.getDate()):viewMonth+'-01';
@@ -145,7 +137,7 @@ function editItem(id){
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
   $('agendaFormTitle').textContent='Modifica impegno';
-  $('agendaDeleteEdit')?.classList.remove('hidden');
+  const del=$('agendaDeleteEdit');if(del)del.classList.remove('hidden');
   $('agendaTitleInput').focus();
 }
 async function removeItem(id){
@@ -187,7 +179,6 @@ function bind(){
   if(prev)prev.onclick=()=>moveMonth(-1);
   if(next)next.onclick=()=>moveMonth(1);
   if(monthEl)monthEl.onchange=e=>{viewMonth=normalizeMonth(e.target.value);render().catch(x=>alert('Errore agenda: '+x.message))};
-  ['agendaStart','agendaEnd'].forEach(id=>{const el=$(id);if(el)el.onchange=()=>{el.value=snapHalfHour(el.value)}});
   if(form)form.onsubmit=saveItem;
   if(cancel)cancel.onclick=resetForm;
   if(del)del.onclick=()=>{const id=$('agendaEditId')?.value;if(id)removeItem(id)};

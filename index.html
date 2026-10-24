@@ -59,10 +59,11 @@ body.printCountModal #turni{display:none!important}
  #turni .draftActions #clearDraft{margin-left:0}
  #turni .monthNav #month{flex:1;min-width:140px}
 }
+.agendaPage{max-width:1500px;margin:0 auto}.agendaTop{padding:12px 14px}.agendaTitleRow{display:flex;justify-content:space-between;align-items:center;gap:12px}.agendaMonthNav{display:flex;align-items:center;gap:7px}.agendaMonthNav input{width:auto;min-width:150px}.agendaLayout{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,.8fr);gap:14px}.agendaCalendarCard{overflow:auto}.agendaWeekHead,.agendaCalendar{display:grid;grid-template-columns:repeat(7,minmax(105px,1fr));gap:1px;background:#d7e0ea}.agendaWeekHead span{background:#eaf1f8;text-align:center;font-size:11px;font-weight:800;padding:7px 2px}.agendaDay,.agendaBlank{background:#fff;min-height:120px;padding:6px}.agendaDay.weekend{background:#fff4ef}.agendaDay.today{box-shadow:inset 0 0 0 2px #1d5b93}.agendaDayHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.agendaDayNum{font-weight:800}.agendaDayName{font-size:9px;color:#64748b}.agendaEvent{font-size:10px;line-height:1.25;border-radius:6px;padding:4px 5px;margin-top:4px;overflow-wrap:anywhere}.agendaShift{background:#e0f2fe;border-left:3px solid #0284c7}.agendaPersonal{background:#fef3c7;border-left:3px solid #d97706;cursor:pointer}.agendaEventTime{font-weight:800}.agendaEditor form{display:grid;gap:9px}.agendaTimeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.agendaFormActions{display:flex;justify-content:flex-end;gap:8px}.agendaUpcomingTitle{margin:18px 0 8px;padding-top:12px;border-top:1px solid #e2e8f0}.agendaManualItem{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eef2f7}.agendaManualItemMain{min-width:0}.agendaManualItemTitle{font-weight:700}.agendaManualItemMeta{font-size:11px;color:#64748b}.agendaManualItemActions{display:flex;gap:4px;align-items:flex-start}.agendaManualItemActions button{padding:4px 6px;font-size:10px}@media(max-width:800px){.agendaLayout{grid-template-columns:1fr}.agendaTitleRow{align-items:flex-start;flex-direction:column}.agendaMonthNav{width:100%}.agendaMonthNav input{flex:1;min-width:0}.agendaCalendarCard{padding:8px}.agendaWeekHead,.agendaCalendar{grid-template-columns:repeat(7,minmax(92px,1fr))}.agendaDay,.agendaBlank{min-height:105px;padding:5px}.agendaEvent{font-size:9px}}
 </style></head><body>
 <div id="loginView" class="login hidden"><h2>Gestione Turni Medici</h2><p>Accedi per utilizzare la turnistica online.</p><form id="loginForm"><label>Email<input id="email" type="email" required></label><label>Password<input id="password" type="password" required></label><label class="showpass"><input id="showLoginPassword" type="checkbox"> Mostra password</label><button class="primary">Accedi</button></form><div class="authlinks"><button type="button" class="linkbtn" id="showRegister">Crea nuovo utente</button><button type="button" class="linkbtn" id="showReset">Password dimenticata?</button></div><div id="registerPanel" class="authpanel hidden"><b>Richiedi accesso</b><form id="registerForm"><label>Email<input id="regEmail" type="email" required></label><label>Password<input id="regPassword" type="password" minlength="6" required></label><label>Ripeti password<input id="regPassword2" type="password" minlength="6" required></label><label class="showpass"><input id="showRegisterPassword" type="checkbox"> Mostra password</label><button class="primary">Crea richiesta</button></form></div><div id="resetPanel" class="authpanel hidden"><b>Recupera password</b><form id="resetForm"><label>Email<input id="resetEmail" type="email" required></label><button class="primary">Invia email di recupero</button></form></div><p id="loginMsg" class="small hidden"></p></div>
 <div id="pendingView" class="card pending hidden"><h2>Account in attesa di approvazione</h2><p>Un amministratore deve abilitare questo account.</p><button id="pendingLogout">Esci</button></div>
-<div id="app" class="hidden"><header><h1>OSPEDALE · Gestione Turni Medici <small>online</small></h1><div class="tabs"><button id="tabTurni" class="active">Turni mensili</button><button id="tabMedici">Archivio medici</button><button id="tabUtenti" class="hidden">Gestione utenti</button></div><span id="loggedUser" class="loggedUser"></span><span id="sync" class="status">Firebase</span><button id="logout">Esci</button></header><main class="wrap">
+<div id="app" class="hidden"><header><h1>OSPEDALE · Gestione Turni Medici <small>online</small></h1><div class="tabs"><button id="tabTurni" class="active">Turni mensili</button><button id="tabMedici">Archivio medici</button><button id="tabAgenda" class="hidden">Agenda</button><button id="tabUtenti" class="hidden">Gestione utenti</button></div><span id="loggedUser" class="loggedUser"></span><span id="sync" class="status">Firebase</span><button id="logout">Esci</button></header><main class="wrap">
 <section id="turni"><div class="toolbar">
 <div class="toolbarLine toolbarLineTop">
   <div class="toolbarGroup monthNav"><button id="prev">◀</button><input id="month" type="month" min="2026-09" style="width:auto"><button id="next">▶</button></div>
@@ -75,6 +76,45 @@ body.printCountModal #turni{display:none!important}
 </div>
 <div class="toolbarLine toolbarLineBottom"><div class="draftActions adminOnly"><button class="primary" id="generate">Genera bozza</button><button id="saveStateBtn" type="button">SALVA STATO</button><button class="danger" id="clearDraft">Cancella bozza</button></div></div><button id="mobileViewBtn" type="button" class="mobileViewToggle" style="display:inline-flex;align-self:center;justify-content:center;margin:4px auto;min-width:125px;background:#0f766e;color:#fff;font-weight:800">VISTA MOBILE</button></div><div class="notice adminOnly"><b>Prima di Genera bozza:</b> inserire manualmente Guardia Notturna, INTERD e tutti i turni di sabato e domenica. La generazione automatica non modifica il weekend.</div><div id="printTitle" class="printOnly"></div><div class="gridwrap" id="gridwrap"><table id="schedule"></table></div><div class="scrollDock"><div class="scrollProxy" id="scrollProxy"><div id="scrollProxyInner"></div></div></div></section>
 <section id="medici" class="hidden"><div class="docs"><div class="card"><h2>Archivio Medici</h2><table id="doctorsTable"></table></div><div class="card adminOnly"><h3 id="formTitle">Nuovo medico</h3><form id="doctorForm" class="doctor-form"><label>Nome<input id="dName" required></label><label>Categoria<select id="dCat"><option>Strutturato</option><option>Contratto</option><option>Direttore</option><option>Internista</option></select></label><label>Ore settimanali<input id="dHours" type="number" min="0" step="6" value="36"></label><label>Stato<select id="dActive"><option value="true">Attivo</option><option value="false">Non attivo</option></select></label><fieldset class="doctorConstraints"><legend>Vincoli generatore</legend><p class="small">Solo per medici Strutturati. Seleziona al massimo 2 pomeriggi da lasciare liberi.</p><label>1° pomeriggio libero<select id="dFreePm1"><option value="">Nessuno</option><option value="1">Lunedì</option><option value="2">Martedì</option><option value="3">Mercoledì</option><option value="4">Giovedì</option><option value="5">Venerdì</option></select></label><label>2° pomeriggio libero<select id="dFreePm2"><option value="">Nessuno</option><option value="1">Lunedì</option><option value="2">Martedì</option><option value="3">Mercoledì</option><option value="4">Giovedì</option><option value="5">Venerdì</option></select></label></fieldset><label>Regole / note <span class="small">(solo descrittive)</span><input id="dNotes"></label><button class="primary">Salva medico</button><button type="button" id="cancelEdit">Annulla</button></form></div></div></section>
+<section id="agenda" class="hidden">
+  <div class="agendaPage">
+    <div class="agendaTop card">
+      <div class="agendaTitleRow">
+        <div><h2 style="margin:0">Agenda personale</h2><div id="agendaDoctorLabel" class="small"></div></div>
+        <div class="agendaMonthNav">
+          <button id="agendaPrev" type="button">◀</button>
+          <input id="agendaMonth" type="month">
+          <button id="agendaNext" type="button">▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="agendaLayout">
+      <div class="card agendaCalendarCard">
+        <div class="agendaWeekHead"><span>LUN</span><span>MAR</span><span>MER</span><span>GIO</span><span>VEN</span><span>SAB</span><span>DOM</span></div>
+        <div id="agendaCalendar" class="agendaCalendar"></div>
+      </div>
+      <div class="card agendaEditor">
+        <h3 id="agendaFormTitle">Nuovo impegno</h3>
+        <form id="agendaForm">
+          <input id="agendaEditId" type="hidden">
+          <label>Data<input id="agendaDate" type="date" required></label>
+          <div class="agendaTimeRow">
+            <label>Inizio<input id="agendaStart" type="time"></label>
+            <label>Fine<input id="agendaEnd" type="time"></label>
+          </div>
+          <label>Impegno<input id="agendaTitleInput" maxlength="120" required placeholder="Es. Riunione, visita, appuntamento"></label>
+          <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label>
+          <div class="agendaFormActions">
+            <button id="agendaCancelEdit" type="button">Annulla</button>
+            <button class="primary" type="submit">Salva impegno</button>
+          </div>
+        </form>
+        <div class="agendaUpcomingTitle"><b>Impegni del mese</b></div>
+        <div id="agendaManualList"></div>
+      </div>
+    </div>
+  </div>
+</section>
 <section id="utenti" class="hidden"><div class="card"><h2>Gestione utenti</h2><table id="usersTable"></table></div></section></main></div>
 <div id="leaveModal" class="modalBack hidden"><div class="modal smallModal"><h2>Gestione ferie</h2><div class="modalGrid"><label>Medico<select id="leaveDoctor"></select></label><label>Data inizio<input id="leaveStart" type="date"></label><label>Data fine<input id="leaveEnd" type="date"></label></div><div class="modalActions"><button id="cancelLeave">Annulla</button><button class="danger" id="removeLeave">Togli ferie</button><button class="primary" id="confirmLeave">Conferma ferie</button></div></div></div>
 <div id="absenceManageModal" class="modalBack hidden"><div class="modal" style="width:min(1500px,99vw);max-width:99vw"><div style="display:flex;align-items:center;justify-content:center;gap:14px"><button id="absencePrevMonth" type="button">◀</button><h2 id="absenceManageTitle" style="margin:0">Gestione assenze</h2><button id="absenceNextMonth" type="button">▶</button></div><p class="small">Gestione assenze: le modifiche aggiornano le FERIE del mese, senza modificare gli altri turni.</p><div class="countWrap" style="margin-top:16px;overflow:auto"><table id="absenceTable"></table></div><div class="modalActions"><button id="absenceClose" type="button">Chiudi</button></div></div></div><div id="countModal" class="modalBack hidden"><div class="modal"><h2 id="countTitle">Conteggio turni</h2><p id="countInfo" class="small"></p><div class="countWrap"><table id="countTable"></table></div><div class="modalActions"><button id="printCount" type="button" class="primary">STAMPA</button><button id="closeCount">Chiudi</button></div></div></div>
@@ -96,4 +136,4 @@ window.TurniCountRules=(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(err=>console.warn('Service worker non registrato',err)));
 }
-</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script></body></html>
+</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script><script type="module" src="./agenda.js?v=20261024-agenda1"></script></body></html>

@@ -353,18 +353,43 @@ function ensureAbsenceMobileStyle(){
   }
   `;document.head.appendChild(s)
 }
+let absenceOpenBusy=false;
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function loadAbsencesWithRetry(){
+  let lastErr;
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      await load();
+      return;
+    }catch(e){
+      lastErr=e;
+      console.warn('Caricamento assenze fallito, tentativo '+(attempt+1),e);
+      if(attempt===0)await wait(450);
+    }
+  }
+  throw lastErr;
+}
 function install(){
   ensureAbsenceMobileStyle();
   let b=$('absenceManageBtn');
   if(!b)return;
   b.onclick=async()=>{
+    if(absenceOpenBusy)return;
+    absenceOpenBusy=true;
     let mv=$('month')?.value;
     if(mv){
       let[y,m]=mv.split('-').map(Number);
       view=new Date(y,m-1,1,12);
     }else view=new Date();
     $('absenceManageModal').classList.remove('hidden');
-    try{await load()}catch(e){alert('Errore caricamento assenze: '+e.message)}
+    try{
+      await loadAbsencesWithRetry();
+    }catch(e){
+      console.error('Errore caricamento assenze',e);
+      alert('Errore caricamento assenze: '+e.message);
+    }finally{
+      absenceOpenBusy=false;
+    }
   };
   $('absenceClose').onclick=async()=>{
     let m=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;

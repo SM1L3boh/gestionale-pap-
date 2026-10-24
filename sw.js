@@ -8,3 +8,11 @@ self.addEventListener('fetch',event=>{
     {headers:{'Content-Type':'text/html; charset=utf-8'}}
   )));
 });
+self.addEventListener('notificationclick',event=>{
+  event.notification.close();
+  event.waitUntil((async()=>{
+    const list=await clients.matchAll({type:'window',includeUncontrolled:true});
+    for(const c of list){if('focus' in c){await c.focus();return}}
+    if(clients.openWindow)await clients.openWindow('/');
+  })());
+});

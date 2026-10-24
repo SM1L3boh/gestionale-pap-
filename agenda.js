@@ -6,20 +6,20 @@ const fb=getApps()[0],auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getEle
 const root=doc(db,'gestionale','dati');
 const MAIN_ADMINS=['EvF0UU31AwfgTPb6M0UnTX9IXbH3','EK0kFMLlFSPTg1aW83AllWI2DAV2'];
 const serviceMeta={
-  guardia:['GUARDIA NOTT.','20:00','08:00'],
-  giorno:['INTERD','14:00','20:00'],
-  disp1:['1ª DISP.','20:00','08:00'],
-  disp2:['2ª DISP.','20:00','08:00'],
-  gessi:['GESSI MAT','08:00','14:00'],
-  gessirep:['GESSI+REP POM','14:00','20:00'],
-  reparto:['REPARTO','08:00','14:00'],
-  amb:['AMBULATORIO','08:00','14:00'],
-  esami:['AMB ESAMI','08:00','14:00'],
-  op1:['OP1 MAT','08:00','14:00'],
-  op2:['OP2 MAT','08:00','14:00'],
-  oppom:['OP POM','14:00','20:00'],
-  ferie:['FERIE','',''],
-  varie:['VARIE','','']
+  guardia:['GUARDIA NOTT.','20:00','08:00','night'],
+  giorno:['INTERD','14:00','20:00','pm'],
+  disp1:['1ª DISP.','20:00','08:00','availability'],
+  disp2:['2ª DISP.','20:00','08:00','availability'],
+  gessi:['GESSI MAT','08:00','14:00','am'],
+  gessirep:['GESSI+REP POM','14:00','20:00','pm'],
+  reparto:['REPARTO','08:00','14:00','am'],
+  amb:['AMBULATORIO','08:00','14:00','am'],
+  esami:['AMB ESAMI','08:00','14:00','am'],
+  op1:['OP1 MAT','08:00','14:00','am'],
+  op2:['OP2 MAT','08:00','14:00','am'],
+  oppom:['OP POM','14:00','20:00','pm'],
+  ferie:['FERIE','','','leave'],
+  varie:['VARIE','','','other']
 };
 let currentUser=null,profile=null,doctorName='',viewMonth='',manualItems=[];
 
@@ -67,8 +67,8 @@ async function loadSchedule(){
       if(!byDate[date].some(x=>x.svc==='ferie'))byDate[date].push({svc,label:'FERIE',start:'',end:''});
       continue;
     }
-    const meta=serviceMeta[svc]||[svc.toUpperCase(),'',''];
-    if(!byDate[date].some(x=>x.svc===svc))byDate[date].push({svc,label:meta[0],start:meta[1],end:meta[2]});
+    const meta=serviceMeta[svc]||[svc.toUpperCase(),'','','other'];
+    if(!byDate[date].some(x=>x.svc===svc))byDate[date].push({svc,label:meta[0],start:meta[1],end:meta[2],kind:meta[3]});
   }
   return byDate;
 }
@@ -107,7 +107,7 @@ async function render(){
   const wd=['DOM','LUN','MAR','MER','GIO','VEN','SAB'],today=new Date(),todayDs=dsFrom(today.getFullYear(),today.getMonth()+1,today.getDate());
   for(let d=1;d<=days;d++){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
-    const shiftEvents=(shifts[date]||[]).map(s=>`<div class="agendaEvent agendaShift"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
+    const shiftEvents=(shifts[date]||[]).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
     const personal=(manualByDate[date]||[]).map(i=>`<div class="agendaEvent agendaPersonal" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`).join('');
     html+=`<div class="agendaDay${weekend?' weekend':''}${date===todayDs?' today':''}" data-agenda-date="${date}">
       <div class="agendaDayHead"><span class="agendaDayNum">${d}</span><span class="agendaDayName">${wd[dt.getDay()]}</span></div>

@@ -1,8 +1,9 @@
-import{getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
+import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getAuth,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
-const fb=getApps()[0],auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getElementById(id);
+const cfg=await(await fetch('/__/firebase/init.json',{cache:'no-store'})).json();
+const fb=getApps()[0]||initializeApp(cfg),auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getElementById(id);
 const root=doc(db,'gestionale','dati');
 const MAIN_ADMINS=['EvF0UU31AwfgTPb6M0UnTX9IXbH3','EK0kFMLlFSPTg1aW83AllWI2DAV2'];
 const serviceMeta={

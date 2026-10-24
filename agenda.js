@@ -172,12 +172,30 @@ function moveMonth(delta){
   render().catch(e=>alert('Errore agenda: '+e.message));
 }
 function bind(){
-  const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit');
+  const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit'),tab=$('tabAgenda');
   if(prev)prev.onclick=()=>moveMonth(-1);
   if(next)next.onclick=()=>moveMonth(1);
   if(monthEl)monthEl.onchange=e=>{viewMonth=normalizeMonth(e.target.value);render().catch(x=>alert('Errore agenda: '+x.message))};
   if(form)form.onsubmit=saveItem;
   if(cancel)cancel.onclick=resetForm;
+  if(tab&&!tab.dataset.agendaBound){
+    tab.dataset.agendaBound='1';
+    tab.addEventListener('click',()=>{
+      setTimeout(async()=>{
+        try{
+          if(!currentUser)return;
+          if(!profile)await identify();
+          viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
+          if($('agendaMonth'))$('agendaMonth').value=viewMonth;
+          await render();
+          resetForm();
+        }catch(e){
+          console.error('Agenda: errore apertura',e);
+          alert('Errore apertura Agenda: '+e.message);
+        }
+      },0);
+    });
+  }
 }
 window.__openAgenda=async()=>{
   if(!currentUser)return;
@@ -197,10 +215,13 @@ onAuthStateChanged(auth,async u=>{
   try{
     const ok=await identify();
     tab?.classList.toggle('hidden',!ok);
-    if(ok&&!$('agenda')?.classList.contains('hidden')){
+    if(ok){
       viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
-      await render();
-      resetForm();
+      if($('agendaMonth'))$('agendaMonth').value=viewMonth;
+      if(!$('agenda')?.classList.contains('hidden')){
+        await render();
+        resetForm();
+      }
     }
   }catch(e){
     console.error('Agenda: errore identificazione profilo',e);

@@ -753,12 +753,12 @@ function ensureMobileShiftView(){
   if(!btn){
     btn=document.createElement('button');btn.id='mobileViewBtn';btn.type='button';btn.className='mobileViewToggle topNavMobileView';btn.textContent='VISTA MOBILE';
     btn.onclick=()=>{const next=!mobileShouldBeOn();mobileViewExplicit=next;if(next)mobileDoctor='';applyMobileShiftMode()};
-    const tabs=document.querySelector('header .tabs');
-    tabs?.appendChild(btn);
+    const logout=document.getElementById('logout');
+    logout?.insertAdjacentElement('afterend',btn);
   }else{
     btn.classList.add('topNavMobileView');
-    const tabs=document.querySelector('header .tabs');
-    if(tabs&&btn.parentElement!==tabs)tabs.appendChild(btn);
+    const logout=document.getElementById('logout');
+    if(logout&&btn.previousElementSibling!==logout)logout.insertAdjacentElement('afterend',btn);
   }
   btn.onclick=()=>{const next=!mobileShouldBeOn();mobileViewExplicit=next;if(next)mobileDoctor='';applyMobileShiftMode()};
   let panel=$('mobileShiftPanel');

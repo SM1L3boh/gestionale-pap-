@@ -59,7 +59,8 @@ body.printCountModal #turni{display:none!important}
  #turni .draftActions #clearDraft{margin-left:0}
  #turni .monthNav #month{flex:1;min-width:140px}
 }
-.agendaPage{max-width:1500px;margin:0 auto}.agendaTop{padding:12px 14px}.agendaTitleRow{display:flex;justify-content:space-between;align-items:center;gap:12px}.agendaMonthNav{display:flex;align-items:center;gap:7px}.agendaMonthNav input{width:auto;min-width:150px}.agendaLayout{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,.8fr);gap:14px}.agendaCalendarCard{overflow:auto}.agendaWeekHead,.agendaCalendar{display:grid;grid-template-columns:repeat(7,minmax(105px,1fr));gap:1px;background:#d7e0ea}.agendaWeekHead span{background:#eaf1f8;text-align:center;font-size:11px;font-weight:800;padding:7px 2px}.agendaDay,.agendaBlank{background:#fff;min-height:120px;padding:6px}.agendaDay.weekend{background:#fff4ef}.agendaDay.today{box-shadow:inset 0 0 0 2px #1d5b93}.agendaDayHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.agendaDayNum{font-weight:800}.agendaDayName{font-size:9px;color:#64748b}.agendaEvent{font-size:10px;line-height:1.25;border-radius:6px;padding:4px 5px;margin-top:4px;overflow-wrap:anywhere}.agendaShift{border-left:3px solid transparent}.agendaShift-am{background:#dcfce7;border-left-color:#16a34a}.agendaShift-pm{background:#ffedd5;border-left-color:#f97316}.agendaShift-night{background:#fef9c3;border-left-color:#ca8a04}.agendaShift-availability{background:#e0f2fe;border-left-color:#38bdf8}.agendaShift-leave{background:#f3e8ff;border-left-color:#a855f7}.agendaShift-other{background:#e5e7eb;border-left-color:#6b7280}.agendaPersonal{background:#fce7f3;border-left:3px solid #db2777;cursor:pointer}.agendaEventTime{font-weight:800}.agendaEditor form{display:grid;gap:9px}.agendaTimeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.agendaFormActions{display:flex;justify-content:flex-end;gap:8px}.agendaUpcomingTitle{margin:18px 0 8px;padding-top:12px;border-top:1px solid #e2e8f0}.agendaManualItem{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eef2f7}.agendaManualItemMain{min-width:0}.agendaManualItemTitle{font-weight:700}.agendaManualItemMeta{font-size:11px;color:#64748b}.agendaManualItemActions{display:flex;gap:4px;align-items:flex-start}.agendaManualItemActions button{padding:4px 6px;font-size:10px}@media(max-width:800px){.agendaLayout{grid-template-columns:1fr}.agendaTitleRow{align-items:flex-start;flex-direction:column}.agendaMonthNav{width:100%}.agendaMonthNav input{flex:1;min-width:0}.agendaCalendarCard{padding:8px}.agendaWeekHead,.agendaCalendar{grid-template-columns:repeat(7,minmax(92px,1fr))}.agendaDay,.agendaBlank{min-height:105px;padding:5px}.agendaEvent{font-size:9px}}
+.agendaPage{max-width:1500px;margin:0 auto}.agendaTop{padding:12px 14px}.agendaTitleRow{display:flex;justify-content:space-between;align-items:center;gap:12px}.agendaMonthNav{display:flex;align-items:center;gap:7px}.agendaMonthNav input{width:auto;min-width:150px}.agendaTableCard{padding:0;overflow:hidden}.agendaTableWrap{overflow:auto}.agendaTable{width:100%;min-width:760px;border-collapse:collapse}.agendaTable th,.agendaTable td{border-bottom:1px solid #e2e8f0;border-right:1px solid #eef2f7;padding:8px;vertical-align:top}.agendaTable th{background:#eaf1f8;position:sticky;top:0;z-index:2}.agendaDayCell{width:115px;min-width:115px;font-weight:800;background:#f8fafc}.agendaHospitalCell{width:42%}.agendaExtraCell{width:42%;cursor:pointer}.agendaWeekendRow .agendaDayCell{background:#fff1f2}.agendaEvent{font-size:11px;line-height:1.25;border-radius:6px;padding:5px 6px;margin:3px 0;overflow-wrap:anywhere}.agendaShift{border-left:3px solid transparent}.agendaShift-am{background:#dcfce7;border-left-color:#16a34a}.agendaShift-pm{background:#ffedd5;border-left-color:#f97316}.agendaShift-night{background:#fef9c3;border-left-color:#ca8a04}.agendaShift-availability{background:#e0f2fe;border-left-color:#38bdf8}.agendaShift-leave{background:#f3e8ff;border-left-color:#a855f7}.agendaShift-other{background:#e5e7eb;border-left-color:#6b7280}.agendaPersonal{background:#fce7f3;border-left:3px solid #db2777;cursor:pointer}.agendaExtraAdd{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-weight:900;background:#eef2ff;color:#3730a3;margin-top:3px}.agendaEditor form{display:grid;gap:9px}.agendaTimeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.agendaFormActions{display:flex;justify-content:flex-end;gap:8px}@media(max-width:800px){.agendaTitleRow{align-items:flex-start;flex-direction:column}.agendaMonthNav{width:100%}.agendaMonthNav input{flex:1;min-width:0}.agendaTable{min-width:680px}.agendaTable th,.agendaTable td{padding:6px}.agendaEvent{font-size:10px}.agendaDayCell{width:95px;min-width:95px}}
+
 </style></head><body>
 <div id="loginView" class="login hidden"><h2>Gestione Turni Medici</h2><p>Accedi per utilizzare la turnistica online.</p><form id="loginForm"><label>Email<input id="email" type="email" required></label><label>Password<input id="password" type="password" required></label><label class="showpass"><input id="showLoginPassword" type="checkbox"> Mostra password</label><button class="primary">Accedi</button></form><div class="authlinks"><button type="button" class="linkbtn" id="showRegister">Crea nuovo utente</button><button type="button" class="linkbtn" id="showReset">Password dimenticata?</button></div><div id="registerPanel" class="authpanel hidden"><b>Richiedi accesso</b><form id="registerForm"><label>Email<input id="regEmail" type="email" required></label><label>Password<input id="regPassword" type="password" minlength="6" required></label><label>Ripeti password<input id="regPassword2" type="password" minlength="6" required></label><label class="showpass"><input id="showRegisterPassword" type="checkbox"> Mostra password</label><button class="primary">Crea richiesta</button></form></div><div id="resetPanel" class="authpanel hidden"><b>Recupera password</b><form id="resetForm"><label>Email<input id="resetEmail" type="email" required></label><button class="primary">Invia email di recupero</button></form></div><p id="loginMsg" class="small hidden"></p></div>
 <div id="pendingView" class="card pending hidden"><h2>Account in attesa di approvazione</h2><p>Un amministratore deve abilitare questo account.</p><button id="pendingLogout">Esci</button></div>
@@ -88,30 +89,30 @@ body.printCountModal #turni{display:none!important}
         </div>
       </div>
     </div>
-    <div class="agendaLayout">
-      <div class="card agendaCalendarCard">
-        <div class="agendaWeekHead"><span>LUN</span><span>MAR</span><span>MER</span><span>GIO</span><span>VEN</span><span>SAB</span><span>DOM</span></div>
-        <div id="agendaCalendar" class="agendaCalendar"></div>
+    <div class="card agendaTableCard">
+      <div class="agendaTableWrap">
+        <table class="agendaTable">
+          <thead><tr><th>Giorno</th><th>Impegno ospedaliero</th><th>Impegni extra</th></tr></thead>
+          <tbody id="agendaTableBody"></tbody>
+        </table>
       </div>
-      <div class="card agendaEditor">
-        <h3 id="agendaFormTitle">Nuovo impegno</h3>
-        <form id="agendaForm">
-          <input id="agendaEditId" type="hidden">
-          <label>Data<input id="agendaDate" type="date" required></label>
-          <div class="agendaTimeRow">
-            <label>Inizio<input id="agendaStart" type="time"></label>
-            <label>Fine<input id="agendaEnd" type="time"></label>
-          </div>
-          <label>Impegno<input id="agendaTitleInput" maxlength="120" required placeholder="Es. Riunione, visita, appuntamento"></label>
-          <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label>
-          <div class="agendaFormActions">
-            <button id="agendaCancelEdit" type="button">Annulla</button>
-            <button class="primary" type="submit">Salva impegno</button>
-          </div>
-        </form>
-        <div class="agendaUpcomingTitle"><b>Impegni del mese</b></div>
-        <div id="agendaManualList"></div>
-      </div>
+    </div>
+    <div class="card agendaEditor">
+      <h3 id="agendaFormTitle">Nuovo impegno extra</h3>
+      <form id="agendaForm">
+        <input id="agendaEditId" type="hidden">
+        <label>Data<input id="agendaDate" type="date" required></label>
+        <div class="agendaTimeRow">
+          <label>Inizio<input id="agendaStart" type="time"></label>
+          <label>Fine<input id="agendaEnd" type="time"></label>
+        </div>
+        <label>Impegno<input id="agendaTitleInput" maxlength="120" required placeholder="Es. Riunione, visita, appuntamento"></label>
+        <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label>
+        <div class="agendaFormActions">
+          <button id="agendaCancelEdit" type="button">Annulla</button>
+          <button class="primary" type="submit">Salva impegno</button>
+        </div>
+      </form>
     </div>
   </div>
 </section>

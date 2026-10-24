@@ -172,15 +172,18 @@ function moveMonth(delta){
   render().catch(e=>alert('Errore agenda: '+e.message));
 }
 function bind(){
-  $('agendaPrev').onclick=()=>moveMonth(-1);
-  $('agendaNext').onclick=()=>moveMonth(1);
-  $('agendaMonth').onchange=e=>{viewMonth=normalizeMonth(e.target.value);render().catch(x=>alert('Errore agenda: '+x.message))};
-  $('agendaForm').onsubmit=saveItem;
-  $('agendaCancelEdit').onclick=resetForm;
+  const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit');
+  if(prev)prev.onclick=()=>moveMonth(-1);
+  if(next)next.onclick=()=>moveMonth(1);
+  if(monthEl)monthEl.onchange=e=>{viewMonth=normalizeMonth(e.target.value);render().catch(x=>alert('Errore agenda: '+x.message))};
+  if(form)form.onsubmit=saveItem;
+  if(cancel)cancel.onclick=resetForm;
 }
 window.__openAgenda=async()=>{
+  if(!currentUser)return;
+  if(!profile)await identify();
   if(!isAgendaOwner())return;
-  viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value);
+  viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
   await render();
   resetForm();
 };
@@ -194,6 +197,11 @@ onAuthStateChanged(auth,async u=>{
   try{
     const ok=await identify();
     tab?.classList.toggle('hidden',!ok);
+    if(ok&&!$('agenda')?.classList.contains('hidden')){
+      viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
+      await render();
+      resetForm();
+    }
   }catch(e){
     console.error('Agenda: errore identificazione profilo',e);
     tab?.classList.add('hidden');

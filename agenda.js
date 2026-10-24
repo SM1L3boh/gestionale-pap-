@@ -143,6 +143,52 @@ async function testAgendaAlert(){
     alert('Errore alert: '+e.message);
   }
 }
+function agendaAlertStorageKey(){return 'agenda_alerted_'+(currentUser?.uid||'anon')}
+function getAgendaAlerted(){
+  try{return new Set(JSON.parse(localStorage.getItem(agendaAlertStorageKey())||'[]'))}catch{return new Set()}
+}
+function saveAgendaAlerted(set){
+  try{localStorage.setItem(agendaAlertStorageKey(),JSON.stringify([...set].slice(-500)))}catch{}
+}
+function agendaDateTime(date,time){
+  if(!date||!time)return null;
+  const d=new Date(date+'T'+time+':00');
+  return Number.isNaN(d.getTime())?null:d;
+}
+async function notifyAgendaItem(i){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const body=(i.start?i.start+' · ':'')+(i.title||'Impegno Agenda');
+  try{
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.ready.catch(()=>null);
+      if(reg){await reg.showNotification('Agenda Turni Medici',{body,tag:'agenda-'+i.id,renotify:false});return}
+    }
+    new Notification('Agenda Turni Medici',{body,tag:'agenda-'+i.id});
+  }catch{}
+}
+async function checkAgendaAlerts(){
+  if(!currentUser||!manualItems?.length)return;
+  const now=Date.now(),alerted=getAgendaAlerted();
+  for(const i of manualItems){
+    const lead=Number(i.alertLead||0);
+    if(!lead||!i.date||!i.start)continue;
+    const when=agendaDateTime(i.date,i.start);
+    if(!when)continue;
+    const alertAt=when.getTime()-lead*60000;
+    const alertId=i.id+'@'+i.date+'@'+i.start+'@'+lead;
+    if(now>=alertAt&&now<when.getTime()+5*60000&&!alerted.has(alertId)){
+      await notifyAgendaItem(i);
+      alerted.add(alertId);
+    }
+  }
+  saveAgendaAlerted(alerted);
+}
+let agendaAlertTimer=null;
+function startAgendaAlerts(){
+  if(agendaAlertTimer)clearInterval(agendaAlertTimer);
+  checkAgendaAlerts().catch(()=>{});
+  agendaAlertTimer=setInterval(()=>checkAgendaAlerts().catch(()=>{}),30000);
+}
 function itemTime(i){
   if(i.start&&i.end)return i.start+'–'+i.end;
   if(i.start)return i.start;
@@ -194,6 +240,7 @@ function resetForm(){
   ensureAgendaFormControls();
   $('agendaFormTitle').textContent='Nuovo impegno';
   $('agendaForm').reset();
+  if($('agendaAlertLead'))$('agendaAlertLead').value='';
   setTimeParts('agendaStart','');
   setTimeParts('agendaEnd','');
   ensureAgendaFormControls();
@@ -209,6 +256,7 @@ function editItem(id){
   setTimeParts('agendaEnd',i.end||'');
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
+  if($('agendaAlertLead'))$('agendaAlertLead').value=String(i.alertLead||'');
   $('agendaFormTitle').textContent='Modifica impegno';
   ensureAgendaFormControls();
   $('agendaTitleInput').focus();
@@ -230,7 +278,7 @@ async function saveItem(e){
   if(!date||!title)return;
   const payload={
     date,month:date.slice(0,7),start:$('agendaStart').value||'',end:$('agendaEnd').value||'',
-    title,notes:$('agendaNotes').value.trim(),updatedAt:new Date().toISOString()
+    title,notes:$('agendaNotes').value.trim(),alertLead:Number($('agendaAlertLead')?.value||0),updatedAt:new Date().toISOString()
   };
   const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
   const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).map(x=>({...x}));
@@ -241,6 +289,7 @@ async function saveItem(e){
   await setDoc(ref,{agendaItems:all},{merge:true});
   viewMonth=date.slice(0,7);
   await render();
+  startAgendaAlerts();
   resetForm();
 }
 function moveMonth(delta){
@@ -285,6 +334,7 @@ window.__openAgenda=async()=>{
   viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
   await render();
   resetForm();
+  startAgendaAlerts();
 };
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
@@ -295,7 +345,7 @@ onAuthStateChanged(auth,async u=>{
   if(!u){tab?.classList.add('hidden');return}
   try{
     const ok=await identify();
-    tab?.classList.toggle('hidden',!ok);
+    tab?.classList.remove('hidden');
     if(ok){
       viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
       if($('agendaMonth'))$('agendaMonth').value=viewMonth;
@@ -306,6 +356,6 @@ onAuthStateChanged(auth,async u=>{
     }
   }catch(e){
     console.error('Agenda: errore identificazione profilo',e);
-    tab?.classList.add('hidden');
+    tab?.classList.remove('hidden');
   }
 });

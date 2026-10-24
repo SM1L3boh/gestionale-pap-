@@ -122,18 +122,9 @@ body.printCountModal #turni{display:none!important}
   <input id="agendaEnd" type="hidden">
 </div>
           <label>Impegno<input id="agendaTitleInput" maxlength="120" required placeholder="Es. Riunione, visita, appuntamento"></label>
-          <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label><label>Avvisami
-            <select id="agendaAlertLead">
-              <option value="">Nessun alert</option>
-              <option value="15">15 minuti prima</option>
-              <option value="30">30 minuti prima</option>
-              <option value="60">1 ora prima</option>
-              <option value="120">2 ore prima</option>
-              <option value="1440">1 giorno prima</option>
-            </select>
-          </label>
+          <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label>
           <div class="agendaFormActions">
-            <button id="agendaTestAlert" type="button" style="background:#0f766e;color:#fff;border-color:#0f766e">Prova alert</button>
+            
             <button id="agendaDeleteEdit" type="button" disabled style="background:#dc2626;color:#fff;border-color:#dc2626;opacity:.45">Cancella impegno</button>
             <button id="agendaCancelEdit" type="button">Annulla</button>
             <button class="primary" type="submit">Salva impegno</button>
@@ -164,4 +155,4 @@ window.TurniCountRules=(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(err=>console.warn('Service worker non registrato',err)));
 }
-</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script><script type="module" src="./agenda.js?v=20261024-alertlead2"></script></body></html>
+</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script><script type="module" src="./agenda.js?v=20261024-noalerts1"></script></body></html>

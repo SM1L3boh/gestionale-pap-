@@ -124,6 +124,7 @@ body.printCountModal #turni{display:none!important}
           <label>Impegno<input id="agendaTitleInput" maxlength="120" required placeholder="Es. Riunione, visita, appuntamento"></label>
           <label>Note<textarea id="agendaNotes" rows="3" maxlength="500" placeholder="Facoltative"></textarea></label>
           <div class="agendaFormActions">
+            <button id="agendaTestAlert" type="button" style="background:#0f766e;color:#fff;border-color:#0f766e">Prova alert</button>
             <button id="agendaDeleteEdit" type="button" disabled style="background:#dc2626;color:#fff;border-color:#dc2626;opacity:.45">Cancella impegno</button>
             <button id="agendaCancelEdit" type="button">Annulla</button>
             <button class="primary" type="submit">Salva impegno</button>
@@ -154,4 +155,4 @@ window.TurniCountRules=(()=>{
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(err=>console.warn('Service worker non registrato',err)));
 }
-</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script><script type="module" src="./agenda.js?v=20261024-agenda13"></script></body></html>
+</script><script type="module" src="./november-2026-arianna-import.js?v=20261014-arianna3"></script><script type="module" src="./agenda.js?v=20261024-alerttest1"></script></body></html>

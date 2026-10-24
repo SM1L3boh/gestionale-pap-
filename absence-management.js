@@ -141,9 +141,11 @@ async function syncAbsenceArchiveFromVisibleLeave(x){
   return {...x,absenceManagement:absence,savedAbsenceStates};
 }
 async function load(){
-  data=await removeImportedNightRest();
-  data=await repairDeiRossiNov17(data);
-  data=await syncAbsenceArchiveFromVisibleLeave(data);
+  // L'apertura di Gestione assenze deve essere in sola lettura.
+  // Scritture/migrazioni automatiche sul documento gestionale/dati possono
+  // superare il limite Firestore di index entries e bloccare il caricamento.
+  const snapshot=await getDoc(root);
+  data=snapshot.exists()?snapshot.data():{};
   data.absenceManagement=data.absenceManagement||{};
   render()
 }

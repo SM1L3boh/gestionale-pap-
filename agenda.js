@@ -40,7 +40,7 @@ async function identify(){
   const ps=await getDoc(doc(db,'users',currentUser.uid));
   profile=ps.exists()?ps.data():{};
   if(!isAgendaOwner())return false;
-  doctorName=profile.doctorName||'COMELATO';
+  doctorName=profile.doctorName||'';
   $('agendaDoctorLabel').textContent='Turni importati automaticamente per '+doctorName;
   return true;
 }
@@ -261,9 +261,9 @@ onAuthStateChanged(auth,async u=>{
   const tab=$('tabAgenda');
   if(!u){tab?.classList.add('hidden');return}
   try{
-    const ok=await identify();
+    await identify();
     tab?.classList.remove('hidden');
-    if(ok){
+    {
       viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
       if($('agendaMonth'))$('agendaMonth').value=viewMonth;
       if(!$('agenda')?.classList.contains('hidden')){

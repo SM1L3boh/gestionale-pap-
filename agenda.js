@@ -99,28 +99,26 @@ async function render(){
   $('agendaMonth').value=viewMonth;
   await loadManualItems();
   const shifts=await loadSchedule();
-  const [y,m]=viewMonth.split('-').map(Number),days=new Date(y,m,0).getDate(),first=new Date(y,m-1,1,12),offset=(first.getDay()+6)%7;
+  const [y,m]=viewMonth.split('-').map(Number),days=new Date(y,m,0).getDate();
   const manualByDate={};
   for(const i of manualItems)(manualByDate[i.date]??=[]).push(i);
-  let html='';
-  for(let i=0;i<offset;i++)html+='<div class="agendaBlank"></div>';
-  const wd=['DOM','LUN','MAR','MER','GIO','VEN','SAB'],today=new Date(),todayDs=dsFrom(today.getFullYear(),today.getMonth()+1,today.getDate());
+  const wd=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
   const shiftOrder={am:1,pm:2,availability:3,night:4,leave:5,other:6};
+  let html='';
   for(let d=1;d<=days;d++){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
-    const shiftEvents=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
-    const personal=(manualByDate[date]||[]).map(i=>`<div class="agendaEvent agendaPersonal" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`).join('');
-    html+=`<div class="agendaDay${weekend?' weekend':''}${date===todayDs?' today':''}" data-agenda-date="${date}">
-      <div class="agendaDayHead"><span class="agendaDayNum">${d}</span><span class="agendaDayName">${wd[dt.getDay()]}</span></div>
-      ${shiftEvents}${personal}
-    </div>`;
+    const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
+    const extra=(manualByDate[date]||[]).map(i=>`<div class="agendaEvent agendaPersonal" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`).join('');
+    html+=`<tr class="${weekend?'agendaWeekendRow':''}">
+      <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
+      <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>
+      <td class="agendaExtraCell" data-agenda-date="${date}">${extra}<span class="agendaExtraAdd" title="Aggiungi impegno">+</span></td>
+    </tr>`;
   }
-  $('agendaCalendar').innerHTML=html;
-  $('agendaCalendar').querySelectorAll('[data-agenda-open]').forEach(x=>x.onclick=e=>{e.stopPropagation();editItem(x.dataset.agendaOpen)});
-  $('agendaCalendar').querySelectorAll('[data-agenda-date]').forEach(x=>x.onclick=()=>{resetForm();$('agendaDate').value=x.dataset.agendaDate;$('agendaTitleInput').focus()});
-  renderManualList();
+  $('agendaTableBody').innerHTML=html;
+  $('agendaTableBody').querySelectorAll('[data-agenda-open]').forEach(x=>x.onclick=e=>{e.stopPropagation();editItem(x.dataset.agendaOpen)});
+  $('agendaTableBody').querySelectorAll('[data-agenda-date]').forEach(x=>x.onclick=()=>{resetForm();$('agendaDate').value=x.dataset.agendaDate;$('agendaTitleInput').focus()});
 }
-
 function resetForm(){
   $('agendaEditId').value='';
   $('agendaFormTitle').textContent='Nuovo impegno';

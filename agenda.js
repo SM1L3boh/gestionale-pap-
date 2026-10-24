@@ -88,7 +88,22 @@ function setTimeParts(prefix,value){
   if(mm)mm.value=(m==='30'?'30':'00');
   syncHiddenTimes();
 }
+function ensureAgendaTestAlert(){
+  const actions=document.querySelector('#agendaForm .agendaFormActions');
+  if(!actions)return;
+  let btn=$('agendaTestAlert');
+  if(!btn){
+    btn=document.createElement('button');
+    btn.id='agendaTestAlert';
+    btn.type='button';
+    btn.textContent='Prova alert';
+    btn.style.cssText='background:#0f766e;color:#fff;border-color:#0f766e';
+    actions.prepend(btn);
+  }
+  btn.onclick=testAgendaAlert;
+}
 function ensureAgendaFormControls(){
+  ensureAgendaTestAlert();
   ['agendaStartHour','agendaStartMinute','agendaEndHour','agendaEndMinute'].forEach(id=>{
     const el=$(id);
     if(el&&!el.dataset.bound){

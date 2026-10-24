@@ -813,16 +813,10 @@ function ensureMobileShiftView(){
     toolbar.appendChild(countRow);
   }
 
-  let agendaShortcut=$('mobileAgendaShortcut');
-  if(!agendaShortcut){
-    agendaShortcut=document.createElement('button');
-    agendaShortcut.id='mobileAgendaShortcut';
-    agendaShortcut.type='button';
-    agendaShortcut.className='mobileAgendaShortcut';
-    agendaShortcut.textContent='AGENDA';
-    agendaShortcut.onclick=()=>document.getElementById('tabAgenda')?.click();
+  const agendaShortcut=$('mobileAgendaShortcut');
+  if(agendaShortcut&&agendaShortcut.parentElement!==toolbar){
+    toolbar.appendChild(agendaShortcut);
   }
-  if(agendaShortcut.parentElement!==countRow)countRow.appendChild(agendaShortcut);
 
   if(!panel){
     panel=document.createElement('div');panel.id='mobileShiftPanel';panel.className='mobileShiftPanel';

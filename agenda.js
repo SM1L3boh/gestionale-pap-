@@ -111,6 +111,23 @@ function ensureAgendaFormControls(){
     del.onclick=()=>{const id=$('agendaEditId')?.value;if(id)removeItem(id)};
   }
 }
+async function testAgendaAlert(){
+  try{
+    if(!('Notification' in window))return alert('Questo browser non supporta le notifiche.');
+    let permission=Notification.permission;
+    if(permission!=='granted')permission=await Notification.requestPermission();
+    if(permission!=='granted')return alert('Permesso notifiche non concesso.');
+    const title='Agenda Turni Medici';
+    const body='Alert di prova funzionante.';
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.ready.catch(()=>null);
+      if(reg){await reg.showNotification(title,{body,icon:'/app-icon.svg',badge:'/app-icon.svg'});return}
+    }
+    new Notification(title,{body,icon:'/app-icon.svg'});
+  }catch(e){
+    alert('Errore alert: '+e.message);
+  }
+}
 function itemTime(i){
   if(i.start&&i.end)return i.start+'–'+i.end;
   if(i.start)return i.start;
@@ -218,12 +235,13 @@ function moveMonth(delta){
 }
 function bind(){
   ensureAgendaFormControls();
-  const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit'),del=$('agendaDeleteEdit'),tab=$('tabAgenda');
+  const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit'),del=$('agendaDeleteEdit'),testAlert=$('agendaTestAlert'),tab=$('tabAgenda');
   if(prev)prev.onclick=()=>moveMonth(-1);
   if(next)next.onclick=()=>moveMonth(1);
   if(monthEl)monthEl.onchange=e=>{viewMonth=normalizeMonth(e.target.value);render().catch(x=>alert('Errore agenda: '+x.message))};
   if(form)form.onsubmit=saveItem;
   if(cancel)cancel.onclick=resetForm;
+  if(testAlert)testAlert.onclick=testAgendaAlert;
   if(del)del.onclick=()=>{const id=$('agendaEditId')?.value;if(id)removeItem(id)};
   if(tab&&!tab.dataset.agendaBound){
     tab.dataset.agendaBound='1';

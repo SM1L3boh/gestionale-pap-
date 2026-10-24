@@ -26,7 +26,9 @@ let currentUser=null,profile=null,doctorName='',viewMonth='',manualItems=[];
 const pad=n=>String(n).padStart(2,'0');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dsFrom=(y,m,d)=>y+'-'+pad(m)+'-'+pad(d);
-const isAgendaOwner=()=>!!currentUser&&MAIN_ADMINS.includes(currentUser.uid)&&(
+const isAgendaOwner=()=>!!currentUser&&(
+  MAIN_ADMINS.includes(currentUser.uid)||profile?.role==='admin'
+)&&(
   String(profile?.doctorName||'').toUpperCase()==='COMELATO' ||
   /comelato/i.test(currentUser.email||'')
 );

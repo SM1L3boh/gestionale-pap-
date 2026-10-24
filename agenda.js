@@ -75,34 +75,39 @@ async function loadSchedule(){
 }
 
 
+function syncHiddenTimes(){
+  const sh=$('agendaStartHour')?.value||'',sm=$('agendaStartMinute')?.value||'00';
+  const eh=$('agendaEndHour')?.value||'',em=$('agendaEndMinute')?.value||'00';
+  if($('agendaStart'))$('agendaStart').value=sh?sh+':'+sm:'';
+  if($('agendaEnd'))$('agendaEnd').value=eh?eh+':'+em:'';
+}
+function setTimeParts(prefix,value){
+  const [h,m]=(value||'').split(':');
+  const hh=$(prefix+'Hour'),mm=$(prefix+'Minute');
+  if(hh)hh.value=h||'';
+  if(mm)mm.value=(m==='30'?'30':'00');
+  syncHiddenTimes();
+}
 function ensureAgendaFormControls(){
-  const buildTimeSelect=(id)=>{
-    const old=$(id); if(!old)return null;
-    if(old.tagName==='SELECT'&&old.dataset.halfHour==='1')return old;
-    const sel=document.createElement('select');
-    sel.id=id; sel.dataset.halfHour='1';
-    sel.innerHTML='<option value="">--:--</option>'+Array.from({length:48},(_,i)=>{
-      const h=pad(Math.floor(i/2)),m=i%2?'30':'00',v=h+':'+m;
-      return '<option value="'+v+'">'+v+'</option>';
-    }).join('');
-    if(old.value)sel.value=old.value;
-    old.replaceWith(sel);
-    return sel;
-  };
-  buildTimeSelect('agendaStart');
-  buildTimeSelect('agendaEnd');
-
+  ['agendaStartHour','agendaStartMinute','agendaEndHour','agendaEndMinute'].forEach(id=>{
+    const el=$(id);
+    if(el&&!el.dataset.bound){
+      el.dataset.bound='1';
+      el.addEventListener('change',syncHiddenTimes);
+    }
+  });
   let del=$('agendaDeleteEdit');
   const actions=document.querySelector('#agendaForm .agendaFormActions');
   if(!del&&actions){
     del=document.createElement('button');
     del.id='agendaDeleteEdit';del.type='button';del.textContent='Cancella impegno';
-    del.style.cssText='background:#dc2626;color:#fff;border-color:#dc2626';
+    del.style.cssText='background:#dc2626;color:#fff;border-color:#dc2626;opacity:.45';
     actions.prepend(del);
   }
   if(del){
     const editing=!!$('agendaEditId')?.value;
-    del.classList.toggle('hidden',!editing);
+    del.disabled=!editing;
+    del.style.opacity=editing?'1':'.45';
     del.onclick=()=>{const id=$('agendaEditId')?.value;if(id)removeItem(id)};
   }
 }
@@ -156,8 +161,10 @@ function resetForm(){
   $('agendaEditId').value='';
   ensureAgendaFormControls();
   $('agendaFormTitle').textContent='Nuovo impegno';
-  const del=$('agendaDeleteEdit');if(del)del.classList.add('hidden');
   $('agendaForm').reset();
+  setTimeParts('agendaStart','');
+  setTimeParts('agendaEnd','');
+  ensureAgendaFormControls();
   const d=new Date();
   $('agendaDate').value=viewMonth===normalizeMonth()?dsFrom(d.getFullYear(),d.getMonth()+1,d.getDate()):viewMonth+'-01';
 }
@@ -166,12 +173,12 @@ function editItem(id){
   const i=manualItems.find(x=>x.id===id);if(!i)return;
   $('agendaEditId').value=i.id;
   $('agendaDate').value=i.date||'';
-  $('agendaStart').value=i.start||'';
-  $('agendaEnd').value=i.end||'';
+  setTimeParts('agendaStart',i.start||'');
+  setTimeParts('agendaEnd',i.end||'');
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
   $('agendaFormTitle').textContent='Modifica impegno';
-  const del=$('agendaDeleteEdit');if(del)del.classList.remove('hidden');
+  ensureAgendaFormControls();
   $('agendaTitleInput').focus();
 }
 async function removeItem(id){
@@ -185,6 +192,7 @@ async function removeItem(id){
 }
 async function saveItem(e){
   e.preventDefault();
+  syncHiddenTimes();
   if(!isAgendaOwner())return;
   const date=$('agendaDate').value,title=$('agendaTitleInput').value.trim();
   if(!date||!title)return;

@@ -109,7 +109,13 @@ window.__turniApplyExternalSchedule=schedule=>{
   data={...schedule};
   if(loaded)renderSchedule();
 };
-function applyRoleUI(){let a=isAdmin();document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));$('tabUtenti').classList.toggle('hidden',!a);if($('loggedUser'))$('loggedUser').textContent=(auth.currentUser?.email||'Utente')+(a?' · Amministratore':' · Utente')}
+function applyRoleUI(){
+  let a=isAdmin(),email=(auth.currentUser?.email||'').toLowerCase(),agendaAllowed=a&&(String(currentProfile?.doctorName||'').toUpperCase()==='COMELATO'||email.includes('comelato'));
+  document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));
+  $('tabUtenti')?.classList.toggle('hidden',!a);
+  $('tabAgenda')?.classList.toggle('hidden',!agendaAllowed);
+  if($('loggedUser'))$('loggedUser').textContent=(auth.currentUser?.email||'Utente')+(a?' · Amministratore':' · Utente')
+}
 function allowed(s,dt){let w=dt.getDay();if(w===0||w===6)return['guardia','giorno','disp1','disp2','ferie','varie'].includes(s);return true}function defaultCellValue(m,dt,s,i){
   if(s==='varie'){
     if(i===1)return'NESSUNO';

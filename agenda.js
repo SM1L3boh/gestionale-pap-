@@ -27,12 +27,7 @@ let currentUser=null,profile=null,doctorName='',viewMonth='',manualItems=[];
 const pad=n=>String(n).padStart(2,'0');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dsFrom=(y,m,d)=>y+'-'+pad(m)+'-'+pad(d);
-const isAgendaOwner=()=>!!currentUser&&(
-  MAIN_ADMINS.includes(currentUser.uid)||profile?.role==='admin'
-)&&(
-  String(profile?.doctorName||'').toUpperCase()==='COMELATO' ||
-  /comelato/i.test(currentUser.email||'')
-);
+const isAgendaOwner=()=>!!currentUser;
 function normalizeMonth(v){if(/^\d{4}-\d{2}$/.test(v))return v;const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)}
 
 async function identify(){
@@ -40,8 +35,11 @@ async function identify(){
   const ps=await getDoc(doc(db,'users',currentUser.uid));
   profile=ps.exists()?ps.data():{};
   if(!isAgendaOwner())return false;
-  doctorName=profile.doctorName||'';
-  $('agendaDoctorLabel').textContent='Turni importati automaticamente per '+doctorName;
+  doctorName=(profile.doctorName||'').trim();
+  if(!doctorName&&/comelato/i.test(currentUser.email||''))doctorName='COMELATO';
+  $('agendaDoctorLabel').textContent=doctorName
+    ?'Turni importati automaticamente per '+doctorName
+    :'Nessun medico associato';
   return true;
 }
 
@@ -58,9 +56,12 @@ async function loadManualItems(){
 }
 
 async function loadSchedule(){
-  const snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},byDate={};
+  const byDate={};
+  if(!doctorName)return byDate;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{};
+  const wanted=doctorName.trim().toUpperCase();
   for(const [k,n] of Object.entries(schedule)){
-    if(n!==doctorName||!k.startsWith(viewMonth+'-'))continue;
+    if(String(n||'').trim().toUpperCase()!==wanted||!k.startsWith(viewMonth+'-'))continue;
     const [date,svc]=k.split('|');
     if(svc==='varie')continue;
     byDate[date]??=[];

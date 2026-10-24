@@ -809,16 +809,21 @@ function ensureMobileShiftView(){
     quarterShortcut.textContent='CONTEGGIO TRIMESTRALE';
     quarterShortcut.onclick=()=>document.getElementById('annualCountBtn')?.click();
 
-    const agendaShortcut=document.createElement('button');
+    countRow.append(countShortcut,quarterShortcut);
+    toolbar.appendChild(countRow);
+  }
+
+  let agendaShortcut=$('mobileAgendaShortcut');
+  if(!agendaShortcut){
+    agendaShortcut=document.createElement('button');
     agendaShortcut.id='mobileAgendaShortcut';
     agendaShortcut.type='button';
     agendaShortcut.className='mobileAgendaShortcut';
     agendaShortcut.textContent='AGENDA';
     agendaShortcut.onclick=()=>document.getElementById('tabAgenda')?.click();
-
-    countRow.append(countShortcut,quarterShortcut,agendaShortcut);
-    toolbar.appendChild(countRow);
   }
+  if(agendaShortcut.parentElement!==countRow)countRow.appendChild(agendaShortcut);
+
   if(!panel){
     panel=document.createElement('div');panel.id='mobileShiftPanel';panel.className='mobileShiftPanel';
     panel.innerHTML='<div class="mobileShiftControls"><label for="mobileDoctorSelect">Medico</label><select id="mobileDoctorSelect"><option value="">Tutti i medici</option></select></div><div id="mobileShiftList" class="mobileShiftList"></div>';

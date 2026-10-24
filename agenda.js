@@ -1,6 +1,6 @@
 import{getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getAuth,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import{getFirestore,doc,getDoc,collection,getDocs,addDoc,setDoc,deleteDoc,query,where}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const fb=getApps()[0],auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getElementById(id);
 const root=doc(db,'gestionale','dati');
@@ -30,7 +30,6 @@ const isAgendaOwner=()=>!!currentUser&&MAIN_ADMINS.includes(currentUser.uid)&&(
   String(profile?.doctorName||'').toUpperCase()==='COMELATO' ||
   /comelato/i.test(currentUser.email||'')
 );
-function userItems(){return collection(db,'agenda',currentUser.uid,'items')}
 function normalizeMonth(v){if(/^\d{4}-\d{2}$/.test(v))return v;const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)}
 
 async function identify(){
@@ -46,10 +45,13 @@ async function identify(){
 async function loadManualItems(){
   manualItems=[];
   if(!currentUser||!viewMonth)return;
-  const q=query(userItems(),where('month','==',viewMonth));
-  const snap=await getDocs(q);
-  snap.forEach(d=>manualItems.push({id:d.id,...d.data()}));
-  manualItems.sort((a,b)=>(a.date+a.start+a.title).localeCompare(b.date+b.start+b.title));
+  const ps=await getDoc(doc(db,'users',currentUser.uid));
+  const p=ps.exists()?ps.data():{};
+  profile={...(profile||{}),...p};
+  manualItems=(Array.isArray(p.agendaItems)?p.agendaItems:[])
+    .filter(i=>i&&i.date?.startsWith(viewMonth+'-'))
+    .map(i=>({...i}));
+  manualItems.sort((a,b)=>(a.date+(a.start||'')+(a.title||'')).localeCompare(b.date+(b.start||'')+(b.title||'')));
 }
 
 async function loadSchedule(){
@@ -137,7 +139,9 @@ function editItem(id){
 async function removeItem(id){
   const i=manualItems.find(x=>x.id===id);if(!i)return;
   if(!confirm('Eliminare l’impegno “'+i.title+'”?'))return;
-  await deleteDoc(doc(db,'agenda',currentUser.uid,'items',id));
+  const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
+  const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).filter(x=>x?.id!==id);
+  await setDoc(ref,{agendaItems:all},{merge:true});
   await render();
   resetForm();
 }
@@ -150,9 +154,13 @@ async function saveItem(e){
     date,month:date.slice(0,7),start:$('agendaStart').value||'',end:$('agendaEnd').value||'',
     title,notes:$('agendaNotes').value.trim(),updatedAt:new Date().toISOString()
   };
-  const id=$('agendaEditId').value;
-  if(id)await setDoc(doc(db,'agenda',currentUser.uid,'items',id),payload,{merge:true});
-  else await addDoc(userItems(),{...payload,createdAt:new Date().toISOString()});
+  const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
+  const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).map(x=>({...x}));
+  const id=$('agendaEditId').value||crypto.randomUUID();
+  const idx=all.findIndex(x=>x?.id===id);
+  const saved={...payload,id,createdAt:idx>=0?(all[idx].createdAt||new Date().toISOString()):new Date().toISOString()};
+  if(idx>=0)all[idx]=saved;else all.push(saved);
+  await setDoc(ref,{agendaItems:all},{merge:true});
   viewMonth=date.slice(0,7);
   await render();
   resetForm();

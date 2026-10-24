@@ -74,6 +74,38 @@ async function loadSchedule(){
   return byDate;
 }
 
+
+function ensureAgendaFormControls(){
+  const buildTimeSelect=(id)=>{
+    const old=$(id); if(!old)return null;
+    if(old.tagName==='SELECT'&&old.dataset.halfHour==='1')return old;
+    const sel=document.createElement('select');
+    sel.id=id; sel.dataset.halfHour='1';
+    sel.innerHTML='<option value="">--:--</option>'+Array.from({length:48},(_,i)=>{
+      const h=pad(Math.floor(i/2)),m=i%2?'30':'00',v=h+':'+m;
+      return '<option value="'+v+'">'+v+'</option>';
+    }).join('');
+    if(old.value)sel.value=old.value;
+    old.replaceWith(sel);
+    return sel;
+  };
+  buildTimeSelect('agendaStart');
+  buildTimeSelect('agendaEnd');
+
+  let del=$('agendaDeleteEdit');
+  const actions=document.querySelector('#agendaForm .agendaFormActions');
+  if(!del&&actions){
+    del=document.createElement('button');
+    del.id='agendaDeleteEdit';del.type='button';del.textContent='Cancella impegno';
+    del.style.cssText='background:#dc2626;color:#fff;border-color:#dc2626';
+    actions.prepend(del);
+  }
+  if(del){
+    const editing=!!$('agendaEditId')?.value;
+    del.classList.toggle('hidden',!editing);
+    del.onclick=()=>{const id=$('agendaEditId')?.value;if(id)removeItem(id)};
+  }
+}
 function itemTime(i){
   if(i.start&&i.end)return i.start+'–'+i.end;
   if(i.start)return i.start;
@@ -122,6 +154,7 @@ async function render(){
 }
 function resetForm(){
   $('agendaEditId').value='';
+  ensureAgendaFormControls();
   $('agendaFormTitle').textContent='Nuovo impegno';
   const del=$('agendaDeleteEdit');if(del)del.classList.add('hidden');
   $('agendaForm').reset();
@@ -129,6 +162,7 @@ function resetForm(){
   $('agendaDate').value=viewMonth===normalizeMonth()?dsFrom(d.getFullYear(),d.getMonth()+1,d.getDate()):viewMonth+'-01';
 }
 function editItem(id){
+  ensureAgendaFormControls();
   const i=manualItems.find(x=>x.id===id);if(!i)return;
   $('agendaEditId').value=i.id;
   $('agendaDate').value=i.date||'';
@@ -175,6 +209,7 @@ function moveMonth(delta){
   render().catch(e=>alert('Errore agenda: '+e.message));
 }
 function bind(){
+  ensureAgendaFormControls();
   const prev=$('agendaPrev'),next=$('agendaNext'),monthEl=$('agendaMonth'),form=$('agendaForm'),cancel=$('agendaCancelEdit'),del=$('agendaDeleteEdit'),tab=$('tabAgenda');
   if(prev)prev.onclick=()=>moveMonth(-1);
   if(next)next.onclick=()=>moveMonth(1);
@@ -202,6 +237,7 @@ function bind(){
   }
 }
 window.__openAgenda=async()=>{
+  ensureAgendaFormControls();
   if(!currentUser)return;
   if(!profile)await identify();
   if(!isAgendaOwner())return;

@@ -148,7 +148,7 @@ async function render(){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
     const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
     const extra=(manualByDate[date]||[]).map(i=>`<div class="agendaEvent agendaPersonal" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`).join('');
-    html+=`<tr class="${weekend?'agendaWeekendRow':''}">
+    html+=`<tr class="${weekend?'agendaWeekendRow':''}" data-agenda-row-date="${date}">
       <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
       <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>
       <td class="agendaExtraCell" data-agenda-date="${date}">${extra}<span class="agendaExtraAdd" title="Aggiungi impegno">+</span></td>
@@ -157,6 +157,17 @@ async function render(){
   $('agendaTableBody').innerHTML=html;
   $('agendaTableBody').querySelectorAll('[data-agenda-open]').forEach(x=>x.onclick=e=>{e.stopPropagation();editItem(x.dataset.agendaOpen)});
   $('agendaTableBody').querySelectorAll('[data-agenda-date]').forEach(x=>x.onclick=()=>{resetForm();$('agendaDate').value=x.dataset.agendaDate;$('agendaTitleInput').focus()});
+}
+function centerAgendaOnTodayMobile(){
+  if(!window.matchMedia('(max-width:800px)').matches)return;
+  const now=new Date();
+  const today=dsFrom(now.getFullYear(),now.getMonth()+1,now.getDate());
+  if(!today.startsWith(viewMonth+'-'))return;
+  const row=document.querySelector('[data-agenda-row-date="'+today+'"]');
+  if(!row)return;
+  requestAnimationFrame(()=>setTimeout(()=>{
+    row.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
+  },80));
 }
 function resetForm(){
   $('agendaEditId').value='';
@@ -253,6 +264,7 @@ window.__openAgenda=async()=>{
   viewMonth=normalizeMonth($('agendaMonth')?.value||$('month')?.value||'');
   await render();
   resetForm();
+  centerAgendaOnTodayMobile();
 };
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
@@ -270,6 +282,7 @@ onAuthStateChanged(auth,async u=>{
       if(!$('agenda')?.classList.contains('hidden')){
         await render();
         resetForm();
+        centerAgendaOnTodayMobile();
       }
     }
   }catch(e){

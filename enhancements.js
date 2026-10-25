@@ -835,7 +835,23 @@ function markHolidayRowsForPrint(){
     const day=parseInt(row.children[0]?.textContent||'',10);
     if(!day)return;
     const ds=month+'-'+String(day).padStart(2,'0');
-    row.classList.toggle('holiday',window.TurniCountRules.holiday(ds));
+    const holiday=window.TurniCountRules.holiday(ds);
+    row.classList.toggle('holiday',holiday);
+    row.querySelectorAll(':scope > td').forEach(td=>{
+      if(holiday){
+        td.dataset.printHoliday='1';
+        td.style.setProperty('background-color','#f4cccc','important');
+      }else if(td.dataset.printHoliday==='1'){
+        td.style.removeProperty('background-color');
+        delete td.dataset.printHoliday;
+      }
+    });
+  });
+}
+function clearHolidayPrintInline(){
+  document.querySelectorAll('#schedule td[data-print-holiday="1"]').forEach(td=>{
+    td.style.removeProperty('background-color');
+    delete td.dataset.printHoliday;
   });
 }
 function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();installSafeClear();ensureMobileShiftView()}
@@ -843,3 +859,6 @@ function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('sched
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);
 window.addEventListener('beforeprint',markHolidayRowsForPrint);
+
+$('printBtn')?.addEventListener('click',markHolidayRowsForPrint,true);
+window.addEventListener('afterprint',clearHolidayPrintInline);

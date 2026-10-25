@@ -635,7 +635,9 @@ function fixFullPrint(){
     let body='';
     for(let d=1;d<=days;d++){
       const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=m+'-'+String(d).padStart(2,'0');
-      const isHoliday=window.TurniCountRules?.holiday?.(ds)===true;
+      const md=(mo)+'-'+d;
+      const fixedHolidays=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','11-1','12-8','12-25','12-26']);
+      const isHoliday=fixedHolidays.has(md);
       body+='<tr class="'+(([0,6].includes(w)||isHoliday)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
       for(const [svc,label,hrs,count] of services){
         if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}

@@ -635,7 +635,8 @@ function fixFullPrint(){
     let body='';
     for(let d=1;d<=days;d++){
       const dt=new Date(y,mo-1,d,12),w=dt.getDay(),ds=m+'-'+String(d).padStart(2,'0');
-      body+='<tr class="'+([0,6].includes(w)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
+      const isHoliday=window.TurniCountRules?.holiday?.(ds)===true;
+      body+='<tr class="'+(([0,6].includes(w)||isHoliday)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
       for(const [svc,label,hrs,count] of services){
         if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
         body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+cellText(ds,svc,count)+'</td>';

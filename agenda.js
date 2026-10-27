@@ -147,7 +147,7 @@ async function render(){
   for(let d=1;d<=days;d++){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
     const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
-    const extra=(manualByDate[date]||[]).map(i=>`<div class="agendaEvent agendaPersonal" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`).join('');
+    const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow'].includes(i.color)?i.color:'red';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
     html+=`<tr class="${weekend?'agendaWeekendRow':''}">
       <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
       <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>
@@ -163,6 +163,7 @@ function resetForm(){
   ensureAgendaFormControls();
   $('agendaFormTitle').textContent='Nuovo impegno';
   $('agendaForm').reset();
+  if($('agendaColor'))$('agendaColor').value='red';
   setTimeParts('agendaStart','');
   setTimeParts('agendaEnd','');
   ensureAgendaFormControls();
@@ -178,6 +179,7 @@ function editItem(id){
   setTimeParts('agendaEnd',i.end||'');
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
+  if($('agendaColor'))$('agendaColor').value=['green','yellow'].includes(i.color)?i.color:'red';
   $('agendaFormTitle').textContent='Modifica impegno';
   ensureAgendaFormControls();
   $('agendaTitleInput').focus();
@@ -199,7 +201,7 @@ async function saveItem(e){
   if(!date||!title)return;
   const payload={
     date,month:date.slice(0,7),start:$('agendaStart').value||'',end:$('agendaEnd').value||'',
-    title,notes:$('agendaNotes').value.trim(),updatedAt:new Date().toISOString()
+    title,notes:$('agendaNotes').value.trim(),color:($('agendaColor')?.value||'red'),updatedAt:new Date().toISOString()
   };
   const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
   const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).map(x=>({...x}));

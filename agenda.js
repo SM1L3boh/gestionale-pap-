@@ -89,7 +89,23 @@ function setTimeParts(prefix,value){
   if(mm)mm.value=(m==='30'?'30':'00');
   syncHiddenTimes();
 }
+function updateAgendaColorButtons(){
+  const value=$('agendaColor')?.value||'red';
+  document.querySelectorAll('[data-agenda-color]').forEach(b=>b.classList.toggle('active',b.dataset.agendaColor===value));
+}
+function bindAgendaColorButtons(){
+  document.querySelectorAll('[data-agenda-color]').forEach(b=>{
+    if(b.dataset.bound)return;
+    b.dataset.bound='1';
+    b.addEventListener('click',()=>{
+      if($('agendaColor'))$('agendaColor').value=b.dataset.agendaColor||'red';
+      updateAgendaColorButtons();
+    });
+  });
+  updateAgendaColorButtons();
+}
 function ensureAgendaFormControls(){
+  bindAgendaColorButtons();
   ['agendaStartHour','agendaStartMinute','agendaEndHour','agendaEndMinute'].forEach(id=>{
     const el=$(id);
     if(el&&!el.dataset.bound){
@@ -147,7 +163,7 @@ async function render(){
   for(let d=1;d<=days;d++){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
     const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
-    const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow'].includes(i.color)?i.color:'red';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
+    const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow','blue'].includes(i.color)?i.color:'red';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
     html+=`<tr class="${weekend?'agendaWeekendRow':''}">
       <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
       <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>
@@ -164,6 +180,7 @@ function resetForm(){
   $('agendaFormTitle').textContent='Nuovo impegno';
   $('agendaForm').reset();
   if($('agendaColor'))$('agendaColor').value='red';
+  updateAgendaColorButtons();
   setTimeParts('agendaStart','');
   setTimeParts('agendaEnd','');
   ensureAgendaFormControls();
@@ -179,7 +196,8 @@ function editItem(id){
   setTimeParts('agendaEnd',i.end||'');
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
-  if($('agendaColor'))$('agendaColor').value=['green','yellow'].includes(i.color)?i.color:'red';
+  if($('agendaColor'))$('agendaColor').value=['green','yellow','blue'].includes(i.color)?i.color:'red';
+  updateAgendaColorButtons();
   $('agendaFormTitle').textContent='Modifica impegno';
   ensureAgendaFormControls();
   $('agendaTitleInput').focus();

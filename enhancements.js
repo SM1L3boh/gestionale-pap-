@@ -696,11 +696,45 @@ function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(
 async function persistHistoricalEdit(k){
   if(!k)return;
   const m=k.slice(0,7);
-  if(!/^\d{4}-\d{2}$/.test(m)||m>currentMonthKey())return;
-  const snap=await getDoc(root),x=snap.exists()?snap.data():{},set=new Set(x.historicalEditKeys||[]);
+  if(!/^\d{4}-\d{2}$/.test(m))return;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},consolidated=new Set(x.consolidatedMonths||[]);
+  if(m>currentMonthKey()&&!consolidated.has(m))return;
+  const set=new Set(x.historicalEditKeys||[]);
   set.add(k);
   await setDoc(root,{historicalEditKeys:[...set],updatedAt:new Date().toISOString()},{merge:true});
   document.querySelector('#schedule select[data-k="'+CSS.escape(k)+'"]')?.classList.add('historicalEdit');
+}
+async function consolidateCurrentMonth(){
+  const month=$('month')?.value;
+  if(!month)return alert('Seleziona un mese.');
+  const monthLabel=month.split('-').reverse().join('/');
+  const ok=confirm('Consolidare i turni di '+monthLabel+'?\n\nDa questo momento tutte le modifiche successive a questo mese verranno evidenziate in rosso.\n\nConfermi?');
+  if(!ok)return;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},set=new Set(x.consolidatedMonths||[]);
+  if(set.has(month)){
+    alert('Il mese '+monthLabel+' è già consolidato.');
+    return;
+  }
+  set.add(month);
+  await setDoc(root,{consolidatedMonths:[...set],updatedAt:new Date().toISOString()},{merge:true});
+  alert('Turni di '+monthLabel+' consolidati. Le modifiche successive saranno evidenziate in rosso.');
+  updateConsolidateButtonState().catch(()=>{});
+}
+async function updateConsolidateButtonState(){
+  const btn=$('consolidateSentBtn'),month=$('month')?.value;
+  if(!btn||!month)return;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},done=new Set(x.consolidatedMonths||[]);
+  const active=done.has(month);
+  btn.textContent=active?'TURNI CONSOLIDATI':'CONSOLIDA TURNI INVIATI';
+  btn.dataset.consolidated=active?'1':'0';
+  btn.title=active?'Mese consolidato: le modifiche successive vengono evidenziate in rosso':'Consolida il mese dopo l’invio dei turni ai medici';
+}
+function bindConsolidateButton(){
+  const btn=$('consolidateSentBtn');
+  if(!btn||btn.dataset.bound)return;
+  btn.dataset.bound='1';
+  btn.addEventListener('click',()=>consolidateCurrentMonth().catch(e=>alert('Errore consolidamento: '+e.message)));
+  updateConsolidateButtonState().catch(()=>{});
 }
 function trackHistoricalEdits(){
   const schedule=$('schedule');
@@ -881,8 +915,8 @@ function clearHolidayPrintInline(){
     delete td.dataset.printHoliday;
   });
 }
-function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();positionConsolidateSentButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear();ensureMobileShiftView()}
-function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
+function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();positionConsolidateSentButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();bindConsolidateButton();updateConsolidateButtonState().catch(()=>{});installSafeClear();ensureMobileShiftView()}
+function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();updateConsolidateButtonState().catch(()=>{});renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);
 window.addEventListener('beforeprint',markHolidayRowsForPrint);

@@ -692,6 +692,39 @@ function isStructuralNessunoKey(k){
   return false;
 }
 async function persistManualKey(k){if(!k||k.includes('|ferie|'))return;let sel=document.querySelector(`#schedule select[data-k="${CSS.escape(k)}"]`),v=sel?.value||'';let snap=await getDoc(root),x=snap.exists()?snap.data():{},mk=new Set(x.manualKeys||[]),g=new Set(x.generatedKeys||[]),ex=new Set(x.extraKeys||[]),opened=new Set(x.openedStructuralKeys||[]);if(!v){manualKeys.delete(k);mk.delete(k);g.delete(k);ex.delete(k);if(isStructuralNessunoKey(k))opened.add(k);else opened.delete(k)}else{manualKeys.add(k);mk.add(k);g.delete(k);ex.delete(k);opened.delete(k)}await setDoc(root,{manualKeys:[...mk],generatedKeys:[...g],extraKeys:[...ex],openedStructuralKeys:[...opened],updatedAt:new Date().toISOString()},{merge:true});applyValueColors().catch(()=>{})}
+function consolidatedServiceLabel(s){
+  return ({guardia:'GUARDIA NOTT.',giorno:'INTERD',disp1:'1ª DISP.',disp2:'2ª DISP.',gessi:'GESSI MAT',gessirep:'GESSI+REP POM',reparto:'REPARTO',amb:'AMBULATORIO',esami:'AMB ESAMI',op1:'OP1 MAT',op2:'OP2 MAT',oppom:'OP POM',ferie:'FERIE',varie:'VARIE'})[s]||String(s||'').toUpperCase();
+}
+async function renderConsolidatedChanges(){
+  const table=$('consolidatedChangesTable'),month=$('month')?.value;
+  if(!table||!month)return;
+  const body=table.querySelector('tbody');
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},logs=(Array.isArray(x.consolidatedChangeLog)?x.consolidatedChangeLog:[])
+    .filter(r=>r&&r.month===month)
+    .sort((a,b)=>String(b.changedAt||'').localeCompare(String(a.changedAt||'')));
+  if(!logs.length){
+    body.innerHTML='<tr><td colspan="5" class="consolidatedChangesEmpty">Nessuna modifica registrata per questo mese.</td></tr>';
+    return;
+  }
+  const escLocal=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  body.innerHTML=logs.map(r=>{
+    const dt=r.changedAt?new Date(r.changedAt):null;
+    const when=dt&&!isNaN(dt)?dt.toLocaleString('it-IT'):'';
+    const date=(r.date||'').split('-').reverse().join('/');
+    return '<tr><td>'+escLocal(date)+'</td><td>'+escLocal(consolidatedServiceLabel(r.service))+'</td><td>'+escLocal(r.before||'—')+'</td><td>'+escLocal(r.after||'—')+'</td><td>'+escLocal(when)+'</td></tr>';
+  }).join('');
+}
+async function logConsolidatedChange(k,before,after){
+  if(!k)return;
+  const [date,service,slotRaw]=k.split('|'),month=date?.slice(0,7);
+  if(!month)return;
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},consolidated=new Set(x.consolidatedMonths||[]);
+  if(!consolidated.has(month))return;
+  const logs=Array.isArray(x.consolidatedChangeLog)?x.consolidatedChangeLog.slice():[];
+  logs.push({month,date,service,slot:Number(slotRaw||0),before:before||'',after:after||'',changedAt:new Date().toISOString()});
+  await setDoc(root,{consolidatedChangeLog:logs,updatedAt:new Date().toISOString()},{merge:true});
+  renderConsolidatedChanges().catch(()=>{});
+}
 function currentMonthKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 async function persistHistoricalEdit(k){
   if(!k)return;
@@ -740,9 +773,19 @@ function trackHistoricalEdits(){
   const schedule=$('schedule');
   if(!schedule||schedule.dataset.historicalTracking)return;
   schedule.dataset.historicalTracking='1';
+  schedule.addEventListener('focusin',e=>{
+    const s=e.target;
+    if(s instanceof HTMLSelectElement&&s.dataset.k)s.dataset.beforeConsolidated=s.value||'';
+  },true);
   schedule.addEventListener('change',e=>{
     const s=e.target;
-    if(s instanceof HTMLSelectElement&&s.dataset.k)persistHistoricalEdit(s.dataset.k).catch(()=>{});
+    if(s instanceof HTMLSelectElement&&s.dataset.k){
+      const before=s.dataset.beforeConsolidated??'';
+      const after=s.value||'';
+      persistHistoricalEdit(s.dataset.k).catch(()=>{});
+      if(before!==after)logConsolidatedChange(s.dataset.k,before,after).catch(()=>{});
+      s.dataset.beforeConsolidated=after;
+    }
   },true);
 }
 function trackManualChanges(){let schedule=$('schedule');if(!schedule||schedule.dataset.manualTracking)return;schedule.dataset.manualTracking='1';schedule.addEventListener('change',e=>{let s=e.target;if(s instanceof HTMLSelectElement&&s.dataset.k&&!s.dataset.k.includes('|ferie|')){applyValueColors();persistManualKey(s.dataset.k).catch(()=>{})}},true)}
@@ -915,8 +958,8 @@ function clearHolidayPrintInline(){
     delete td.dataset.printHoliday;
   });
 }
-function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();positionConsolidateSentButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();bindConsolidateButton();updateConsolidateButtonState().catch(()=>{});installSafeClear();ensureMobileShiftView()}
-function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();updateConsolidateButtonState().catch(()=>{});renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
+function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();positionConsolidateSentButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();bindConsolidateButton();updateConsolidateButtonState().catch(()=>{});renderConsolidatedChanges().catch(()=>{});installSafeClear();ensureMobileShiftView()}
+function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();updateConsolidateButtonState().catch(()=>{});renderConsolidatedChanges().catch(()=>{});renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);
 window.addEventListener('beforeprint',markHolidayRowsForPrint);

@@ -187,3 +187,77 @@ async function renderUsers(){if(!isAdmin())return;let q=await getDocs(collection
 $('showRegister').onclick=()=>{$('registerPanel').classList.toggle('hidden');$('resetPanel').classList.add('hidden')};$('showReset').onclick=()=>{$('resetPanel').classList.toggle('hidden');$('registerPanel').classList.add('hidden')};$('showLoginPassword').onchange=e=>$('password').type=e.target.checked?'text':'password';$('showRegisterPassword').onchange=e=>{$('regPassword').type=e.target.checked?'text':'password';$('regPassword2').type=e.target.checked?'text':'password'};$('loginForm').onsubmit=async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value)}catch{$('loginMsg').textContent='Accesso non riuscito.';$('loginMsg').classList.remove('hidden')}};$('registerForm').onsubmit=async e=>{e.preventDefault();if($('regPassword').value!==$('regPassword2').value)return alert('Le password non coincidono.');await createUserWithEmailAndPassword(auth,$('regEmail').value,$('regPassword').value)};$('resetForm').onsubmit=async e=>{e.preventDefault();await sendPasswordResetEmail(auth,$('resetEmail').value);alert('Email inviata.')};$('logout').onclick=()=>signOut(auth);$('pendingLogout').onclick=()=>signOut(auth);
 const DATA_START_MONTH='2026-09';function rememberMonth(){let m=$('month')?.value;if(m&&m>=DATA_START_MONTH)localStorage.setItem('turniLastMonth',m)}function setMonth(n=0){let d=$('month').value?new Date($('month').value+'-01T12:00:00'):new Date();d.setMonth(d.getMonth()+n);let mm=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;if(mm<DATA_START_MONTH)mm=DATA_START_MONTH;$('month').value=mm;rememberMonth();renderSchedule()}$('prev').onclick=()=>setMonth(-1);$('next').onclick=()=>setMonth(1);$('month').onchange=()=>{if($('month').value<DATA_START_MONTH)$('month').value=DATA_START_MONTH;rememberMonth();renderSchedule()};
 onAuthStateChanged(auth,async u=>{if(!u){loaded=false;currentProfile=null;$('loginView').classList.remove('hidden');$('pendingView').classList.add('hidden');$('app').classList.add('hidden');return}try{let p=await ensureProfile(u);currentProfile=p;$('loginView').classList.add('hidden');if(!p.approved){$('pendingView').classList.remove('hidden');$('app').classList.add('hidden');return}$('pendingView').classList.add('hidden');$('app').classList.remove('hidden');applyRoleUI();showSection('turni','tabTurni');let restore=sessionStorage.getItem('turniRestoreMonthOnce');if(restore){sessionStorage.removeItem('turniRestoreMonthOnce');$('month').value=restore<DATA_START_MONTH?DATA_START_MONTH:restore}else{let remembered=localStorage.getItem('turniLastMonth');if(remembered&&remembered>=DATA_START_MONTH)$('month').value=remembered;else if(!$('month').value){let d=new Date();$('month').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}}rememberMonth();await loadCloud()}catch(e){alert('Errore accesso dati: '+e.message)}});
+
+/* Logout automatico dopo 30 minuti di inattività reale */
+const AUTO_LOGOUT_IDLE_MS = 30 * 60 * 1000;
+let autoLogoutTimer = null;
+let autoLogoutLastActivity = Date.now();
+
+function hasUnsavedInteractiveForm(){
+  const agendaForm=document.getElementById('agendaForm');
+  const doctorForm=document.getElementById('doctorForm');
+  const openModal=[...document.querySelectorAll('.modalBack:not(.hidden), dialog[open]')].some(el=>el.offsetParent!==null);
+  const active=document.activeElement;
+  const typing=active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)
+    && active.offsetParent!==null
+    && !active.closest('#schedule');
+  return !!(
+    (agendaForm && agendaForm.offsetParent!==null && agendaForm.dataset.dirty==='1') ||
+    (doctorForm && doctorForm.offsetParent!==null && doctorForm.dataset.dirty==='1') ||
+    openModal ||
+    typing
+  );
+}
+
+async function performAutomaticLogout(){
+  if(!auth.currentUser)return;
+  if(hasUnsavedInteractiveForm()){
+    autoLogoutLastActivity=Date.now();
+    scheduleAutoLogout();
+    return;
+  }
+  try{
+    const saveBtn=document.getElementById('saveStateBtn');
+    if(saveBtn && saveBtn.offsetParent!==null) saveBtn.click();
+  }catch(_){}
+  try{ await auth.signOut(); }catch(_){}
+}
+
+function scheduleAutoLogout(){
+  if(autoLogoutTimer)clearTimeout(autoLogoutTimer);
+  const elapsed=Date.now()-autoLogoutLastActivity;
+  const remaining=Math.max(1000,AUTO_LOGOUT_IDLE_MS-elapsed);
+  autoLogoutTimer=setTimeout(()=>{
+    if(Date.now()-autoLogoutLastActivity>=AUTO_LOGOUT_IDLE_MS)performAutomaticLogout();
+    else scheduleAutoLogout();
+  },remaining);
+}
+
+function noteUserActivity(){
+  autoLogoutLastActivity=Date.now();
+  scheduleAutoLogout();
+}
+
+['pointerdown','keydown','touchstart','change','scroll'].forEach(evt=>{
+  window.addEventListener(evt,noteUserActivity,{passive:true,capture:true});
+});
+
+document.addEventListener('input',e=>{
+  const f=e.target?.closest?.('form');
+  if(f)f.dataset.dirty='1';
+},true);
+
+document.addEventListener('submit',e=>{
+  const f=e.target;
+  if(f?.dataset)f.dataset.dirty='0';
+},true);
+
+auth.onAuthStateChanged(user=>{
+  if(user){
+    autoLogoutLastActivity=Date.now();
+    scheduleAutoLogout();
+  }else if(autoLogoutTimer){
+    clearTimeout(autoLogoutTimer);
+    autoLogoutTimer=null;
+  }
+});

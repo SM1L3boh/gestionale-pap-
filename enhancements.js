@@ -569,13 +569,18 @@ async function exportToDrive(){
   }catch(err){alert('Salvataggio su Drive non riuscito: '+err.message)}
   finally{if(b){b.disabled=false;b.textContent='SALVA SU GOOGLE DRIVE'}}
 }
+function positionConsolidateSentButton(){
+  const b=$('consolidateSentBtn'),drive=$('saveDriveExcelBtn');
+  if(!b)return;
+  if(drive&&b.previousElementSibling!==drive)drive.insertAdjacentElement('afterend',b);
+}
 function ensureDriveButton(){
   if($('saveDriveExcelBtn'))return;
   const anchor=$('exportExcelBtn');if(!anchor)return;
   const b=document.createElement('button');
   b.id='saveDriveExcelBtn';b.type='button';b.className=anchor.className;
   b.textContent='SALVA SU GOOGLE DRIVE';b.title='Salva il file Excel del mese nella cartella Drive configurata';
-  anchor.insertAdjacentElement('afterend',b);b.addEventListener('click',exportToDrive);loadGoogleIdentity().catch(()=>{});
+  anchor.insertAdjacentElement('afterend',b);b.addEventListener('click',exportToDrive);positionConsolidateSentButton();loadGoogleIdentity().catch(()=>{});
 }
 
 function ensureExcelButton(){let b=$('exportExcelBtn');if(!b||b.dataset.ready)return;b.dataset.ready='1';b.onclick=()=>exportExcel().catch(err=>alert('Errore esportazione Excel: '+err.message))}
@@ -876,7 +881,7 @@ function clearHolidayPrintInline(){
     delete td.dataset.printHoliday;
   });
 }
-function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear();ensureMobileShiftView()}
+function refreshEnhancements(){markHolidayRowsForPrint();mergeWeekendServiceCells();ensureMyShiftsButton();ensureExcelButton();ensureDriveButton();positionConsolidateSentButton();wrapGenerator();fixFullPrint();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear();ensureMobileShiftView()}
 function start(){buildDoctorFilter();refreshEnhancements();let schedule=$('schedule');if(schedule)new MutationObserver(()=>{mergeWeekendServiceCells();applyDoctorHighlight();applyValueColors();enhanceLeaveSlots();wrapGenerator();fixFullPrint();ensureExcelButton();installLeavePersistence();trackManualChanges();trackHistoricalEdits();installSafeClear()}).observe(schedule,{childList:true,subtree:true});$('month')?.addEventListener('change',()=>setTimeout(()=>{buildDoctorFilter();refreshEnhancements();renderMobileShiftView().catch(()=>{})},80));for(const id of ['prev','next'])$(id)?.addEventListener('click',()=>setTimeout(()=>{if(mobileShouldBeOn())renderMobileShiftView().catch(()=>{})},100));let app=$('app');if(app)new MutationObserver(()=>{if(!app.classList.contains('hidden')){buildDoctorFilter();refreshEnhancements()}}).observe(app,{attributes:true,attributeFilter:['class']})}
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(mobileViewExplicit===null)applyMobileShiftMode()});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},300);setTimeout(()=>{buildDoctorFilter();refreshEnhancements()},1200);

@@ -570,9 +570,9 @@ async function exportToDrive(){
   finally{if(b){b.disabled=false;b.textContent='SALVA SU GOOGLE DRIVE'}}
 }
 function positionConsolidateSentButton(){
-  const b=$('consolidateSentBtn'),drive=$('saveDriveExcelBtn');
-  if(!b)return;
-  if(drive&&b.previousElementSibling!==drive)drive.insertAdjacentElement('afterend',b);
+  const b=$('consolidateSentBtn'),clear=$('clearDraft');
+  if(!b||!clear)return;
+  if(b.previousElementSibling!==clear)clear.insertAdjacentElement('afterend',b);
 }
 function ensureDriveButton(){
   if($('saveDriveExcelBtn'))return;

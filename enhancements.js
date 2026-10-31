@@ -767,7 +767,20 @@ async function updateConsolidateButtonState(){
   btn.disabled=active;
   btn.title=active?'Mese consolidato: le modifiche successive vengono evidenziate in rosso':'Consolida il mese dopo l’invio dei turni ai medici';
 }
+let lastConsolidateMonthSeen='';
+function watchConsolidateMonth(){
+  const read=()=>{
+    const m=$('month')?.value||'';
+    if(!m||m===lastConsolidateMonthSeen)return;
+    lastConsolidateMonthSeen=m;
+    updateConsolidateButtonState().catch(()=>{});
+    renderConsolidatedChanges().catch(()=>{});
+  };
+  read();
+  if(!window.__consolidateMonthWatcher)window.__consolidateMonthWatcher=setInterval(read,250);
+}
 function bindConsolidateButton(){
+  watchConsolidateMonth();
   const btn=$('consolidateSentBtn');
   if(!btn||btn.dataset.bound)return;
   btn.dataset.bound='1';

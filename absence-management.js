@@ -6,6 +6,15 @@ let data={},view=new Date(),mobileAbsenceDoctor='';
 function store(){return data.absenceManagement||{}}
 function doctors(){return(data.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean)}
 function key(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`}
+function absenceEaster(y){let aa=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*aa+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,n=Math.floor((aa+11*h+22*l)/451),mo=Math.floor((h+l-7*n+114)/31),da=(h+l-7*n+114)%31+1;return new Date(y,mo-1,da,12)}
+function absenceIsHoliday(dt){
+  const ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  if(window.TurniCountRules?.holiday)return !!window.TurniCountRules.holiday(ds);
+  const md=(dt.getMonth()+1)+'-'+dt.getDate();
+  if(new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']).has(md))return true;
+  const p=absenceEaster(dt.getFullYear());p.setDate(p.getDate()+1);
+  return p.toDateString()===dt.toDateString();
+}
 function isMobileAbsence(){return window.matchMedia('(max-width:760px)').matches}
 function ensureMobileAbsenceUI(){
   const modal=$('absenceManageModal')?.querySelector('.modal'),wrap=$('absenceTable')?.closest('.countWrap');
@@ -22,14 +31,14 @@ function ensureMobileAbsenceUI(){
 function renderDesktopAbsence(y,m,days){
   let table=$('absenceTable');if(!table)return;
   let head='<tr><th style="position:sticky;left:0;z-index:3;background:#d9d2e9;min-width:105px">Medico</th>';
-  for(let d=1;d<=days;d++){let dt=new Date(y,m,d,12),we=[0,6].includes(dt.getDay());head+=`<th style="min-width:24px;width:24px;padding:3px 1px;font-size:11px;${we?'background:#f4cccc':''}">${d}<br><small>${DW[dt.getDay()]}</small></th>`}
+  for(let d=1;d<=days;d++){let dt=new Date(y,m,d,12),we=[0,6].includes(dt.getDay())||absenceIsHoliday(dt);head+=`<th style="min-width:24px;width:24px;padding:3px 1px;font-size:11px;${we?'background:#f4cccc':''}">${d}<br><small>${DW[dt.getDay()]}</small></th>`}
   head+='<th>Tot.</th></tr>';
   let body='';
   for(const n of doctors()){
     let set=new Set(store()[n]||[]),tot=0;
     body+=`<tr><td style="position:sticky;left:0;z-index:2;background:white;text-align:left"><b>${n}</b></td>`;
     for(let d=1;d<=days;d++){
-      let dt=new Date(y,m,d,12),date=key(y,m,d),on=set.has(date),we=[0,6].includes(dt.getDay());if(on)tot++;
+      let dt=new Date(y,m,d,12),date=key(y,m,d),on=set.has(date),we=[0,6].includes(dt.getDay())||absenceIsHoliday(dt);if(on)tot++;
       body+=`<td class="absenceDayCell" data-doctor="${n}" data-date="${date}" title="${n} — ${date}" style="cursor:pointer;text-align:center;font-weight:700;padding:3px 1px;font-size:11px;width:24px;${on?'background:#fff2a8;':''}${!on&&we?'background:#f8dddd;':''}">${on?'A':''}</td>`
     }
     body+=`<td><b>${tot}</b></td></tr>`
@@ -52,7 +61,7 @@ function renderMobileAbsence(y,m,days){
   const first=new Date(y,m,1,12),offset=(first.getDay()+6)%7;
   for(let i=0;i<offset;i++)html+='<span class="absenceMobileBlank"></span>';
   for(let d=1;d<=days;d++){
-    const dt=new Date(y,m,d,12),date=key(y,m,d),on=set.has(date),we=[0,6].includes(dt.getDay());
+    const dt=new Date(y,m,d,12),date=key(y,m,d),on=set.has(date),we=[0,6].includes(dt.getDay())||absenceIsHoliday(dt);
     html+=`<button type="button" class="absenceMobileDay${on?' active':''}${we?' weekend':''}" data-doctor="${mobileAbsenceDoctor}" data-date="${date}"><b>${d}</b><small>${DW[dt.getDay()]}</small>${on?'<strong>ASSENTE</strong>':''}</button>`;
   }
   html+='</div>';

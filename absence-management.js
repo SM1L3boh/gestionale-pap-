@@ -380,6 +380,58 @@ async function loadAbsencesWithRetry(){
   }
   throw lastErr;
 }
+function printAbsenceOverview(){
+  const y=view.getFullYear(),m=view.getMonth(),days=new Date(y,m+1,0).getDate(),names=doctors();
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let head='<tr><th class="doctor">Medico</th>';
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m,d,12),special=[0,6].includes(dt.getDay())||absenceIsHoliday(dt);
+    head+='<th class="'+(special?'special':'')+'"><b>'+d+'</b><small>'+DW[dt.getDay()]+'</small></th>';
+  }
+  head+='<th class="tot">Tot.</th></tr>';
+  let body='';
+  for(const n of names){
+    const set=new Set(store()[n]||[]);let tot=0;
+    body+='<tr><td class="doctor">'+esc(n)+'</td>';
+    for(let d=1;d<=days;d++){
+      const dt=new Date(y,m,d,12),date=key(y,m,d),on=set.has(date),special=[0,6].includes(dt.getDay())||absenceIsHoliday(dt);
+      if(on)tot++;
+      body+='<td class="'+(special?'special ':'')+(on?'absence':'')+'">'+(on?'A':'')+'</td>';
+    }
+    body+='<td class="tot">'+tot+'</td></tr>';
+  }
+  const w=window.open('','_blank','width=1400,height=900');
+  if(!w)return alert('Consenti i popup per stampare il prospetto.');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Gestione assenze - ${MN[m]} ${y}</title>
+  <style>
+    @page{size:A4 landscape;margin:7mm}
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;color:#111;margin:0}
+    .page{width:100%}
+    h1{font-size:16px;text-align:center;margin:0 0 8px}
+    .note{font-size:8px;color:#475569;margin:0 0 6px;text-align:center}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.5px}
+    th,td{border:1px solid #b8c7d9;text-align:center;padding:2px 0;height:18px}
+    th{background:#eaf1f8;font-weight:700}
+    th small{display:block;font-size:6px;margin-top:1px}
+    .doctor{width:23mm!important;text-align:left!important;padding-left:3px!important;font-weight:700;background:#eee8f7!important}
+    .tot{width:8mm!important;font-weight:700}
+    .special{background:#f4cccc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .absence{background:#fff2a8!important;font-weight:800;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .special.absence{background:#fde68a!important}
+    @media print{
+      body{margin:0}
+      h1{font-size:15px}
+      table{font-size:7px}
+      th,td{height:17px}
+    }
+  </style></head><body><div class="page">
+  <h1>GESTIONE ASSENZE — ${MN[m]} ${y}</h1>
+  <div class="note">A = assenza / ferie · sabati, domeniche e festivi evidenziati</div>
+  <table><thead>${head}</thead><tbody>${body}</tbody></table>
+  </div><script>window.onload=()=>{setTimeout(()=>window.print(),150)}<\/script></body></html>`);
+  w.document.close();
+}
 function install(){
   ensureAbsenceMobileStyle();
   let b=$('absenceManageBtn');
@@ -411,7 +463,8 @@ function install(){
     await reconcileCurrentMonth(true,m)
   };
   $('absencePrevMonth').onclick=()=>move(-1);
-  $('absenceNextMonth').onclick=()=>move(1)
+  $('absenceNextMonth').onclick=()=>move(1);
+  $('absencePrint').onclick=()=>printAbsenceOverview()
 }
 async function reconcileCurrentMonth(reload=false,monthOverride=''){let m=monthOverride||$('month')?.value;if(!m)return;try{await reconcileMonthLeaves(m);sessionStorage.setItem('leaveReconciledAt',Date.now().toString());if(reload)location.reload()}catch(e){console.error('Errore congruità ferie',e);alert('Errore sincronizzazione ferie: '+e.message)}}
 window.matchMedia('(max-width:760px)').addEventListener?.('change',()=>{if(!$('absenceManageModal')?.classList.contains('hidden'))render()});

@@ -150,7 +150,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   for(const r of workRows){
     if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
     const z=byDate.get(r.ds);
-    const label=r.stc?'STC Pomeriggio · OP POM 14–20':serviceLabel(r.s);
+    const label=r.stc?'STC Pomeriggio':serviceLabel(r.s);
     if(isMorning(r))z.mattino.push(label);
     else if(isAfternoon(r))z.pomeriggio.push(label);
     else if(isNight(r))z.pomeriggio.push(label);

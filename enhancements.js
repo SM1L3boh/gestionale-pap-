@@ -624,6 +624,8 @@ function fixFullPrint(){
       const k=sel.dataset.k;
       if(k?.startsWith(m+'-'))visible[k]=sel.value||'';
     });
+    const stcVisible=new Set();
+    document.querySelectorAll('#schedule .stcPomCheck[data-stc-date]').forEach(ch=>{if(ch.checked&&ch.dataset.stcDate?.startsWith(m+'-'))stcVisible.add(ch.dataset.stcDate)});
 
     const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const cellText=(ds,svc,count)=>{
@@ -646,7 +648,9 @@ function fixFullPrint(){
       body+='<tr class="'+(([0,6].includes(w)||isHoliday)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
       for(const [svc,label,hrs,count] of services){
         if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
-        body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+cellText(ds,svc,count)+'</td>';
+        let content=cellText(ds,svc,count);
+        if(svc==='op2'&&w===2&&stcVisible.has(ds))content+=(content?'<br>':'')+'<span class="stcPrint">☑ STC Pomeriggio</span>';
+        body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+content+'</td>';
       }
       body+='</tr>';
     }
@@ -668,7 +672,7 @@ function fixFullPrint(){
       th:nth-child(2),td:nth-child(2){width:7mm}
       .weekend td{background:#f4cccc}
       .off{background:#eee!important;color:#888}
-      .pmCol{background:#fff}
+      .pmCol{background:#fff}.stcPrint{font-size:5pt;font-weight:700;white-space:nowrap}
       tr{break-inside:avoid}
       @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}th:nth-last-child(2),td:nth-last-child(2){width:29mm!important}th:last-child,td:last-child{width:15mm!important}.weekend td{background:#f4cccc!important}.off{background:#eee!important;color:#888!important}.pmCol{background:#fff!important}th{background:#d9e2f3!important;color:#000!important}.notesHead{background:#d9d2e9!important}}
     </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);

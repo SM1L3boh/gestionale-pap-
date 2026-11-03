@@ -100,13 +100,14 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   }
   if(!doctor)return alert('Medico non riconosciuto.');
 
-  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();const stcDates=new Set(x.stcPomDates||[]);
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
     if(s==='ferie'){leaveDates.add(ds);continue;}
     rows.push({ds,s});
   }
+  for(const ds of stcDates){if(!ds.startsWith(month+'-'))continue;const names=[...new Set([0,1].map(i=>schedule[ds+'|op2|'+i]).filter(n=>n&&n!=='NESSUNO'))];if(names.includes(doctor))rows.push({ds,s:'oppom',stc:true})}
   const officialAbsence=x.absenceManagement?.[doctor]||[];
   for(const ds of officialAbsence)if(ds.startsWith(month+'-'))leaveDates.add(ds);
   // Lo smonto segue una guardia notturna e non costituisce ferie né turno aggiuntivo.
@@ -149,7 +150,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   for(const r of workRows){
     if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
     const z=byDate.get(r.ds);
-    const label=serviceLabel(r.s);
+    const label=r.stc?'STC Pomeriggio · OP POM 14–20':serviceLabel(r.s);
     if(isMorning(r))z.mattino.push(label);
     else if(isAfternoon(r))z.pomeriggio.push(label);
     else if(isNight(r))z.pomeriggio.push(label);

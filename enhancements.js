@@ -146,7 +146,16 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   const actuallyWorkedDates=new Set(actuallyWorkedRows.map(r=>r.ds));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
-  const changedDates=new Set();for(const k of historicalEditKeys){const ds=k.slice(0,10);if(ds.startsWith(month+'-'))changedDates.add(ds)}
+  const changedDates=new Set();
+  const consolidatedLog=Array.isArray(x.consolidatedChangeLog)?x.consolidatedChangeLog:[];
+  for(const r of consolidatedLog){
+    if(!r||r.month!==month)continue;
+    if(r.before===doctor||r.after===doctor)changedDates.add(r.date);
+  }
+  for(const k of historicalEditKeys){
+    const ds=k.slice(0,10);
+    if(ds.startsWith(month+'-')&&schedule[k]===doctor)changedDates.add(ds);
+  }
   const byDate=new Map();
   for(const r of workRows){
     if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
@@ -165,13 +174,13 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     const weekend=d.getDay()===0||d.getDay()===6;
     const z=byDate.get(ds)||{mattino:[],pomeriggio:[]};
     const isRest=nightRests.has(ds),isLeave=!isRest&&leaveDates.has(ds);
-    return `<tr class="${weekend?'weekendRow':''}${isLeave?' leaveRow':''}"><td>${dateLabel}</td><td>${isRest?'SMONTO':isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+    return `<tr class="${weekend?'weekendRow ':''}${isLeave?'leaveRow ':''}${changedDates.has(ds)?'changedRow':''}"><td>${dateLabel}</td><td>${isRest?'SMONTO':isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
   }).join('');
 
   const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{
     const d=new Date(r.ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+r.ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6;
-    return `<tr class="${weekend?'weekendRow':''}"><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
+    return `<tr class="${weekend?'weekendRow ':''}${changedDates.has(r.ds)?'changedRow':''}"><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
   }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
 
   const leaveList=[...leaveDates].sort();
@@ -286,6 +295,8 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       .weekendRow td{background:#fee2e2!important}
       .leaveRow td{background:#fff7cc!important}
       .weekendRow.leaveRow td{background:#fbd5d5!important}
+      .changedRow td{background:#dbeafe!important;border-color:#2563eb!important;color:#1e3a8a!important;font-weight:700!important}
+      .changedRow.weekendRow td,.changedRow.leaveRow td{background:#c7d2fe!important}
       h3{break-after:avoid}table{break-inside:avoid}tr{break-inside:avoid}
     }
   </style></head><body><div id="page"><div id="content">

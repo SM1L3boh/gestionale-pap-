@@ -100,7 +100,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   }
   if(!doctor)return alert('Medico non riconosciuto.');
 
-  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();const stcDates=new Set(x.stcPomDates||[]);
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();const stcDates=new Set(x.stcPomDates||[]),historicalEditKeys=new Set(x.historicalEditKeys||[]);
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
@@ -146,6 +146,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   const actuallyWorkedDates=new Set(actuallyWorkedRows.map(r=>r.ds));
   const availabilityRows=rows.filter(isWeekdayAvailability);
 
+  const changedDates=new Set();for(const k of historicalEditKeys){const ds=k.slice(0,10);if(ds.startsWith(month+'-'))changedDates.add(ds)}
   const byDate=new Map();
   for(const r of workRows){
     if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
@@ -269,7 +270,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     .leave th{background:#fde68a}
     .leaveRow td{background:#fff7cc}
     .weekendRow td{background:#fee2e2!important}
-    .weekendRow.leaveRow td{background:#fbd5d5!important}
+    .weekendRow.leaveRow td{background:#fbd5d5!important}.changedRow td{background:#dbeafe!important;border-color:#2563eb!important;color:#1e3a8a!important;font-weight:700}.changedRow.leaveRow td{background:#c7d2fe!important}.changedRow.weekendRow td{background:#c7d2fe!important}
     .summary{margin:2px 0 8px;font-size:10px}
     .actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
     .actions button{padding:7px 14px;font-weight:700}

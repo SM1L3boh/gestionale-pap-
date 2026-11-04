@@ -823,7 +823,7 @@ function mobileShouldBeOn(){return mobileViewExplicit===null?window.matchMedia('
 async function renderMobileShiftView(){
   const panel=$('mobileShiftPanel'),sel=$('mobileDoctorSelect'),month=$('month')?.value;
   if(!panel||!sel||!month)return;
-  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},docs=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
+  let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},historicalEditKeys=new Set(x.historicalEditKeys||[]),docs=(x.doctors||[]).filter(d=>d.active).map(d=>d.name).filter(Boolean);
   doctorNames=docs;
   const previous=mobileDoctor||sel.value||'';
   sel.innerHTML='<option value="">Tutti i medici</option>'+docs.map(n=>`<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
@@ -859,9 +859,11 @@ async function renderMobileShiftView(){
   list.innerHTML=dates.map(ds=>{
     const d=new Date(ds+'T12:00:00'),groups=byDate[ds]||{};
     const services=MOBILE_SERVICE_ORDER.filter(s=>groups[s]?.length),isLeave=!!mobileDoctor&&leaveDates.has(ds),isRest=!!mobileDoctor&&restDates.has(ds),isHome=!!mobileDoctor&&!services.length&&!isLeave&&!isRest,isAvailability=!!mobileDoctor&&services.length>0&&services.every(s=>s==='disp1'||s==='disp2'),isHoliday=mobileIsHoliday(d);
-    const rows=isRest?'<div class="mobileStateLabel rest">SMONTO</div>':isLeave?'<div class="mobileStateLabel leave">FERIE / ASSENZA</div>':isHome?'<div class="mobileHomeLabel">CASA</div>':services.map(s=>{
+    const changedEmpty=mobileDoctor?[...historicalEditKeys].filter(k=>k.startsWith(ds+'|')).some(k=>{const n=schedule[k];return !n||n==='NESSUNO'||n===mobileDoctor}):false;
+    const rows=isRest?'<div class="mobileStateLabel rest">SMONTO</div>':isLeave?'<div class="mobileStateLabel leave">FERIE / ASSENZA</div>':isHome?(changedEmpty?'<div class="mobileHomeLabel mobileHistoricalEdit">CASA · MODIFICATO</div>':'<div class="mobileHomeLabel">CASA</div>'):services.map(s=>{
       const who=mobileDoctor?'':groups[s].join(' / ');
-      return `<div class="mobileShiftRow${mobileDoctor&&(s==='disp1'||s==='disp2')?' mobileAvailabilityRow':''}"><div class="mobileShiftSvc">${escHtml(serviceLabel(s))}</div><div class="mobileShiftWho">${escHtml(who||mobileDoctor)}</div></div>`;
+      const changed=[0,1,2,3].some(i=>historicalEditKeys.has(ds+'|'+s+'|'+i));
+      return `<div class="mobileShiftRow${mobileDoctor&&(s==='disp1'||s==='disp2')?' mobileAvailabilityRow':''}${changed?' mobileHistoricalEdit':''}"><div class="mobileShiftSvc">${escHtml(serviceLabel(s))}</div><div class="mobileShiftWho">${escHtml(who||mobileDoctor)}</div></div>`;
     }).join('');
     const stateClass=isRest?' mobileRest':isLeave?' mobileLeave':isHome?' mobileHome':isHoliday?' mobileHoliday':isAvailability?' mobileAvailability':'';
     return `<div class="mobileDayCard${stateClass}"><div class="mobileDayHead"><b>${weekdays[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}</b><span>${ds.split('-').reverse().join('/')}</span></div>${rows}</div>`;

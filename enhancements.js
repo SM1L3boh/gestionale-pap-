@@ -650,6 +650,7 @@ function fixFullPrint(){
 
     const [y,mo]=m.split('-').map(Number);
     const days=new Date(y,mo,0).getDate();
+    const printSnap=await getDoc(root),xPrint=printSnap.exists()?printSnap.data():{},weekendRepPrint=xPrint.weekendReperibilita||{};
     const monthName=['','gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'][mo]||m;
     const services=[
       ['guardia','GUARDIA NOTT.','20–08',1],
@@ -695,7 +696,15 @@ function fixFullPrint(){
       const fixedHolidays=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','11-1','12-8','12-25','12-26']);
       const isHoliday=fixedHolidays.has(md);
       body+='<tr class="'+(([0,6].includes(w)||isHoliday)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
-      for(const [svc,label,hrs,count] of services){
+      for(let si=0;si<services.length;si++){
+        const [svc,label,hrs,count]=services[si];
+        if([0,6].includes(w)&&svc==='gessi'){
+          const rep14=weekendRepPrint[ds+'|14-20']||'',rep20=weekendRepPrint[ds+'|20-8']||'';
+          const repText='<div class="weekendRepPrint"><span><b>Rep 14-20</b> '+esc(rep14||'—')+'</span><span><b>Rep 20-8</b> '+esc(rep20||'—')+'</span></div>';
+          body+='<td class="weekendRepCell" colspan="8">'+repText+'</td>';
+          si+=7;
+          continue;
+        }
         if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
         let content=cellText(ds,svc,count);
         if(svc==='op2'&&w===2&&stcVisible.has(ds))content+=(content?'<br>':'')+'<span class="stcPrint">☑ STC Pomeriggio</span>';
@@ -721,7 +730,7 @@ function fixFullPrint(){
       th:nth-child(2),td:nth-child(2){width:7mm}
       .weekend td{background:#f4cccc}
       .off{background:#eee!important;color:#888}
-      .pmCol{background:#fff}.stcPrint{font-size:5pt;font-weight:700;white-space:nowrap}
+      .pmCol{background:#fff}.stcPrint{font-size:5pt;font-weight:700;white-space:nowrap}.weekendRepCell{background:#eee!important}.weekendRepPrint{display:flex;justify-content:center;gap:10mm;align-items:center;font-size:5.4pt}.weekendRepPrint span{white-space:nowrap}.weekendRepPrint b{font-weight:800}
       tr{break-inside:avoid}
       @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.actions{display:none}body{padding:0}table{font-size:5.5pt}th{font-size:5.6pt}th:nth-last-child(2),td:nth-last-child(2){width:29mm!important}th:last-child,td:last-child{width:15mm!important}.weekend td{background:#f4cccc!important}.off{background:#eee!important;color:#888!important}.pmCol{background:#fff!important}th{background:#d9e2f3!important;color:#000!important}.notesHead{background:#d9d2e9!important}}
     </style></head><body><h1>TURNI MENSILI — ${monthName.toUpperCase()} ${y}</h1><div class="actions"><button id="doPrint">STAMPA</button></div><table><thead>${head}</thead><tbody>${body}</tbody></table><script>document.getElementById('doPrint').onclick=()=>window.print();<\/script></body></html>`);

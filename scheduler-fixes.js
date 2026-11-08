@@ -1231,6 +1231,8 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
   }).map(sel=>sel.dataset.k));
   await new Promise(r=>setTimeout(r,30));
   let x=await cloud(),
+      stateSnap=await getDoc(doc(db,'gestionale','state-'+m)),
+      monthState=stateSnap.exists()?stateSnap.data():{},
       doctors=(x.doctors||[]).filter(d=>d.active&&d.cat!=='Contratto'&&d.name!=='PINI'&&d.name!=='ARMATO'&&d.name!=='LONDEI'),
       fullSchedule={...(x.schedule||{})};
   // AMB ESAMI ha un solo slot visibile (0): elimina eventuali vecchi slot nascosti 1-3.
@@ -1242,9 +1244,9 @@ async function generateV2(){let m=$('month')?.value;if(!m)return;localStorage.se
       a=Object.fromEntries(Object.entries(fullSchedule).filter(([k])=>keepMonths.has(k.slice(0,7)))),
       g=new Set(x.generatedKeys||[]),
       e=new Set(x.extraKeys||[]),
-      baseline={...(x.savedStates?.[m]||{})};
+      baseline={...(monthState.baseline||x.savedStates?.[m]||{})};
 
-  for(const k of [...(x.openedStructuralKeys||[]),...((x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
+  for(const k of [...(x.openedStructuralKeys||[]),...((monthState.opened||x.savedOpenedStates?.[m])||[])])if(k.startsWith(m+'-'))openedStructuralKeys.add(k);
   for(const[k]of Object.entries(baseline))if(k.includes('|ferie|'))delete baseline[k];
   for(const k of openedStructuralKeys)delete baseline[k];
   // Le sale OP visibilmente vuote prevalgono su vecchi NESSUNO/baseline.

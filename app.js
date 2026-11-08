@@ -1,6 +1,6 @@
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import{getFirestore,doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import{getFirestore,doc,getDoc,setDoc,updateDoc,deleteDoc,deleteField,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=initializeApp(cfg),auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getElementById(id),root=doc(db,'gestionale','dati');
 const MAIN_ADMINS=['EvF0UU31AwfgTPb6M0UnTX9IXbH3','EK0kFMLlFSPTg1aW83AllWI2DAV2'];let currentProfile=null;const isAdmin=()=>!!auth.currentUser&&(MAIN_ADMINS.includes(auth.currentUser.uid)||currentProfile?.role==='admin');
 const services=[['guardia','GUARDIA NOTT.','20–08','manual',1],['giorno','INTERD','14–20','manual',1],['disp1','1ª DISP.','','auto',1],['disp2','2ª DISP.','','auto',1],['gessi','GESSI MAT','08–14','auto',2],['gessirep','GESSI+REP POM','14–20','auto',1],['reparto','REPARTO','08–14','auto',2],['amb','AMBULATORIO','08–14','auto',2],['esami','AMB ESAMI','08–14','manual',1],['op1','OP1 MAT','08–14','auto',2],['op2','OP2 MAT','08–14','auto',2],['oppom','OP POM','14–20','auto',2],['ferie','FERIE-VARIE','—','manual',4],['varie','VARIE','SMONTO / NOTE','manual',2]];
@@ -100,7 +100,28 @@ async function fixNovemberLeaveCounts(x){
   await setDoc(root,{schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV2:true,updatedAt:new Date().toISOString()},{merge:true});
   return {...x,schedule,absenceManagement,savedStates,savedAbsenceStates,fixNovemberLeaveCountsV2:true};
 }
-async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await purgeComelatoNov19(s.data());x=await purgeCalzavaraNov27(x);x=await fixNovemberLeaveCounts(x);doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);manualKeys=new Set(x.manualKeys||[]);varieManualKeys=new Set(x.varieManualKeys||[]);stcPomDates=new Set(x.stcPomDates||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();manualKeys=new Set();varieManualKeys=new Set();stcPomDates=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
+async function migrateMonthlyStateStorage(x){
+  if(x?.stateStorageV1)return x;
+  const ss=x?.savedStates||{},sa=x?.savedAbsenceStates||{},so=x?.savedOpenedStates||{};
+  const months=[...new Set([...Object.keys(ss),...Object.keys(sa),...Object.keys(so)])];
+  for(const m of months){
+    await setDoc(doc(db,'gestionale','state-'+m),{
+      baseline:ss[m]||{},
+      absence:sa[m]||{},
+      opened:so[m]||[],
+      updatedAt:new Date().toISOString()
+    },{merge:true});
+  }
+  await updateDoc(root,{
+    savedStates:deleteField(),
+    savedAbsenceStates:deleteField(),
+    savedOpenedStates:deleteField(),
+    stateStorageV1:true,
+    updatedAt:new Date().toISOString()
+  });
+  return {...x,savedStates:{},savedAbsenceStates:{},savedOpenedStates:{},stateStorageV1:true};
+}
+async function loadCloud(){let s=await getDoc(root),c=false;if(s.exists()){let x=await migrateMonthlyStateStorage(s.data());x=await purgeComelatoNov19(x);x=await purgeCalzavaraNov27(x);x=await fixNovemberLeaveCounts(x);doctors=x.doctors||newDefaults();data=x.schedule||{};generatedKeys=new Set(x.generatedKeys||[]);extraKeys=new Set(x.extraKeys||[]);openedStructuralKeys=new Set(x.openedStructuralKeys||[]);manualKeys=new Set(x.manualKeys||[]);varieManualKeys=new Set(x.varieManualKeys||[]);stcPomDates=new Set(x.stcPomDates||[]);for(const arr of Object.values(x.savedOpenedStates||{}))for(const k of arr||[])openedStructuralKeys.add(k);c=mergeDefaults()||c;c=mergeInterdivisionalDefaults()||c}else{doctors=newDefaults();openedStructuralKeys=new Set();manualKeys=new Set();varieManualKeys=new Set();stcPomDates=new Set();c=true;c=mergeInterdivisionalDefaults()||c}loaded=true;if(c)await saveCloud(true);renderDoctors();renderSchedule();$('sync').textContent='● Online';$('sync').className='status online'}
 async function saveCloud(now=false){if(!auth.currentUser)return;clearTimeout(saveTimer);let run=async()=>{try{$('sync').textContent='Salvataggio…';await setDoc(root,{doctors,schedule:data,generatedKeys:[...generatedKeys],extraKeys:[...extraKeys],varieManualKeys:[...varieManualKeys],stcPomDates:[...stcPomDates],updatedAt:new Date().toISOString()},{merge:true});$('sync').textContent='● Salvato online';$('sync').className='status online'}catch(e){$('sync').textContent='Errore salvataggio'}};if(now)await run();else saveTimer=setTimeout(run,300)}
 window.__turniApplyExternalSchedule=schedule=>{
   if(!schedule||typeof schedule!=='object')return;

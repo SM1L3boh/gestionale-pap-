@@ -1,0 +1,80 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "schedule",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "savedStates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "savedAbsenceStates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "savedOpenedStates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "absenceManagement",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "generatedKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "extraKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "manualKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "unresolvedKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "openedStructuralKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "historicalEditKeys",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "consolidatedChangeLog",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "weekendReperibilita",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "stcPomDates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gestionale",
+      "fieldPath": "doctors",
+      "indexes": []
+    }
+  ]
+}

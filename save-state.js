@@ -1,6 +1,6 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc,updateDoc}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');let busy=false;
+const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),monthStateRef=m=>doc(db,'gestionale','state-'+m);let busy=false;
 function monthLabel(m){const[y,mo]=m.split('-');return`${mo}/${y}`}
 function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,n=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*n+114)/31),da=(h+l-7*n+114)%31+1;return new Date(y,mo-1,da,12)}
 function isHoliday(dt){const md=`${dt.getMonth()+1}-${dt.getDate()}`;if(new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']).has(md))return true;const p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
@@ -76,15 +76,15 @@ async function saveVisibleState(){
     }
     for(const k of [...unresolved])if(k.startsWith(month+'-'))unresolved.delete(k);
 
-    const savedStates={...(x.savedStates||{}),[month]:baseline},
-      savedAbsenceStates={...(x.savedAbsenceStates||{}),[month]:structuredClone(x.absenceManagement||{})},
-      savedOpenedStates={...(x.savedOpenedStates||{}),[month]:[...opened].filter(k=>k.startsWith(month+'-'))};
+    await setDoc(monthStateRef(month),{
+      baseline,
+      absence:structuredClone(x.absenceManagement||{}),
+      opened:[...opened].filter(k=>k.startsWith(month+'-')),
+      updatedAt:new Date().toISOString()
+    },{merge:true});
 
     await updateDoc(root,{
       schedule,
-      savedStates,
-      savedAbsenceStates,
-      savedOpenedStates,
       openedStructuralKeys:[...opened],
       manualKeys:[...manual],
       generatedKeys:[...generated],
@@ -94,8 +94,8 @@ async function saveVisibleState(){
     });
 
     // Verifica reale su Firestore prima di dichiarare il salvataggio riuscito.
-    const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{};
-    const saved=verify.savedStates?.[month]||{};
+    const verifySnap=await getDoc(monthStateRef(month)),verify=verifySnap.exists()?verifySnap.data():{};
+    const saved=verify.baseline||{};
     const sameKeys=Object.keys(saved).length===Object.keys(baseline).length;
     const sameValues=sameKeys&&Object.entries(baseline).every(([k,v])=>saved[k]===v);
     if(!sameValues)throw new Error('verifica dello stato salvato non riuscita');

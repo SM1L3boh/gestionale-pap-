@@ -99,6 +99,7 @@ function consecutiveGroupViolation(a,name,s,ds){
   for(let o=1;o<=limit;o++){if(hasGroupDay(a,name,shiftDay(ds,o),pred))run++;else break}
   return run>limit?label:'';
 }
+function dayWorkedHoursForAvailability(a,name,ds){return assignments(a,name,p=>p.ds===ds&&!['ferie','disp1','disp2','varie'].includes(p.s)).reduce((q,p)=>q+workedHours(p.s,p.ds),0)}
 function disp1ThreeDayViolation(a,name,ds){
   const h=o=>hasService(a,name,shiftDay(ds,o),x=>x==='disp1');
   return (h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2));
@@ -179,6 +180,8 @@ function audit(a,absence,docs,month){
       const auditDoc=doctorMap(docs).get(name);
       if(auditDoc?.cat==='Strutturato'&&name!=='PINI'&&p.s==='disp1'&&disp1ThreeDayViolation(a,name,p.ds))
         add('Disponibilità',name,p.ds,'1ª disponibilità per più di 2 giorni consecutivi',[p.k]);
+      if(p.s==='disp1'&&dayWorkedHoursForAvailability(a,name,p.ds)>=12)
+        add('Disponibilità',name,p.ds,'1ª disponibilità dopo 12 ore di servizio nella stessa giornata',[p.k]);
       if((AM.has(p.s)||PM.has(p.s))&&sameBandCount(a,name,p.ds,p.s)>1)
         add('Sovrapposizione',name,p.ds,AM.has(p.s)?'più servizi nella stessa mattina':'più servizi nello stesso pomeriggio',[p.k]);
       if(auditDoc?.cat==='Strutturato'&&name!=='PINI'){const seq=consecutiveGroupViolation(a,name,p.s,p.ds);if(seq)add('Sequenza',name,p.ds,seq,[p.k])}

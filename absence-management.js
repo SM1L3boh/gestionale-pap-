@@ -1,6 +1,6 @@
 import{initializeApp,getApps}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import{getFirestore,doc,getDoc,setDoc,updateDoc,runTransaction}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati');
+const $=id=>document.getElementById(id),cfg=await(await fetch('/__/firebase/init.json')).json(),fb=getApps()[0]||initializeApp(cfg),db=getFirestore(fb),root=doc(db,'gestionale','dati'),monthStateRef=m=>doc(db,'gestionale','state-'+m);
 const MN=['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'],DW=['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
 let data={},view=new Date(),mobileAbsenceDoctor='';
 function store(){return data.absenceManagement||{}}
@@ -174,15 +174,13 @@ async function save(next,change){
     syncLeave(schedule,change.n,change.date,change.on);
     if(change.on&&!Object.entries(schedule).some(([k,v])=>k.startsWith(change.date+'|ferie|')&&v===change.n))
       throw new Error('Posti FERIE esauriti per questa data');
-    const month=change.date.slice(0,7),savedStates={...(x.savedStates||{})};
-    const state={...(savedStates[month]||{})};
+    const month=change.date.slice(0,7),stateSnap=await tx.get(monthStateRef(month)),monthState=stateSnap.exists()?stateSnap.data():{};
+    const state={...(monthState.baseline||x.savedStates?.[month]||{})};
     for(const k of Object.keys(state))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete state[k];
     for(const [k,v]of Object.entries(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))state[k]=v;
-    savedStates[month]=state;
-    const savedAbsenceStates={...(x.savedAbsenceStates||{})};
-    savedAbsenceStates[month]=structuredClone(absence);
-    tx.update(root,{absenceManagement:absence,schedule,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
-    return {...x,absenceManagement:absence,schedule,savedStates,savedAbsenceStates};
+    tx.set(monthStateRef(month),{baseline:state,absence:structuredClone(absence),opened:monthState.opened||[],updatedAt:new Date().toISOString()},{merge:true});
+    tx.update(root,{absenceManagement:absence,schedule,updatedAt:new Date().toISOString()});
+    return {...x,absenceManagement:absence,schedule};
   });
   // Firestore resolves the transaction only after the commit succeeds.
   // Avoid a redundant second server read of the entire schedule.
@@ -245,16 +243,12 @@ async function reconcileMonthLeaves(month){
     for(const k of Object.keys(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete schedule[k];
     for(const [date,names] of Object.entries(byDate))names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);
 
-    const savedStates={...(source.savedStates||{})};
-    const state={...(savedStates[month]||{})};
+    const stateSnap=await getDoc(monthStateRef(month)),monthState=stateSnap.exists()?stateSnap.data():{};
+    const state={...(monthState.baseline||source.savedStates?.[month]||{})};
     for(const k of Object.keys(state))if(k.startsWith(prefix)&&k.includes('|ferie|'))delete state[k];
     for(const [k,v] of Object.entries(schedule))if(k.startsWith(prefix)&&k.includes('|ferie|'))state[k]=v;
-    savedStates[month]=state;
-
-    const savedAbsenceStates={...(source.savedAbsenceStates||{})};
-    savedAbsenceStates[month]=structuredClone(absence);
-
-    await updateDoc(root,{schedule,absenceManagement:absence,savedStates,savedAbsenceStates,updatedAt:new Date().toISOString()});
+    await setDoc(monthStateRef(month),{baseline:state,absence:structuredClone(absence),opened:monthState.opened||[],updatedAt:new Date().toISOString()},{merge:true});
+    await updateDoc(root,{schedule,absenceManagement:absence,updatedAt:new Date().toISOString()});
     window.__turniApplyExternalSchedule?.(schedule);
     return {schedule,absence,byDate};
   }

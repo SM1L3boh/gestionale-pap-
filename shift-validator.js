@@ -102,7 +102,7 @@ function consecutiveGroupViolation(a,name,s,ds){
 function dayWorkedHoursForAvailability(a,name,ds){return assignments(a,name,p=>p.ds===ds&&!['ferie','disp1','disp2','varie'].includes(p.s)).reduce((q,p)=>q+workedHours(p.s,p.ds),0)}
 function disp1ThreeDayViolation(a,name,ds){
   const h=o=>hasService(a,name,shiftDay(ds,o),x=>x==='disp1');
-  return (h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2));
+  return [-3,-2,-1,1,2,3].some(h);
 }
 function sundayRestIssue(a,name,ds){const w=dayObj(ds).getDay();if(w===1&&hasService(a,name,shiftDay(ds,-1),x=>x==='disp1'))return 'riposo compensativo: 1ª disponibilità della domenica → lunedì libero';if(w===2&&hasService(a,name,shiftDay(ds,-2),x=>x==='disp2'))return 'riposo compensativo: 2ª disponibilità della domenica → martedì libero';return ''}
 function sundayAvailabilityFutureIssue(a,name,ds,s){if(dayObj(ds).getDay()!==0)return'';if(s==='disp1'){const d=shiftDay(ds,1);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '1ª disponibilità della domenica: il lunedì successivo deve essere libero'}if(s==='disp2'){const d=shiftDay(ds,2);if(assignments(a,name,p=>p.ds===d&&p.s!=='ferie'&&p.s!=='guardia').length)return '2ª disponibilità della domenica: il martedì successivo deve essere libero'}return''}
@@ -133,7 +133,7 @@ function assignmentIssues(a,absence,docs,name,k){
   if((s==='disp1'&&hasService(a,name,ds,x=>x==='disp2'))||(s==='disp2'&&hasService(a,name,ds,x=>x==='disp1')))
     issues.push('stesso medico in 1ª e 2ª disponibilità nello stesso giorno');
   if(doc?.cat==='Strutturato'&&name!=='PINI'&&s==='disp1'&&disp1ThreeDayViolation(a,name,ds))
-    issues.push('1ª disponibilità assegnata per più di 2 giorni consecutivi');
+    issues.push('1ª disponibilità troppo ravvicinata: devono esserci almeno 3 giorni liberi tra due 1ª DISP.');
   if((AM.has(s)||PM.has(s))&&sameBandCount(a,name,ds,s)>1)
     issues.push(AM.has(s)?'più servizi contemporanei nella fascia mattutina':'più servizi contemporanei nella fascia pomeridiana');
   const wk=weekKey(ds),wh=weekHours(a,name,wk);
@@ -179,7 +179,7 @@ function audit(a,absence,docs,month){
         add('Disponibilità',name,p.ds,'presente sia in 1ª che in 2ª disponibilità',[p.k]);
       const auditDoc=doctorMap(docs).get(name);
       if(auditDoc?.cat==='Strutturato'&&name!=='PINI'&&p.s==='disp1'&&disp1ThreeDayViolation(a,name,p.ds))
-        add('Disponibilità',name,p.ds,'1ª disponibilità per più di 2 giorni consecutivi',[p.k]);
+        add('Disponibilità',name,p.ds,'1ª disponibilità troppo ravvicinata: devono esserci almeno 3 giorni liberi tra due 1ª DISP.',[p.k]);
       if(p.s==='disp1'&&dayWorkedHoursForAvailability(a,name,p.ds)>=12)
         add('Disponibilità',name,p.ds,'1ª disponibilità dopo 12 ore di servizio nella stessa giornata',[p.k]);
       if((AM.has(p.s)||PM.has(p.s))&&sameBandCount(a,name,p.ds,p.s)>1)

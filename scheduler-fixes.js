@@ -86,7 +86,7 @@ function dayWorkedHours(a,n,ds){let q=0;for(const[k,v]of Object.entries(a)){if(v
 function dispCount(a,n,m,s){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;return q}
 function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;if(s==='disp1'&&dayWorkedHours(a,n,ds)>=12)return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;const add=hrs(s,dt),weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+add>weeklyCap)return false;if(s==='disp1'){
   const h=o=>a[K(shiftDay(ds,o),'disp1',0)]===n;
-  if((h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2)))return false;
+  if([-3,-2,-1,1,2,3].some(h))return false;
 }return true}
 function assignDisp(a,g,e,doctors,ds,m,s,protectedKeys){let k=K(ds,s,0);if(protectedKeys.has(k)||a[k]&&a[k]!=='NESSUNO')return;let c=doctors.filter(d=>dispOK(a,d,ds,s)).sort((x,y)=>dispCount(a,x.name,m,s)-dispCount(a,y.name,m,s)||monthEq(a,x.name,m)-monthEq(a,y.name,m));if(c[0])assign(a,g,e,k,c[0].name)}
 function opWeeksInMonth(m){let[y,mo]=m.split('-').map(Number),days=new Date(y,mo,0).getDate(),weeks=new Set();for(let d=1;d<=days;d++){let dt=new Date(y,mo-1,d,12);if(dt.getDay()!==0&&dt.getDay()!==6&&!holiday(dt))weeks.add(wk(`${m}-${String(d).padStart(2,'0')}`))}return weeks.size}

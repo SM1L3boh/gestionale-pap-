@@ -82,8 +82,9 @@ function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00')
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}
 function slots(s){return['gessi','amb','gessirep','esami'].includes(s)?[0]:[0,1]}
+function dayWorkedHours(a,n,ds){let q=0;for(const[k,v]of Object.entries(a)){if(v!==n||!k.startsWith(ds+'|'))continue;const svc=k.split('|')[1];if(['ferie','disp1','disp2','varie'].includes(svc))continue;q+=workedHrs(svc,new Date(ds+'T12:00:00'))}return q}
 function dispCount(a,n,m,s){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]===s)q++;return q}
-function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;const add=hrs(s,dt),weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+add>weeklyCap)return false;if(s==='disp1'){
+function dispOK(a,d,ds,s){let n=d.name,dt=new Date(ds+'T12:00:00');if(d.cat!=='Strutturato'||manualOnly(d)||leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds))return false;if(s==='disp1'&&dayWorkedHours(a,n,ds)>=12)return false;let other=s==='disp1'?'disp2':'disp1';if(a[K(ds,other,0)]===n)return false;const add=hrs(s,dt),weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+add>weeklyCap)return false;if(s==='disp1'){
   const h=o=>a[K(shiftDay(ds,o),'disp1',0)]===n;
   if((h(-2)&&h(-1))||(h(-1)&&h(1))||(h(1)&&h(2)))return false;
 }return true}

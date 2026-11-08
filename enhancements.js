@@ -686,7 +686,7 @@ function fixFullPrint(){
       }
       return vals.map(esc).join('<br>');
     };
-    const allowedPrint=(svc,w)=>![0,6].includes(w)||['guardia','giorno','disp1','disp2','ferie','varie'].includes(svc);
+    const allowedPrint=(svc,w,isHoliday=false)=>!([0,6].includes(w)||isHoliday)||['guardia','giorno','disp1','disp2','ferie','varie'].includes(svc);
 
     let head='<tr><th>DATA</th><th>GIORNO</th>'+services.map((s,i)=>'<th class="'+(i>=services.length-2?'notesHead':'')+'">'+esc(s[1])+(s[2]?'<br><small>'+esc(s[2])+'</small>':'')+'</th>').join('')+'</tr>';
     let body='';
@@ -698,14 +698,14 @@ function fixFullPrint(){
       body+='<tr class="'+(([0,6].includes(w)||isHoliday)?'weekend':'')+'"><td>'+String(d).padStart(2,'0')+'</td><td>'+weekdays[w]+'</td>';
       for(let si=0;si<services.length;si++){
         const [svc,label,hrs,count]=services[si];
-        if([0,6].includes(w)&&svc==='gessi'){
+        if(([0,6].includes(w)||isHoliday)&&svc==='gessi'){
           const rep14=weekendRepPrint[ds+'|14-20']||'',rep20=weekendRepPrint[ds+'|20-8']||'';
           const repText='<div class="weekendRepPrint"><span><b>Rep 14-20</b> '+esc(rep14||'—')+'</span><span><b>Rep 20-8</b> '+esc(rep20||'—')+'</span></div>';
           body+='<td class="weekendRepCell" colspan="8">'+repText+'</td>';
           si+=7;
           continue;
         }
-        if(!allowedPrint(svc,w)){body+='<td class="off">—</td>';continue}
+        if(!allowedPrint(svc,w,isHoliday)){body+='<td class="off">—</td>';continue}
         let content=cellText(ds,svc,count);
         if(svc==='op2'&&w===2&&stcVisible.has(ds))content+=(content?'<br>':'')+'<span class="stcPrint">☑ STC Pomeriggio</span>';
         body+='<td'+(['gessirep','oppom'].includes(svc)?' class="pmCol"':'')+'>'+content+'</td>';

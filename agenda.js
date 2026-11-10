@@ -161,10 +161,10 @@ async function render(){
   const shiftOrder={am:1,pm:2,availability:3,night:4,leave:5,other:6};
   let html='';
   for(let d=1;d<=days;d++){
-    const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay());
+    const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay()),today=new Date(),todayDs=dsFrom(today.getFullYear(),today.getMonth()+1,today.getDate()),isToday=date===todayDs;
     const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
     const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow','blue'].includes(i.color)?i.color:'red';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
-    html+=`<tr class="${weekend?'agendaWeekendRow':''}">
+    html+=`<tr class="${weekend?'agendaWeekendRow ':''}${isToday?'agendaTodayRow':''}">
       <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
       <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>
       <td class="agendaExtraCell" data-agenda-date="${date}">${extra}<span class="agendaExtraAdd" title="Aggiungi impegno">+</span></td>

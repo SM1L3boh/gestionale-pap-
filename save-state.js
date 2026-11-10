@@ -29,11 +29,16 @@ async function saveVisibleState(){
     if(b)b.disabled=true;
     if(sync)sync.textContent='Salvataggio stato…';
 
-    // Prima lascia completare l'autosalvataggio delle ultime modifiche visibili.
-    await new Promise(r=>setTimeout(r,700));
+    // Prima forza il salvataggio immediato dello stato locale corrente.
+    // Questo evita che una cancellazione appena fatta venga persa perché
+    // Firestore contiene ancora la versione precedente.
+    if(typeof window.__turniForceSave==='function'){
+      await window.__turniForceSave();
+    }else{
+      await new Promise(r=>setTimeout(r,700));
+    }
 
-    // Firestore è l'unica fonte autorevole: SALVA STATO non ricostruisce più
-    // il mese dal DOM, ma fotografa esattamente il gestionale già salvato.
+    // Firestore è la fonte autorevole dopo il force-save.
     const snap=await getDoc(root);
     if(!snap.exists())throw new Error('gestionale non disponibile');
     const x=snap.data()||{};

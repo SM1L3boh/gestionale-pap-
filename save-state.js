@@ -29,96 +29,75 @@ async function saveVisibleState(){
     if(b)b.disabled=true;
     if(sync)sync.textContent='Salvataggio stato…';
 
-    // Lascia terminare l'eventuale autosalvataggio partito da una modifica manuale,
-    // così non può sovrascrivere subito dopo lo stato appena congelato.
-    await new Promise(r=>setTimeout(r,450));
+    // Prima lascia completare l'autosalvataggio delle ultime modifiche visibili.
+    await new Promise(r=>setTimeout(r,700));
 
-    const snap=await getDoc(root),x=snap.exists()?snap.data():{};
-    const manual=new Set(x.manualKeys||[]),
-      generated=new Set(x.generatedKeys||[]),
-      extra=new Set(x.extraKeys||[]),
-      unresolved=new Set(x.unresolvedKeys||[]),
-      opened=new Set(x.openedStructuralKeys||[]),
-      baseline={},
-      schedule={...(x.schedule||{})};
+    // Firestore è l'unica fonte autorevole: SALVA STATO non ricostruisce più
+    // il mese dal DOM, ma fotografa esattamente il gestionale già salvato.
+    const snap=await getDoc(root);
+    if(!snap.exists())throw new Error('gestionale non disponibile');
+    const x=snap.data()||{};
+    const schedule=x.schedule||{};
+    const scheduleMonth=Object.fromEntries(
+      Object.entries(schedule).filter(([k])=>k.startsWith(month+'-'))
+    );
 
-    for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];
+    const monthOnly=arr=>(arr||[]).filter(k=>String(k).startsWith(month+'-'));
+    const generatedMonth=monthOnly(x.generatedKeys);
+    const extraMonth=monthOnly(x.extraKeys);
+    const unresolvedMonth=monthOnly(x.unresolvedKeys);
+    const opened=monthOnly(x.openedStructuralKeys);
 
-    document.querySelectorAll('#schedule select[data-k]').forEach(s=>{
-      const k=s.dataset.k,v=s.value;
-      if(!k?.startsWith(month+'-'))return;
-      // VARIE può mostrare automaticamente lo smonto della notte precedente:
-      // se non è mai stata modificata manualmente, non congelarla nel SALVA STATO.
-      if(k.includes('|varie|')&&!Object.prototype.hasOwnProperty.call(x.schedule||{},k))return;
-      if(!v){
-        if(isStructuralDefaultNessuno(k))opened.add(k);else opened.delete(k);
-        manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
-        return;
-      }
-      opened.delete(k);
-      baseline[k]=v;
-      schedule[k]=v;
-    });
+    // Al SALVA STATO tutto ciò che è presente nel mese diventa baseline/protetto.
+    const baseline={...scheduleMonth};
+    const manualMonth=[...new Set([
+      ...monthOnly(x.manualKeys),
+      ...Object.keys(scheduleMonth)
+    ])];
 
-    for(const k of [...opened])if(k.startsWith(month+'-')){
-      delete baseline[k];
-      delete schedule[k];
-      manual.delete(k);generated.delete(k);extra.delete(k);unresolved.delete(k);
-    }
-
-    // SALVA STATO congela tutto ciò che è visibile in quel momento:
-    // non deve più risultare "generato", "extra" o "irrisolto".
-    for(const k of Object.keys(baseline)){
-      manual.add(k);
-      generated.delete(k);
-      extra.delete(k);
-      unresolved.delete(k);
-    }
-    for(const k of [...unresolved])if(k.startsWith(month+'-'))unresolved.delete(k);
-
-    const scheduleMonth=Object.fromEntries(Object.entries(schedule).filter(([k])=>k.startsWith(month+'-')));
-    const monthKeys=set=>[...set].filter(k=>k.startsWith(month+'-'));
     await setDoc(monthStateRef(month),{
       baseline,
       scheduleMonth,
       absence:structuredClone(x.absenceManagement||{}),
-      opened:monthKeys(opened),
-      manualMonth:monthKeys(manual),
-      generatedMonth:monthKeys(generated),
-      extraMonth:monthKeys(extra),
-      unresolvedMonth:monthKeys(unresolved),
+      opened,
+      manualMonth,
+      generatedMonth:[],
+      extraMonth:[],
+      unresolvedMonth:[],
+      savedAt:new Date().toISOString(),
       updatedAt:new Date().toISOString()
-    },{merge:true});
+    },{merge:false});
 
+    // Nel documento principale congela il mese: le chiavi del mese non devono
+    // più risultare generate/extra/irrisolte dopo SALVA STATO.
+    const stripMonth=arr=>(arr||[]).filter(k=>!String(k).startsWith(month+'-'));
+    const manualAll=[...new Set([...stripMonth(x.manualKeys),...manualMonth])];
     await updateDoc(root,{
-      schedule,
-      openedStructuralKeys:[...opened],
-      manualKeys:[...manual],
-      generatedKeys:[...generated],
-      extraKeys:[...extra],
-      unresolvedKeys:[...unresolved],
+      manualKeys:manualAll,
+      generatedKeys:stripMonth(x.generatedKeys),
+      extraKeys:stripMonth(x.extraKeys),
+      unresolvedKeys:stripMonth(x.unresolvedKeys),
       updatedAt:new Date().toISOString()
     });
 
-    // Verifica forte: lo snapshot mensile e il mese nel documento principale
-    // devono coincidere esattamente con ciò che SALVA STATO ha appena congelato.
+    // Verifica forte: snapshot e gestionale devono contenere lo stesso mese.
     const [verifyStateSnap,verifyRootSnap]=await Promise.all([
       getDoc(monthStateRef(month)),
       getDoc(root)
     ]);
-    if(!verifyStateSnap.exists())throw new Error('documento mensile non disponibile dopo il salvataggio');
+    if(!verifyStateSnap.exists()||!verifyRootSnap.exists())throw new Error('verifica Firestore non disponibile');
     const verifyState=verifyStateSnap.data()||{};
-    const verifyRoot=verifyRootSnap.exists()?verifyRootSnap.data():{};
-    const verifyMonth=Object.fromEntries(Object.entries(verifyRoot.schedule||{}).filter(([k])=>k.startsWith(month+'-')));
-    const sameMap=(a,b)=>JSON.stringify(Object.entries(a||{}).sort())===JSON.stringify(Object.entries(b||{}).sort());
-    if(!sameMap(verifyState.scheduleMonth,scheduleMonth))throw new Error('snapshot mensile non corrispondente allo stato appena salvato');
-    if(!sameMap(verifyMonth,scheduleMonth))throw new Error('il gestionale non corrisponde allo stato appena salvato');
+    const verifyMonth=Object.fromEntries(
+      Object.entries(verifyRootSnap.data().schedule||{}).filter(([k])=>k.startsWith(month+'-'))
+    );
+    const norm=o=>JSON.stringify(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
+    if(norm(verifyState.scheduleMonth)!==norm(scheduleMonth))throw new Error('snapshot mensile diverso dal mese salvato');
+    if(norm(verifyMonth)!==norm(scheduleMonth))throw new Error('il gestionale è cambiato durante SALVA STATO');
 
     if(sync){
       sync.textContent='● Stato '+monthLabel(month)+' salvato e verificato';
       sync.className='status online';
     }
-    // Ricarica per sincronizzare anche la memoria locale dell'app con lo stato congelato.
     setTimeout(()=>location.reload(),250);
   }catch(err){
     if(sync)sync.textContent='Errore salvataggio stato';

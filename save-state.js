@@ -76,10 +76,17 @@ async function saveVisibleState(){
     }
     for(const k of [...unresolved])if(k.startsWith(month+'-'))unresolved.delete(k);
 
+    const scheduleMonth=Object.fromEntries(Object.entries(schedule).filter(([k])=>k.startsWith(month+'-')));
+    const monthKeys=set=>[...set].filter(k=>k.startsWith(month+'-'));
     await setDoc(monthStateRef(month),{
       baseline,
+      scheduleMonth,
       absence:structuredClone(x.absenceManagement||{}),
-      opened:[...opened].filter(k=>k.startsWith(month+'-')),
+      opened:monthKeys(opened),
+      manualMonth:monthKeys(manual),
+      generatedMonth:monthKeys(generated),
+      extraMonth:monthKeys(extra),
+      unresolvedMonth:monthKeys(unresolved),
       updatedAt:new Date().toISOString()
     },{merge:true});
 

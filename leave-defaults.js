@@ -8,7 +8,6 @@ async function clearAutomaticDraft(e){
   const month=document.getElementById('month')?.value;
   if(!month)return;
 
-  // Attende eventuali autosalvataggi e poi legge SEMPRE lo stato corrente da Firestore.
   await new Promise(r=>setTimeout(r,450));
   const [snap,stateSnap]=await Promise.all([
     getDoc(root),
@@ -17,11 +16,15 @@ async function clearAutomaticDraft(e){
   const x=snap.exists()?snap.data():{};
   const monthState=stateSnap.exists()?stateSnap.data():null;
   const legacyBaseline=x.savedStates?.[month];
-  const baseline=monthState?.baseline??legacyBaseline;
-  const hasBaseline=stateSnap.exists()||legacyBaseline!==undefined;
 
-  if(!confirm(hasBaseline
-    ?`Cancellare la bozza automatica di ${month}? Verrà ripristinato ESATTAMENTE l'ultimo SALVA STATO, mantenendo le assenze correnti.`
+  const exactSchedule=monthState?.scheduleMonth&&typeof monthState.scheduleMonth==='object'
+    ?monthState.scheduleMonth
+    :null;
+  const baseline=monthState?.baseline??legacyBaseline;
+  const hasSavedState=!!exactSchedule||stateSnap.exists()||legacyBaseline!==undefined;
+
+  if(!confirm(hasSavedState
+    ?`Cancellare la bozza automatica di ${month}? Verrà ripristinato ESATTAMENTE l'ultimo SALVA STATO del mese.`
     :`Cancellare la bozza automatica di ${month}? Non esiste un SALVA STATO: verranno rimossi soltanto i turni marcati come generati automaticamente.`))return;
 
   const schedule={...(x.schedule||{})},
@@ -33,56 +36,49 @@ async function clearAutomaticDraft(e){
     doctors=x.doctors||[],
     contracts=new Set(doctors.filter(d=>d?.cat==='Contratto').map(d=>d.name));
 
-  if(hasBaseline){
-    // SALVA STATO è il riferimento assoluto: tutto il mese torna a quel baseline.
+  const replaceMonthSet=(target,saved=[])=>{
+    for(const k of [...target])if(k.startsWith(month+'-'))target.delete(k);
+    for(const k of saved||[])if(String(k).startsWith(month+'-'))target.add(k);
+  };
+
+  if(hasSavedState){
+    // Rollback puro: nessuna ricostruzione, nessun merge con ferie/assenze correnti.
     for(const k of Object.keys(schedule))if(k.startsWith(month+'-'))delete schedule[k];
-    for(const [k,v] of Object.entries(baseline||{}))if(k.startsWith(month+'-'))schedule[k]=v;
 
-    // Ripristina anche le celle strutturalmente aperte/vuote registrate con SALVA STATO.
-    const savedOpened=monthState?.opened??x.savedOpenedStates?.[month];
-    if(Array.isArray(savedOpened)){
-      for(const k of [...opened])if(k.startsWith(month+'-'))opened.delete(k);
-      for(const k of savedOpened)if(k.startsWith(month+'-'))opened.add(k);
+    if(exactSchedule){
+      for(const [k,v] of Object.entries(exactSchedule))if(k.startsWith(month+'-'))schedule[k]=v;
+      replaceMonthSet(manual,monthState.manualMonth||Object.keys(exactSchedule));
+      replaceMonthSet(generated,monthState.generatedMonth||[]);
+      replaceMonthSet(extra,monthState.extraMonth||[]);
+      replaceMonthSet(unresolved,monthState.unresolvedMonth||[]);
+      replaceMonthSet(opened,monthState.opened||[]);
+    }else{
+      for(const [k,v] of Object.entries(baseline||{}))if(k.startsWith(month+'-'))schedule[k]=v;
+      const savedOpened=monthState?.opened??x.savedOpenedStates?.[month]??[];
+      replaceMonthSet(opened,savedOpened);
+      for(const k of opened)if(k.startsWith(month+'-'))delete schedule[k];
+      replaceMonthSet(manual,Object.keys(baseline||{}));
+      replaceMonthSet(generated,[]);
+      replaceMonthSet(extra,[]);
+      replaceMonthSet(unresolved,[]);
     }
-    for(const k of opened)if(k.startsWith(month+'-')){
-      delete schedule[k];
-      manual.delete(k);
-    }
-
-    // Tutte le celle del baseline sono consolidate come manuali/protette.
-    for(const k of Object.keys(baseline||{}))if(k.startsWith(month+'-'))manual.add(k);
   }else{
-    // Senza SALVA STATO, elimina esclusivamente ciò che è marcato come generato.
+    // Senza SALVA STATO: rimuove soltanto ciò che il generatore ha marcato come bozza.
     for(const k of [...generated]){
       if(k.startsWith(month+'-')&&!manual.has(k)&&!contracts.has(schedule[k]))delete schedule[k];
     }
     for(const k of [...extra]){
       if(k.startsWith(month+'-')&&!manual.has(k)&&!contracts.has(schedule[k]))delete schedule[k];
     }
-  }
-
-  // FERIE/ASSENZE vengono sempre ricostruite dall'archivio corrente.
-  for(const k of Object.keys(schedule))if(k.startsWith(month+'-')&&k.includes('|ferie|'))delete schedule[k];
-  const absence=x.absenceManagement||{},byDate={};
-  for(const [n,dates] of Object.entries(absence)){
-    for(const date of dates||[]){
-      if(!date.startsWith(month+'-'))continue;
-      byDate[date]??=[];
-      if(!byDate[date].includes(n))byDate[date].push(n);
-    }
-  }
-  for(const [date,names] of Object.entries(byDate)){
-    names.slice(0,4).forEach((n,i)=>schedule[date+'|ferie|'+i]=n);
-  }
-
-  for(const set of [generated,extra,unresolved]){
-    for(const k of [...set])if(k.startsWith(month+'-'))set.delete(k);
+    replaceMonthSet(generated,[]);
+    replaceMonthSet(extra,[]);
+    replaceMonthSet(unresolved,[]);
   }
 
   localStorage.setItem('turniLastMonth',month);
   const sync=document.getElementById('sync');
   try{
-    if(sync)sync.textContent=hasBaseline?'Ripristino SALVA STATO…':'Cancellazione bozza…';
+    if(sync)sync.textContent=hasSavedState?'Ripristino SALVA STATO…':'Cancellazione bozza…';
     await updateDoc(root,{
       schedule,
       generatedKeys:[...generated],
@@ -92,12 +88,24 @@ async function clearAutomaticDraft(e){
       openedStructuralKeys:[...opened],
       updatedAt:new Date().toISOString()
     });
+
+    // Verifica post-write: il mese deve coincidere con lo snapshot salvato.
+    if(hasSavedState){
+      const verifySnap=await getDoc(root),verify=verifySnap.exists()?verifySnap.data():{},verifyMonth=Object.fromEntries(Object.entries(verify.schedule||{}).filter(([k])=>k.startsWith(month+'-')));
+      const expected=exactSchedule
+        ?Object.fromEntries(Object.entries(exactSchedule).filter(([k])=>k.startsWith(month+'-')))
+        :Object.fromEntries(Object.entries(baseline||{}).filter(([k])=>k.startsWith(month+'-')&&!opened.has(k)));
+      if(JSON.stringify(verifyMonth)!==JSON.stringify(expected)){
+        throw new Error('verifica fallita: il mese non coincide con l’ultimo SALVA STATO');
+      }
+    }
+
     if(sync){
-      sync.textContent=hasBaseline?'● SALVA STATO ripristinato':'● Bozza automatica cancellata';
+      sync.textContent=hasSavedState?'● SALVA STATO ripristinato':'● Bozza automatica cancellata';
       sync.className='status online';
     }
-    alert(hasBaseline
-      ?`Bozza ${month} cancellata. Ripristinato esattamente l'ultimo SALVA STATO con le assenze correnti.`
+    alert(hasSavedState
+      ?`Bozza ${month} cancellata. Ripristinato esattamente l'ultimo SALVA STATO.`
       :`Bozza ${month} cancellata. Rimossi soltanto i turni generati automaticamente.`);
     location.reload();
   }catch(err){

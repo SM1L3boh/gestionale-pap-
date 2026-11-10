@@ -137,9 +137,14 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   if(!doctor)return alert('Medico non riconosciuto.');
 
   let snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},rows=[],leaveDates=new Set();const stcDates=new Set(x.stcPomDates||[]),historicalEditKeys=new Set(x.historicalEditKeys||[]);
+  const personalServiceAllowed=(ds,s)=>{
+    if(!window.TurniCountRules.weekendOrHoliday(ds))return true;
+    return ['guardia','giorno','disp1','disp2','ferie','varie'].includes(s);
+  };
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
+    if(!personalServiceAllowed(ds,s))continue;
     if(s==='ferie'){leaveDates.add(ds);continue;}
     rows.push({ds,s});
   }

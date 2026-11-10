@@ -100,11 +100,19 @@ async function saveVisibleState(){
       updatedAt:new Date().toISOString()
     });
 
-    // Il completamento di setDoc/updateDoc certifica già il commit Firestore.
-    // Controlliamo solo che il documento mensile esista, evitando falsi negativi
-    // dovuti al confronto completo di mappe molto grandi.
-    const verifySnap=await getDoc(monthStateRef(month));
-    if(!verifySnap.exists())throw new Error('documento mensile non disponibile dopo il salvataggio');
+    // Verifica forte: lo snapshot mensile e il mese nel documento principale
+    // devono coincidere esattamente con ciò che SALVA STATO ha appena congelato.
+    const [verifyStateSnap,verifyRootSnap]=await Promise.all([
+      getDoc(monthStateRef(month)),
+      getDoc(root)
+    ]);
+    if(!verifyStateSnap.exists())throw new Error('documento mensile non disponibile dopo il salvataggio');
+    const verifyState=verifyStateSnap.data()||{};
+    const verifyRoot=verifyRootSnap.exists()?verifyRootSnap.data():{};
+    const verifyMonth=Object.fromEntries(Object.entries(verifyRoot.schedule||{}).filter(([k])=>k.startsWith(month+'-')));
+    const sameMap=(a,b)=>JSON.stringify(Object.entries(a||{}).sort())===JSON.stringify(Object.entries(b||{}).sort());
+    if(!sameMap(verifyState.scheduleMonth,scheduleMonth))throw new Error('snapshot mensile non corrispondente allo stato appena salvato');
+    if(!sameMap(verifyMonth,scheduleMonth))throw new Error('il gestionale non corrisponde allo stato appena salvato');
 
     if(sync){
       sync.textContent='● Stato '+monthLabel(month)+' salvato e verificato';

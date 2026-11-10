@@ -194,7 +194,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   }
   const byDate=new Map();
   for(const r of workRows){
-    if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[]});
+    if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[],disponibilita:[]});
     const z=byDate.get(r.ds);
     const label=r.stc?'STC Pomeriggio':serviceLabel(r.s);
     if(isMorning(r))z.mattino.push(label);
@@ -202,22 +202,20 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     else if(isNight(r))z.pomeriggio.push(label);
     else z.mattino.push(label);
   }
+  for(const r of availabilityRows){
+    if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[],disponibilita:[]});
+    byDate.get(r.ds).disponibilita.push(serviceLabel(r.s));
+  }
 
   const daysInMonth=new Date(Number(y),Number(mo),0).getDate();
   const workBody=Array.from({length:daysInMonth},(_,i)=>{
     const day=i+1,ds=month+'-'+String(day).padStart(2,'0'),d=new Date(ds+'T12:00:00');
     const dateLabel=names[d.getDay()]+' '+ds.split('-').reverse().join('/');
     const weekend=d.getDay()===0||d.getDay()===6||window.TurniCountRules.holiday(ds);
-    const z=byDate.get(ds)||{mattino:[],pomeriggio:[]};
+    const z=byDate.get(ds)||{mattino:[],pomeriggio:[],disponibilita:[]};
     const isRest=nightRests.has(ds),isLeave=!isRest&&leaveDates.has(ds);
-    return `<tr class="${weekend?'weekendRow ':''}${isLeave?'leaveRow ':''}${changedDates.has(ds)?'changedRow':''}"><td>${dateLabel}</td><td>${isRest?'SMONTO':isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td></tr>`;
+    return `<tr class="${weekend?'weekendRow ':''}${isLeave?'leaveRow ':''}${changedDates.has(ds)?'changedRow':''}"><td>${dateLabel}</td><td>${isRest?'SMONTO':isLeave?'FERIE':z.mattino.join('<br>')}</td><td>${z.pomeriggio.join('<br>')}</td><td>${z.disponibilita.join('<br>')}</td></tr>`;
   }).join('');
-
-  const availabilityBody=availabilityRows.length?availabilityRows.map(r=>{
-    const d=new Date(r.ds+'T12:00:00'),dateLabel=names[d.getDay()]+' '+r.ds.split('-').reverse().join('/');
-    const weekend=d.getDay()===0||d.getDay()===6||window.TurniCountRules.holiday(r.ds);
-    return `<tr class="${weekend?'weekendRow ':''}${changedDates.has(r.ds)?'changedRow':''}"><td>${dateLabel}</td><td>${serviceLabel(r.s)}</td></tr>`;
-  }).join(''):'<tr><td colspan="2">Nessuna disponibilità infrasettimanale.</td></tr>';
 
   const leaveList=[...leaveDates].sort();
 
@@ -320,9 +318,10 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     .actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
     .actions button{padding:7px 14px;font-weight:700}
     #savePdf{background:#166534;color:#fff;border:1px solid #166534;border-radius:5px}
-    .work td:first-child{width:24%;white-space:nowrap}
-    .work td:nth-child(2),.work td:nth-child(3){width:38%}
-    .availability td:first-child{width:32%;white-space:nowrap}
+    .work td:first-child{width:22%;white-space:nowrap}
+    .work td:nth-child(2){width:28%}
+    .work td:nth-child(3){width:28%}
+    .work td:nth-child(4){width:22%}
     @media print{
       *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
       body{background:#fff;padding:0}
@@ -340,13 +339,9 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     <h2>${monthNames[Number(mo)]} ${y}</h2>
 
     <h3>TURNI / SERVIZI</h3>
-    <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th></tr>${workBody}</table>
-    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Ferie: <b>${leaveEquivalentTotal}</b></div>
+    <table class="work"><tr><th>Data</th><th>Mattino</th><th>Pomeriggio / notte</th><th>Disponibilità</th></tr>${workBody}</table>
+    <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Ferie: <b>${leaveEquivalentTotal}</b> &nbsp;·&nbsp; Disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
     <div class="summary"><b>Turni totali: ${monthlyEquivalentTotal}</b> = turni equivalenti ${serviceEquivalentTotal} + ferie ${leaveEquivalentTotal} &nbsp;·&nbsp; <b>Target mese: ${monthlyTargetValue}</b></div>
-
-    <h3>DISPONIBILITÀ INFRASETTIMANALI</h3>
-    <table class="availability"><tr><th>Data</th><th>Disponibilità</th></tr>${availabilityBody}</table>
-    <div class="summary">Totale disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
     <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI TEORICHE: ${monthlyRealHoursLabel} h</b> &nbsp;·&nbsp; <b>ORE MENSILI ASSEGNATE: ${monthlyAssignedHoursLabel} h</b></div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
@@ -386,28 +381,30 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       text(margin,pageH-50,10,'MESE '+monthNames[Number(mo)]+' '+y,true);
 
       // Tabella principale
-      const x0=margin,x1=140,x2=365,x3=pageW-margin;
+      const x0=margin,x1=135,x2=315,x3=455,x4=pageW-margin;
       const headH=18,rowH=14;
       let top=pageH-70;
-      fill(x0,top-headH,x3-x0,headH,0.90,0.94,0.98);
-      box(x0,top-headH,x3-x0,headH);
-      line(x1,top-headH,x1,top);line(x2,top-headH,x2,top);
+      fill(x0,top-headH,x4-x0,headH,0.90,0.94,0.98);
+      box(x0,top-headH,x4-x0,headH);
+      line(x1,top-headH,x1,top);line(x2,top-headH,x2,top);line(x3,top-headH,x3,top);
       text(x0+5,top-13,8,'DATA',true);
       text(x1+5,top-13,8,'MATTINO',true);
       text(x2+5,top-13,8,'POMERIGGIO / NOTTE',true);
+      text(x3+5,top-13,8,'DISPONIBILITA',true);
       let yy=top-headH;
 
       const mainRows=[...w.document.querySelectorAll('table.work tr')].slice(1);
       for(const tr of mainRows){
         yy-=rowH;
         const cells=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
-        if(tr.classList.contains('weekendRow'))fill(x0,yy,x3-x0,rowH,1.00,0.89,0.89);
-        if(tr.classList.contains('leaveRow'))fill(x0,yy,x3-x0,rowH,1.00,0.97,0.80);
-        box(x0,yy,x3-x0,rowH);
-        line(x1,yy,x1,yy+rowH);line(x2,yy,x2,yy+rowH);
+        if(tr.classList.contains('weekendRow'))fill(x0,yy,x4-x0,rowH,1.00,0.89,0.89);
+        if(tr.classList.contains('leaveRow'))fill(x0,yy,x4-x0,rowH,1.00,0.97,0.80);
+        box(x0,yy,x4-x0,rowH);
+        line(x1,yy,x1,yy+rowH);line(x2,yy,x2,yy+rowH);line(x3,yy,x3,yy+rowH);
         text(x0+4,yy+4.2,7.2,clip(cells[0]||''));
         text(x1+4,yy+4.2,7.0,clip(cells[1]||''));
         text(x2+4,yy+4.2,7.0,clip(cells[2]||''));
+        text(x3+4,yy+4.2,6.8,clip(cells[3]||''));
       }
 
       const sums=[...w.document.querySelectorAll('.summary')];
@@ -417,31 +414,8 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
       yy-=11;
       text(x0,yy,7.4,clip(sums[1]?.innerText||''),true);
 
-      // Disponibilità infrasettimanali
-      yy-=22;
-      text(x0,yy,10,'DISPONIBILITA INFRASETTIMANALI',true);
-      yy-=8;
-      const ax0=x0,ax1=220,ax2=x3;
-      fill(ax0,yy-headH,ax2-ax0,headH,1.00,0.95,0.78);
-      box(ax0,yy-headH,ax2-ax0,headH);
-      line(ax1,yy-headH,ax1,yy);
-      text(ax0+5,yy-13,8,'DATA',true);
-      text(ax1+5,yy-13,8,'DISPONIBILITA',true);
-      yy-=headH;
-
-      const avRows=[...w.document.querySelectorAll('table.availability tr')].slice(1);
-      for(const tr of avRows){
-        yy-=rowH;
-        const cells=[...tr.cells].map(td=>td.innerText.replace(/\n+/g,' / ').trim());
-        box(ax0,yy,ax2-ax0,rowH);
-        line(ax1,yy,ax1,yy+rowH);
-        text(ax0+4,yy+4.2,7.2,clip(cells[0]||''));
-        text(ax1+4,yy+4.2,7.0,clip(cells[1]||''));
-      }
-      yy-=11;
-      text(ax0,yy,8,clip(sums[2]?.innerText||''),true);
       yy-=13;
-      text(ax0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h   |   ORE MENSILI ASSEGNATE: '+monthlyAssignedHoursLabel+' h',true);
+      text(x0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h   |   ORE MENSILI ASSEGNATE: '+monthlyAssignedHoursLabel+' h',true);
 
       const stream=ops.join('\n');
       const objs=[];

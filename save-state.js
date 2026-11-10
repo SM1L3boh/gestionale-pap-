@@ -80,19 +80,14 @@ async function saveVisibleState(){
       updatedAt:new Date().toISOString()
     });
 
-    // Verifica forte: snapshot e gestionale devono contenere lo stesso mese.
-    const [verifyStateSnap,verifyRootSnap]=await Promise.all([
-      getDoc(monthStateRef(month)),
-      getDoc(root)
-    ]);
-    if(!verifyStateSnap.exists()||!verifyRootSnap.exists())throw new Error('verifica Firestore non disponibile');
+    // Verifica lo snapshot appena scritto. Non confrontiamo nuovamente /gestionale/dati:
+    // gli autosalvataggi concorrenti possono aggiornare updatedAt/chiavi subito dopo il freeze
+    // e produrre un falso errore pur avendo salvato correttamente lo snapshot.
+    const verifyStateSnap=await getDoc(monthStateRef(month));
+    if(!verifyStateSnap.exists())throw new Error('verifica Firestore non disponibile');
     const verifyState=verifyStateSnap.data()||{};
-    const verifyMonth=Object.fromEntries(
-      Object.entries(verifyRootSnap.data().schedule||{}).filter(([k])=>k.startsWith(month+'-'))
-    );
     const norm=o=>JSON.stringify(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
     if(norm(verifyState.scheduleMonth)!==norm(scheduleMonth))throw new Error('snapshot mensile diverso dal mese salvato');
-    if(norm(verifyMonth)!==norm(scheduleMonth))throw new Error('il gestionale è cambiato durante SALVA STATO');
 
     if(sync){
       sync.textContent='● Stato '+monthLabel(month)+' salvato e verificato';

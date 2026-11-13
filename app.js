@@ -2,7 +2,7 @@ import{initializeApp}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-app
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import{getFirestore,doc,getDoc,setDoc,updateDoc,deleteDoc,deleteField,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 const cfg=await(await fetch('/__/firebase/init.json')).json(),fb=initializeApp(cfg),auth=getAuth(fb),db=getFirestore(fb),$=id=>document.getElementById(id),root=doc(db,'gestionale','dati');
-const MAIN_ADMINS=['EvF0UU31AwfgTPb6M0UnTX9IXbH3','EK0kFMLlFSPTg1aW83AllWI2DAV2'];let currentProfile=null,userPreviewMode=false;const hasAdminRole=()=>!!auth.currentUser&&(MAIN_ADMINS.includes(auth.currentUser.uid)||currentProfile?.role==='admin');const isAdmin=()=>hasAdminRole()&&!userPreviewMode;
+const MAIN_ADMINS=['EvF0UU31AwfgTPb6M0UnTX9IXbH3','EK0kFMLlFSPTg1aW83AllWI2DAV2'];let currentProfile=null,userPreviewMode=false;const hasAdminRole=()=>!!auth.currentUser&&(MAIN_ADMINS.includes(auth.currentUser.uid)||currentProfile?.role==='admin');const isComelatoAccount=()=>((currentProfile?.doctorName||'').toUpperCase()==='COMELATO'||(auth.currentUser?.email||'').toLowerCase()==='christian.comelato@aulss3.veneto.it');const isAdmin=()=>hasAdminRole()&&!userPreviewMode;
 const services=[['guardia','GUARDIA NOTT.','20–08','manual',1],['giorno','INTERD','14–20','manual',1],['disp1','1ª DISP.','','auto',1],['disp2','2ª DISP.','','auto',1],['gessi','GESSI MAT','08–14','auto',2],['gessirep','GESSI+REP POM','14–20','auto',1],['reparto','REPARTO','08–14','auto',2],['amb','AMBULATORIO','08–14','auto',2],['esami','AMB ESAMI','08–14','manual',1],['op1','OP1 MAT','08–14','auto',2],['op2','OP2 MAT','08–14','auto',2],['oppom','OP POM','14–20','auto',2],['ferie','FERIE-VARIE','—','manual',4],['varie','VARIE','SMONTO / NOTE','manual',2]];
 const requiredServices=new Set(['gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);
 const defaults=[['PINI','Direttore',36,'Ortopedico; inserimento solo manuale'],['DEI ROSSI','Strutturato',36,'Ortopedico'],['VIALE','Strutturato',36,'Ortopedico; mercoledì pomeriggio libero'],['CALZAVARA','Strutturato',36,'Ortopedico; martedì pomeriggio libero'],['FATTORETTO','Strutturato',36,'Ortopedico'],['COMELATO','Strutturato',36,'Ortopedico; lunedì e giovedì pomeriggio liberi'],['FRANCO','Strutturato',36,'Ortopedico; mercoledì pomeriggio libero'],['CATALDI','Strutturato',36,'Ortopedico'],['LENTINI','Strutturato',36,'Ortopedico'],['ARMATO','Contratto',36,'Ortopedico; inserimento solo manuale'],['CIPRIAN','Internista',30,'Solo REPARTO 08–14 dal lunedì al venerdì; se assente viene sostituito da un ortopedico'],['RIVA','Contratto',18,'Ortopedico; inserimento solo manuale'],['FREGUIA','Contratto',18,'Ortopedico; inserimento solo manuale'],['LONDEI','Contratto',0,'Inserimento solo manuale, mese per mese']];
@@ -132,7 +132,7 @@ window.__turniApplyExternalSchedule=schedule=>{
   if(loaded)renderSchedule();
 };
 function applyRoleUI(){
-  let a=isAdmin(),realAdmin=hasAdminRole(),mine=(currentProfile?.doctorName||'').toUpperCase()==='COMELATO';
+  let a=isAdmin(),realAdmin=hasAdminRole(),mine=isComelatoAccount();
   document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));
   $('tabUtenti')?.classList.toggle('hidden',!a);
   $('tabAgenda')?.classList.remove('hidden');
@@ -146,7 +146,7 @@ function applyRoleUI(){
   if($('mobileUserLabel'))$('mobileUserLabel').textContent=(currentProfile?.doctorName||auth.currentUser?.email||'Utente')
 }
 function toggleUserPreview(){
-  if(!hasAdminRole()||(currentProfile?.doctorName||'').toUpperCase()!=='COMELATO')return;
+  if(!hasAdminRole()||!isComelatoAccount())return;
   userPreviewMode=!userPreviewMode;
   applyRoleUI();
   renderSchedule();

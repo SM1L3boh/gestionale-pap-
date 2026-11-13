@@ -211,6 +211,14 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     if(!byDate.has(r.ds))byDate.set(r.ds,{mattino:[],pomeriggio:[],disponibilita:[]});
     byDate.get(r.ds).disponibilita.push(serviceLabel(r.s));
   }
+  const weekendRep=x.weekendReperibilita||{};
+  const weekendAvailabilityDates=new Set(rows.filter(isWeekendAvailability).map(r=>r.ds));
+  for(const ds of weekendAvailabilityDates){
+    if(!byDate.has(ds))byDate.set(ds,{mattino:[],pomeriggio:[],disponibilita:[]});
+    const z=byDate.get(ds),v14=weekendRep[ds+'|14-20'],v20=weekendRep[ds+'|20-8'];
+    if(v14)z.pomeriggio.push('Rep 14–20: '+v14);
+    if(v20)z.pomeriggio.push('Rep 20–8: '+v20);
+  }
 
   const daysInMonth=new Date(Number(y),Number(mo),0).getDate();
   const workBody=Array.from({length:daysInMonth},(_,i)=>{

@@ -136,6 +136,13 @@ function applyRoleUI(){
   document.querySelectorAll('.adminOnly').forEach(x=>x.classList.toggle('hidden',!a));
   $('tabUtenti')?.classList.toggle('hidden',!a);
   $('tabAgenda')?.classList.remove('hidden');
+  for(const id of ['openLeave','absenceManageBtn']){
+    const btn=$(id);
+    if(btn){
+      btn.disabled=!a;
+      btn.title=a?'':"Disponibile solo in modalità amministratore";
+    }
+  }
   const previewBtn=$('viewAsUserBtn');
   if(previewBtn){
     previewBtn.classList.toggle('hidden',!(realAdmin&&mine));

@@ -307,6 +307,9 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   const monthNames=['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const doctorFileName=doctor.toLowerCase().replace(/\b\w/g,ch=>ch.toUpperCase()).replace(/[^A-Za-zÀ-ÿ0-9 _-]+/g,'').trim()||'Medico';
   const pdfName=doctorFileName+' '+monthNames[Number(mo)]+' '+y+'.pdf';
+  const portalUrl='https://turnidolort.web.app/';
+  const portalUsername='nome.cognome@aulss3.veneto.it';
+  const portalPassword='123456';
   let w=reuseWindow||window.open('','_blank','width=900,height=900');
   if(!w)return alert('Consenti i popup e riprova.');
   if(reuseWindow)w.document.open();
@@ -328,6 +331,8 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     .weekendRow td{background:#fee2e2!important}
     .weekendRow.leaveRow td{background:#fff7cc!important}.changedRow td{background:#dbeafe!important;border-color:#2563eb!important;color:#1e3a8a!important;font-weight:700}.changedRow.leaveRow td{background:#fff7cc!important}.changedRow.weekendRow td{background:#fee2e2!important}.changedRow.weekendRow.leaveRow td{background:#fff7cc!important}
     .summary{margin:2px 0 8px;font-size:10px}
+    .loginInfo{margin:8px 0 2px;padding:7px 9px;border:1px solid #cbd5e1;background:#f8fafc;font-size:10px;line-height:1.45}
+    .loginInfo a{color:#1d4ed8;text-decoration:underline}
     .actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
     .actions button{padding:7px 14px;font-weight:700}
     #savePdf{background:#166534;color:#fff;border:1px solid #166534;border-radius:5px}
@@ -356,6 +361,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
     <div class="summary">Giornate lavorate: <b>${actuallyWorkedDates.size}</b> &nbsp;·&nbsp; Servizi lavorati: <b>${actuallyWorkedRows.length}</b> &nbsp;·&nbsp; Turni equivalenti 6h: <b>${serviceEquivalentTotal}</b> &nbsp;·&nbsp; Ferie: <b>${leaveEquivalentTotal}</b> &nbsp;·&nbsp; Disponibilità infrasettimanali: <b>${availabilityRows.length}</b></div>
     <div class="summary"><b>Turni totali: ${monthlyEquivalentTotal}</b> = turni equivalenti ${serviceEquivalentTotal} + ferie ${leaveEquivalentTotal} &nbsp;·&nbsp; <b>Target mese: ${monthlyTargetValue}</b></div>
     <div class="summary" id="monthlyRealHoursSummary"><b>ORE MENSILI TEORICHE: ${monthlyRealHoursLabel} h</b> &nbsp;·&nbsp; <b>ORE MENSILI ASSEGNATE: ${monthlyAssignedHoursLabel} h</b></div>
+    <div class="loginInfo"><b>Turni aggiornati su:</b> <a href="${portalUrl}" target="_blank">${portalUrl}</a><br><b>Username:</b> ${portalUsername}<br><b>Password:</b> ${portalPassword}</div>
 
     </div><div class="actions"><button id="printPage">STAMPA</button><button id="savePdf">SALVA PDF</button></div></div>
   </body></html>`);
@@ -429,6 +435,12 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
 
       yy-=13;
       text(x0,yy,8,'ORE MENSILI TEORICHE: '+monthlyRealHoursLabel+' h   |   ORE MENSILI ASSEGNATE: '+monthlyAssignedHoursLabel+' h',true);
+      yy-=18;
+      text(x0,yy,7.6,'Turni aggiornati su: '+portalUrl,true);
+      yy-=11;
+      text(x0,yy,7.6,'Username: '+portalUsername,false);
+      yy-=11;
+      text(x0,yy,7.6,'Password: '+portalPassword,false);
 
       const stream=ops.join('\n');
       const objs=[];

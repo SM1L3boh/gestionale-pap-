@@ -58,7 +58,7 @@ async function loadManualItems(){
 async function loadSchedule(){
   const byDate={};
   if(!doctorName)return byDate;
-  const snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{};
+  const snap=await getDoc(root),x=snap.exists()?snap.data():{},schedule=x.schedule||{},stcDates=new Set(x.stcPomDates||[]);
   const wanted=doctorName.trim().toUpperCase();
   for(const [k,n] of Object.entries(schedule)){
     if(String(n||'').trim().toUpperCase()!==wanted||!k.startsWith(viewMonth+'-'))continue;
@@ -67,6 +67,10 @@ async function loadSchedule(){
     byDate[date]??=[];
     if(svc==='ferie'){
       if(!byDate[date].some(x=>x.svc==='ferie'))byDate[date].push({svc,label:'FERIE',start:'',end:''});
+      continue;
+    }
+    if(svc==='op2'&&stcDates.has(date)){
+      if(!byDate[date].some(x=>x.svc==='stc'))byDate[date].push({svc:'stc',label:'STC Pomeriggio',start:'14:00',end:'20:00',kind:'pm'});
       continue;
     }
     const meta=serviceMeta[svc]||[svc.toUpperCase(),'','','other'];

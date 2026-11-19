@@ -8,12 +8,12 @@ const db=getFirestore(fb);
 const root=doc(db,'gestionale','dati');
 
 const AM=new Set(['gessi','reparto','amb','esami','op1','op2']);
-const PM=new Set(['giorno','gessirep','oppom']);
+const PM=new Set(['giorno','gessirep','oppom','stc']);
 const REQUIRED=new Set(['guardia','gessi','gessirep','reparto','amb','esami','op1','op2','oppom']);
 const LABELS={
   guardia:'GUARDIA NOTT.',giorno:'INTERD',disp1:'1ª DISP.',disp2:'2ª DISP.',
   gessi:'GESSI MAT',gessirep:'GESSI+REP POM',reparto:'REPARTO',amb:'AMBULATORIO',
-  esami:'AMB ESAMI',op1:'OP1 MAT',op2:'OP2 MAT',oppom:'OP POM',ferie:'FERIE'
+  esami:'AMB ESAMI',op1:'OP1 MAT',op2:'OP2 MAT',oppom:'OP POM',stc:'STC Pomeriggio',ferie:'FERIE'
 };
 const FIXED_RULES={
   VIALE:{freePm:[3]},
@@ -39,7 +39,7 @@ function monthEquivalent(a,name,m){return assignments(a,name,p=>p.ds.startsWith(
 
 function shiftDay(ds,delta){const d=dayObj(ds);d.setDate(d.getDate()+delta);return d.toISOString().slice(0,10)}
 function weekKey(ds){const d=dayObj(ds),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
-function hours(s,ds){return window.TurniCountRules.equivalents(s,ds)*6;}
+function hours(s,ds){if(s==='stc')return 6;return window.TurniCountRules.equivalents(s,ds)*6;}
 function workedHours(s,ds){
   // La disponibilità è reperibilità, non servizio effettivamente lavorato.
   if(s==='ferie')return 0;
@@ -53,6 +53,16 @@ function scheduleFromDom(base={}){
     if(v&&v!=='NESSUNO')a[k]=v; else delete a[k];
   });
   return a;
+}
+function normalizeStc(a,stcDates=[]){
+  const out={...a},set=new Set(stcDates||[]);
+  for(const [k,v] of Object.entries(a)){
+    const p=parts(k);
+    if(p.s!=='op2'||!set.has(p.ds)||!v||v==='NESSUNO')continue;
+    delete out[k];
+    out[p.ds+'|stc|'+p.i]=v;
+  }
+  return out;
 }
 function doctorMap(doctors){return new Map((doctors||[]).map(d=>[d.name,d]))}
 function assignments(a,name,filter=()=>true){
@@ -438,7 +448,7 @@ async function runAudit(){
   $('validatorInfo').textContent='Controllo in corso…';
   $('validatorTable').innerHTML='';
   const snap=await getDoc(root),x=snap.exists()?snap.data():{};
-  const a=scheduleFromDom(x.schedule||{});
+  const a=normalizeStc(scheduleFromDom(x.schedule||{}),x.stcPomDates||[]);
   const items=audit(a,x.absenceManagement||{},x.doctors||[],m);
   markAnomalies(items);
   if(!items.length){
@@ -461,9 +471,11 @@ async function validateManualChange(sel){
   const k=sel.dataset.k,newVal=sel.value;
   if(!k||!newVal||newVal==='NESSUNO')return true;
   const snap=await getDoc(root),x=snap.exists()?snap.data():{};
-  const a=scheduleFromDom(x.schedule||{});
+  let a=scheduleFromDom(x.schedule||{});
   a[k]=newVal;
-  const {ds,s}=parts(k);
+  const original=parts(k),flaggedStc=original.s==='op2'&&new Set(x.stcPomDates||[]).has(original.ds);
+  a=normalizeStc(a,x.stcPomDates||[]);
+  const ds=original.ds,s=flaggedStc?'stc':original.s;
 
   // Vincolo assoluto: mai due servizi nella stessa fascia oraria,
   // neppure con inserimento manuale forzato.
@@ -472,7 +484,8 @@ async function validateManualChange(sel){
     return false;
   }
 
-  const issues=assignmentIssues(a,x.absenceManagement||{},x.doctors||[],newVal,k);
+  const effectiveKey=flaggedStc?(ds+'|stc|'+original.i):k;
+  const issues=assignmentIssues(a,x.absenceManagement||{},x.doctors||[],newVal,effectiveKey);
   if(!issues.length)return true;
   const msg='ATTENZIONE — inserimento manuale\n\n'+newVal+' · '+ds+' · '+(LABELS[s]||s)+'\n\n'+
     issues.map((x,i)=>(i+1)+'. '+x).join('\n')+

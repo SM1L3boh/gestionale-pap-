@@ -16,7 +16,9 @@ const RULES={
 'ARMATO':{manual:true}
 };
 const rule=d=>RULES[d?.name]||{},manualOnly=d=>d?.cat==='Contratto'||!!rule(d).manual;
-async function cloud(){let s=await getDoc(root);return s.exists()?s.data():{}}
+let STC_DATES=new Set();
+const shiftBand=(s,ds)=>s==='op2'&&STC_DATES.has(ds)?'pm':AM.includes(s)?'am':PM.includes(s)?'pm':'';
+async function cloud(){let s=await getDoc(root),x=s.exists()?s.data():{};STC_DATES=new Set(x.stcPomDates||[]);return x}
 function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return new Date(y,mo-1,da,12)}
 function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(f.has(md))return true;let p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function workTarget(m){let[y,mo]=m.split('-').map(Number),n=0,z=new Date(y,mo,0).getDate();for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()!==0&&!holiday(x))n++}return n}
@@ -60,8 +62,8 @@ function consecutiveRuleBlocked(a,d,s,ds){
   if(AM.includes(s))return wouldCreateConsecutive(a,d.name,ds,x=>x===s,3);
   return false;
 }
-function hasBand(a,n,ds,band){let set=band==='am'?AM:PM;return Object.entries(a).some(([k,v])=>v===n&&k.startsWith(ds+'|')&&set.includes(k.split('|')[1]))}
-function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|');if(wk(x)===W&&DAY.includes(s)){d[x]??={am:false,pm:false};if(AM.includes(s))d[x].am=true;if(PM.includes(s))d[x].pm=true}}return Object.values(d).filter(x=>x.am&&x.pm).length}
+function hasBand(a,n,ds,band){return Object.entries(a).some(([k,v])=>{if(v!==n||!k.startsWith(ds+'|'))return false;const[x,s]=k.split('|');return shiftBand(s,x)===band})}
+function doubles(a,n,ds){let W=wk(ds),d={};for(const[k,v]of Object.entries(a))if(v===n){let[x,s]=k.split('|'),band=shiftBand(s,x);if(wk(x)===W&&band){d[x]??={am:false,pm:false};if(band==='am')d[x].am=true;if(band==='pm')d[x].pm=true}}return Object.values(d).filter(x=>x.am&&x.pm).length}
 function guard(a,ds,n){return a[K(ds,'guardia',0)]===n}function prev(ds){return shiftDay(ds,-1)}
 function weekendContinuityRest(a,n,ds){
   const w=new Date(ds+'T12:00:00').getDay();
@@ -78,7 +80,7 @@ function weekendContinuityRest(a,n,ds){
 function freePm(d,w){return(d?.constraints?.freePm||RULES[d?.name]?.freePm||[]).includes(w)}
 function preferFreePm(d,w){return(d?.constraints?.preferFreePm||RULES[d?.name]?.preferFreePm||[]).includes(w)}
 function eligible(d,s,dt,force=false){let n=d.name,w=dt.getDay(),r=rule(d);if(manualOnly(d))return false;if(r.days&&!r.days.includes(w))return false;if(r.services&&!r.services.includes(s))return false;if(!force&&PM.includes(s)&&freePm(d,w))return false;return d.cat==='Strutturato'||n==='CIPRIAN'}
-function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;if(AM.includes(s)){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(PM.includes(s)){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
+function can(a,d,s,ds,m,extra=false,force=false){let dt=new Date(ds+'T12:00:00'),n=d.name;if(leave(a,ds,n)||guard(a,ds,n)||guard(a,prev(ds),n)||weekendContinuityRest(a,n,ds)||!eligible(d,s,dt,force)||consecutiveRuleBlocked(a,d,s,ds))return false;let weeklyCap=Math.min(Number(d.hours)||36,36);if(weekHours(a,n,ds)+hrs(s,dt)>weeklyCap)return false;const band=shiftBand(s,ds);if(band==='am'){if(hasBand(a,n,ds,'am'))return false;if(hasBand(a,n,ds,'pm')&&doubles(a,n,ds)>=1)return false}if(band==='pm'){if(hasBand(a,n,ds,'pm'))return false;if(hasBand(a,n,ds,'am')&&doubles(a,n,ds)>=1)return false}return true}
 function assign(a,g,e,k,n,x=false){a[k]=n;g.add(k);x?e.add(k):e.delete(k)}
 function clear(a,g,e,m,doctors,protectedKeys){let contracts=new Set(doctors.filter(manualOnly).map(d=>d.name));for(const k of [...g])if(k.startsWith(m+'-')){if(protectedKeys.has(k)||contracts.has(a[k])){g.delete(k);e.delete(k);continue}delete a[k];g.delete(k);e.delete(k)}}
 function slots(s){return['gessi','amb','gessirep','esami'].includes(s)?[0]:[0,1]}

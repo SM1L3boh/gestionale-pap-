@@ -23,7 +23,7 @@ function easter(y){let a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function holiday(dt){let md=`${dt.getMonth()+1}-${dt.getDate()}`,f=new Set(['1-1','1-6','4-25','5-1','6-2','8-15','8-16','11-1','12-8','12-25','12-26']);if(f.has(md))return true;let p=easter(dt.getFullYear());p.setDate(p.getDate()+1);return p.toDateString()===dt.toDateString()}
 function workTarget(m){let[y,mo]=m.split('-').map(Number),n=0,z=new Date(y,mo,0).getDate();for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()!==0&&!holiday(x))n++}return n}
 function target(n,m){if(n==='CIPRIAN'){let[y,mo]=m.split('-').map(Number),z=new Date(y,mo,0).getDate(),q=0;for(let d=1;d<=z;d++){let x=new Date(y,mo-1,d,12);if(x.getDay()>=1&&x.getDay()<=5&&!holiday(x))q++}return q}return workTarget(m)+1}
-function hrs(s,dt){return s==='ferie'?window.TurniCountRules.equivalents(s,dt)*6:window.TurniCountRules.workHours(s,dt)}
+function hrs(s,dt){const ds=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;if(s==='op2'&&STC_DATES.has(ds))return 6;return s==='ferie'?window.TurniCountRules.equivalents(s,dt)*6:window.TurniCountRules.workHours(s,dt)}
 function workedHrs(s,dt){if(s==='ferie')return 0;return hrs(s,dt)}
 function leave(a,ds,n){return[0,1,2,3].some(i=>a[K(ds,'ferie',i)]===n)}
 function wk(ds){let d=new Date(ds+'T12:00:00'),w=d.getDay()||7;d.setDate(d.getDate()-w+1);return d.toISOString().slice(0,10)}
@@ -38,8 +38,8 @@ function triMonths(m){return[m,...prevMonths(m)]}
 function triOpCount(a,n,m){if(!hasPrevHistory(a,m))return orCount(a,n,m);let ms=triMonths(m),q=0;for(const[k,v]of Object.entries(a))if(v===n&&ms.some(x=>k.startsWith(x+'-'))&&OR.includes(k.split('|')[1]))q++;return q}
 function triEqCount(a,n,m){if(!hasPrevHistory(a,m))return monthEq(a,n,m);let ms=triMonths(m),q=0;for(const[k,v]of Object.entries(a))if(v===n&&ms.some(x=>k.startsWith(x+'-'))){let[ds,s]=k.split('|');q+=hrs(s,new Date(ds+'T12:00:00'))/6}return q}
 function triPenalty(doctors,a,n,m,kind){if(!hasPrevHistory(a,m))return 0;let ss=doctors.filter(d=>d.cat==='Strutturato'&&!manualOnly(d)),vals=ss.map(d=>(kind==='op'?triOpCount:triEqCount)(a,d.name,m)),v=(kind==='op'?triOpCount:triEqCount)(a,n,m)+1,others=ss.filter(d=>d.name!==n).map(d=>(kind==='op'?triOpCount:triEqCount)(a,d.name,m));let all=[...others,v],spread=Math.max(...all)-Math.min(...all);return Math.max(0,spread-4)}
-function opMatCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&['op1','op2'].includes(k.split('|')[1]))q++;return q}
-function opPomCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')&&k.split('|')[1]==='oppom')q++;return q}
+function opMatCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')){let[ds,s]=k.split('|');if(s==='op1'||(s==='op2'&&!STC_DATES.has(ds)))q++}return q}
+function opPomCount(a,n,m){let q=0;for(const[k,v]of Object.entries(a))if(v===n&&k.startsWith(m+'-')){let[ds,s]=k.split('|');if(s==='oppom'||(s==='op2'&&STC_DATES.has(ds)))q++}return q}
 function serviceGroup(s){return['op1','op2'].includes(s)?'opmat':s}
 function serviceMatches(s,g){return g==='opmat'?['op1','op2'].includes(s):s===g}
 function triServiceCount(a,n,m,s){let ms=triMonths(m),g=serviceGroup(s),q=0;for(const[k,v]of Object.entries(a))if(v===n&&ms.some(x=>k.startsWith(x+'-'))&&serviceMatches(k.split('|')[1],g))q++;return q}

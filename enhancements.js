@@ -144,6 +144,7 @@ async function printMyShifts(doctorOverride='',autoSave=false,reuseWindow=null){
   for(const[q,n]of Object.entries(schedule)){
     if(n!==doctor||!q.startsWith(month+'-'))continue;
     let[ds,s]=q.split('|');
+    if(s==='op2'&&stcDates.has(ds))continue;
     if(!personalServiceAllowed(ds,s))continue;
     if(s==='ferie'){leaveDates.add(ds);continue;}
     rows.push({ds,s});

@@ -108,6 +108,19 @@ function bindAgendaColorButtons(){
   });
   updateAgendaColorButtons();
 }
+async function persistAgendaDone(){
+  const id=$('agendaEditId')?.value;
+  if(!id||!currentUser)return;
+  const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
+  const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).map(x=>({...x}));
+  const idx=all.findIndex(x=>x?.id===id);
+  if(idx<0)return;
+  all[idx]={...all[idx],done:!!$('agendaDone')?.checked,updatedAt:new Date().toISOString()};
+  await setDoc(ref,{agendaItems:all},{merge:true});
+  const localIdx=manualItems.findIndex(x=>x?.id===id);
+  if(localIdx>=0)manualItems[localIdx]={...manualItems[localIdx],done:!!$('agendaDone')?.checked};
+}
+
 function ensureAgendaFormControls(){
   bindAgendaColorButtons();
   ['agendaStartHour','agendaStartMinute','agendaEndHour','agendaEndMinute'].forEach(id=>{
@@ -117,6 +130,16 @@ function ensureAgendaFormControls(){
       el.addEventListener('change',syncHiddenTimes);
     }
   });
+  const done=$('agendaDone');
+  if(done&&!done.dataset.bound){
+    done.dataset.bound='1';
+    done.addEventListener('change',()=>{
+      persistAgendaDone().catch(e=>{
+        console.error('Agenda: errore salvataggio ESEGUITO',e);
+        alert('Errore salvataggio ESEGUITO: '+e.message);
+      });
+    });
+  }
   let del=$('agendaDeleteEdit');
   const actions=document.querySelector('#agendaForm .agendaFormActions');
   if(!del&&actions){

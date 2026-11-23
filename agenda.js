@@ -190,7 +190,7 @@ async function render(){
   for(let d=1;d<=days;d++){
     const date=dsFrom(y,m,d),dt=new Date(y,m-1,d,12),weekend=[0,6].includes(dt.getDay()),today=new Date(),todayDs=dsFrom(today.getFullYear(),today.getMonth()+1,today.getDate()),isToday=date===todayDs;
     const hospital=(shifts[date]||[]).slice().sort((a,b)=>(shiftOrder[a.kind]||99)-(shiftOrder[b.kind]||99)).map(s=>`<div class="agendaEvent agendaShift agendaShift-${esc(s.kind||'other')}"><span class="agendaEventTime">${esc(s.start?(s.start+'–'+s.end):'')}</span> ${esc(s.label)}</div>`).join('');
-    const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow','blue'].includes(i.color)?i.color:'red';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
+    const extra=(manualByDate[date]||[]).map(i=>{const color=['green','yellow','blue'].includes(i.color)?i.color:'red',doneClass=i.done?' agendaPersonalDone':'';return `<div class="agendaEvent agendaPersonal agendaPersonal-${color}${doneClass}" data-agenda-open="${i.id}"><span class="agendaEventTime">${esc(itemTime(i))}</span> ${esc(i.title)}</div>`}).join('');
     html+=`<tr class="${weekend?'agendaWeekendRow ':''}${isToday?'agendaTodayRow':''}">
       <td class="agendaDayCell">${wd[dt.getDay()]} ${d}</td>
       <td class="agendaHospitalCell">${hospital||'<span class="small">—</span>'}</td>

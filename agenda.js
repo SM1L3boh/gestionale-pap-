@@ -184,6 +184,7 @@ function resetForm(){
   $('agendaFormTitle').textContent='Nuovo impegno';
   $('agendaForm').reset();
   if($('agendaColor'))$('agendaColor').value='red';
+  if($('agendaDone'))$('agendaDone').checked=false;
   updateAgendaColorButtons();
   setTimeParts('agendaStart','');
   setTimeParts('agendaEnd','');
@@ -201,6 +202,7 @@ function editItem(id){
   $('agendaTitleInput').value=i.title||'';
   $('agendaNotes').value=i.notes||'';
   if($('agendaColor'))$('agendaColor').value=['green','yellow','blue'].includes(i.color)?i.color:'red';
+  if($('agendaDone'))$('agendaDone').checked=!!i.done;
   updateAgendaColorButtons();
   $('agendaFormTitle').textContent='Modifica impegno';
   ensureAgendaFormControls();
@@ -223,7 +225,7 @@ async function saveItem(e){
   if(!date||!title)return;
   const payload={
     date,month:date.slice(0,7),start:$('agendaStart').value||'',end:$('agendaEnd').value||'',
-    title,notes:$('agendaNotes').value.trim(),color:($('agendaColor')?.value||'red'),updatedAt:new Date().toISOString()
+    title,notes:$('agendaNotes').value.trim(),color:($('agendaColor')?.value||'red'),done:!!$('agendaDone')?.checked,updatedAt:new Date().toISOString()
   };
   const ref=doc(db,'users',currentUser.uid),ps=await getDoc(ref),p=ps.exists()?ps.data():{};
   const all=(Array.isArray(p.agendaItems)?p.agendaItems:[]).map(x=>({...x}));
